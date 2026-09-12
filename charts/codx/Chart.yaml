@@ -1,0 +1,14 @@
+apiVersion: v2
+name: codx
+description: CodX — per-user code-server workspaces on Kubernetes with OIDC auth and mTLS
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - code-server
+  - ide
+  - workspace
+  - oidc
+  - mtls
+maintainers:
+  - name: CodX

@@ -1,0 +1,83 @@
+{{- if .Values.mtlsCA.createSelfSigned -}}
+# Self-signed CA Issuer for mTLS between CodX and workspace pods.
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ include "codx.fullname" . }}-ca-issuer
+  labels:
+    {{- include "codx.labels" . | nindent 4 }}
+spec:
+  selfSigned: {}
+---
+# The CA root certificate used by both CodX client cert and workspace certs.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "codx.fullname" . }}-ca
+  labels:
+    {{- include "codx.labels" . | nindent 4 }}
+spec:
+  isCA: true
+  commonName: {{ include "codx.fullname" . }}-ca
+  secretName: {{ include "codx.fullname" . }}-ca-tls
+  duration: 87600h  # 10 years
+  renewBefore: 720h
+  issuerRef:
+    name: {{ include "codx.fullname" . }}-ca-issuer
+    kind: Issuer
+    group: cert-manager.io
+---
+# Issuer backed by the CA, used to issue CodX server/client certs and
+# workspace certificates.
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ .Values.certManager.issuerName }}
+  labels:
+    {{- include "codx.labels" . | nindent 4 }}
+spec:
+  ca:
+    secretName: {{ include "codx.fullname" . }}-ca-tls
+{{- end -}}
+
+---
+# CodX server certificate (TLS for the CodX HTTPS server).
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "codx.fullname" . }}-server
+  labels:
+    {{- include "codx.labels" . | nindent 4 }}
+spec:
+  commonName: {{ include "codx.fullname" . }}
+  dnsNames:
+    - {{ include "codx.fullname" . }}
+    - {{ include "codx.fullname" . }}.{{ include "codx.namespace" . }}
+    - {{ include "codx.fullname" . }}.{{ include "codx.namespace" . }}.svc
+    - {{ include "codx.fullname" . }}.{{ include "codx.namespace" . }}.svc.cluster.local
+  secretName: {{ include "codx.fullname" . }}-server-tls
+  duration: {{ .Values.certManager.validity }}
+  renewBefore: {{ .Values.certManager.renewal }}
+  issuerRef:
+    name: {{ .Values.certManager.issuerName }}
+    kind: {{ .Values.certManager.issuerType }}
+    group: {{ .Values.certManager.issuerGroup }}
+---
+# CodX client certificate (mTLS to workspace nginx sidecars).
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "codx.fullname" . }}-client
+  labels:
+    {{- include "codx.labels" . | nindent 4 }}
+spec:
+  commonName: {{ include "codx.fullname" . }}-client
+  secretName: {{ include "codx.fullname" . }}-client-tls
+  duration: {{ .Values.certManager.validity }}
+  renewBefore: {{ .Values.certManager.renewal }}
+  usages:
+    - client auth
+  issuerRef:
+    name: {{ .Values.certManager.issuerName }}
+    kind: {{ .Values.certManager.issuerType }}
+    group: {{ .Values.certManager.issuerGroup }}

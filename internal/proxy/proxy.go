@@ -36,11 +36,11 @@ type Config struct {
 }
 
 // New creates a WorkspaceProxy for the given workspace service FQDN.
-// The workspace's nginx sidecar listens on :443.
+// The workspace's nginx sidecar listens on :9443.
 func New(workspaceFQDN string, cfg Config) (*WorkspaceProxy, error) {
 	target := &url.URL{
 		Scheme: "https",
-		Host:   workspaceFQDN + ":443",
+		Host:   workspaceFQDN + ":9443",
 	}
 
 	tlsConfig, err := buildTLSConfig(cfg)
@@ -65,7 +65,7 @@ func New(workspaceFQDN string, cfg Config) (*WorkspaceProxy, error) {
 
 	return &WorkspaceProxy{
 		reverseProxy: rp,
-		targetFQDN:  workspaceFQDN,
+		targetFQDN:   workspaceFQDN,
 	}, nil
 }
 

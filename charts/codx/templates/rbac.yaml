@@ -1,0 +1,55 @@
+{{- if .Values.rbac.create -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "codx.fullname" . }}
+  labels:
+    {{- include "codx.labels" . | nindent 4 }}
+rules:
+  # Pods: create, get, list, watch, delete (workspace lifecycle)
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["create", "get", "list", "watch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get", "list"]
+  # Services: create, get, list, delete
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["create", "get", "list", "delete"]
+  # PVCs: create, get, list, update, delete
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["create", "get", "list", "update", "delete"]
+  # ConfigMaps: get (nginx config)
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list"]
+  # Secrets: get, list, delete (TLS secrets for workspaces)
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "delete"]
+  # Profiles CRD: get, list, watch
+  - apiGroups: ["codx.io"]
+    resources: ["profiles"]
+    verbs: ["get", "list", "watch"]
+  # cert-manager Certificates: create, get, list, delete
+  - apiGroups: ["cert-manager.io"]
+    resources: ["certificates"]
+    verbs: ["create", "get", "list", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "codx.fullname" . }}
+  labels:
+    {{- include "codx.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "codx.fullname" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "codx.serviceAccountName" . }}
+    namespace: {{ include "codx.namespace" . }}
+{{- end -}}

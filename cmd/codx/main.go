@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/captnbp/CodX/internal/config"
+	"github.com/captnbp/CodX/internal/inactivity"
 	"github.com/captnbp/CodX/internal/k8s"
 	"github.com/captnbp/CodX/internal/oidc"
 	"github.com/captnbp/CodX/internal/session"
@@ -77,16 +78,24 @@ func run(configPath string) error {
 	defer store.Close()
 
 	// Set up the Kubernetes clientset.
-	// TODO(Phase 5): use real client-go clients loaded from in-cluster config.
-	// For now, we need at least the ProfileStore to serve the profile picker.
+	// TODO: use real client-go clients loaded from in-cluster config.
 	clientset := &k8s.Clientset{}
 
 	// Set up the profile store.
 	profileStore := k8s.NewProfileStore()
-	_ = profileStore // TODO(Phase 5): load profiles via informer
+	_ = profileStore // TODO: load profiles via informer
 
 	// Set up the workspace manager.
 	wm := k8s.NewWorkspaceManager(clientset, cfg)
+
+	// Set up the inactivity watcher.
+	checkInterval, _ := time.ParseDuration(cfg.Inactivity.CheckInterval)
+	if checkInterval == 0 {
+		checkInterval = 60 * time.Second
+	}
+	activitySource := inactivity.NewLogTailActivity()
+	watcher := inactivity.NewWatcher(activitySource, wm.StopWorkspace, checkInterval, log)
+	go watcher.Run(ctx)
 
 	// Set up the web server.
 	webServer := web.New(cfg, auth, store, profileStore, wm, nil)

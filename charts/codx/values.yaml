@@ -1,0 +1,124 @@
+# CodX Helm Chart Values
+
+# -- CodX image configuration
+image:
+  repository: ghcr.io/captnbp/codx
+  tag: ""
+  pullPolicy: IfNotPresent
+
+# -- Number of CodX replicas (scalable, sessions shared via Redis)
+replicaCount: 2
+
+# -- CodX instance name (defaults to release name, used in workspace object names)
+instanceName: ""
+
+# -- Namespace where CodX creates workspace objects (defaults to the release namespace)
+namespace: ""
+
+# -- CodX HTTP server
+http:
+  listenAddr: ":8443"
+  # TLS cert/key paths (mounted from cert-manager)
+  tlsCertFile: /tls/tls.crt
+  tlsKeyFile: /tls/tls.key
+
+# -- OIDC authentication
+oidc:
+  issuer: ""
+  clientId: ""
+  clientSecret: ""
+  redirectUrl: ""
+  groupClaimName: groups
+  adminGroup: codx-admins
+  usernameClaimName: preferred_username
+
+# -- Redis/Valkey session store
+redis:
+  host: ""
+  password: ""
+  db: 0
+  # Name of a secret containing the Redis TLS CA cert. If set, TLS is enabled.
+  caSecretName: ""
+
+# -- cert-manager parameters for workspace certificates
+certManager:
+  issuerType: Issuer
+  issuerGroup: cert-manager.io
+  issuerName: codx-workspace-issuer
+  renewal: 720h
+  validity: 2160h
+
+# -- TLS paths in the CodX pod
+tls:
+  serverCertDir: /tls
+  clientCertDir: /tls/client
+  caDir: /tls
+
+# -- Username slug configuration
+slug:
+  usernameField: preferred_username
+  maxLength: 63
+
+# -- Inactivity watcher
+inactivity:
+  signal: log-tail
+  checkInterval: 60s
+
+# -- Ingress configuration
+ingress:
+  enabled: true
+  className: nginx
+  # FQDN of the CodX service (used for cert-manager certificate SANs)
+  host: codx.example.com
+  # TLS secret name for the ingress. If using cert-manager, set issuerRef.
+  tlsSecretName: codx-ingress-tls
+  # cert-manager issuer for the ingress certificate
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+    group: cert-manager.io
+
+# -- RBAC
+rbac:
+  create: true
+
+# -- Service account
+serviceAccount:
+  create: true
+  name: ""
+
+# -- Pod resources
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# -- Pod security context
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  fsGroup: 65532
+
+# -- Container security context
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+# -- Node selector, tolerations, affinity
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# -- cert-manager CA for mTLS (shared CA for CodX client cert and workspace certs)
+mtlsCA:
+  # If true, the chart creates a self-signed CA issuer for mTLS.
+  # Set to false to use an existing issuer.
+  createSelfSigned: true
+  # Name of the CA issuer to use (if createSelfSigned is false)
+  existingIssuerName: ""

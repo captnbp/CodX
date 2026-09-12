@@ -1,0 +1,66 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: codx-nginx
+  labels:
+    {{- include "codx.labels" . | nindent 4 }}
+data:
+  nginx.conf: |
+    worker_processes auto;
+    pid /tmp/nginx.pid;
+
+    events {
+        worker_connections 1024;
+    }
+
+    http {
+        # TLS 1.3 only with modern ciphers
+        ssl_protocols TLSv1.3;
+        ssl_prefer_server_ciphers on;
+        ssl_ciphers TLS_AES_256_GCM_SHA384:TLS_AES_128_GCM_SHA256:TLS_CHACHA20_POLY1305_SHA256;
+
+        # Client certificate verification (mTLS)
+        ssl_client_certificate /tls/ca.crt;
+        ssl_verify_client on;
+        ssl_verify_depth 2;
+
+        # Access log with timestamps (used by CodX inactivity watcher)
+        log_format codx '$remote_addr - $remote_user [$time_iso8601] '
+                        '"$request" $status $body_bytes_sent '
+                        '"$http_referer" "$http_user_agent" rt=$request_time';
+        access_log /dev/stdout codx;
+        error_log /dev/stderr warn;
+
+        # code-server backend listens on localhost:8080
+        upstream code-server {
+            server 127.0.0.1:8080;
+        }
+
+        server {
+            listen 9443 ssl http2;
+            server_name _;
+
+            # Workspace TLS certificate (mounted from cert-manager secret)
+            ssl_certificate /tls/tls.crt;
+            ssl_certificate_key /tls/tls.key;
+
+            # WebSocket support for code-server
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+
+            # Large timeouts for long-running WebSocket sessions
+            proxy_read_timeout 3600s;
+            proxy_send_timeout 3600s;
+            proxy_buffering off;
+
+            location / {
+                proxy_pass http://code-server;
+            }
+        }
+    }

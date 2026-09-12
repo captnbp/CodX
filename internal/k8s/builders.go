@@ -17,11 +17,11 @@ import (
 
 // Common labels for all workspace objects.
 const (
-	LabelInstance   = "app.kubernetes.io/instance"
-	LabelManagedBy  = "app.kubernetes.io/managed-by"
-	LabelName       = "app.kubernetes.io/name"
-	LabelComponent  = "app.kubernetes.io/component"
-	ComponentName   = "workspace"
+	LabelInstance  = "app.kubernetes.io/instance"
+	LabelManagedBy = "app.kubernetes.io/managed-by"
+	LabelName      = "app.kubernetes.io/name"
+	LabelComponent = "app.kubernetes.io/component"
+	ComponentName  = "workspace"
 )
 
 // workspaceLabels returns the standard label set for a workspace object.
@@ -56,8 +56,8 @@ func BuildService(instance, slug, namespace string, profile *profilev1.Profile) 
 			Ports: []corev1.ServicePort{
 				{
 					Name:       "https",
-					Port:       443,
-					TargetPort: intstr.FromInt(443),
+					Port:       9443,
+					TargetPort: intstr.FromInt(9443),
 					Protocol:   corev1.ProtocolTCP,
 				},
 			},
@@ -179,10 +179,10 @@ func buildContainers(profile *profilev1.Profile, objName string) []corev1.Contai
 	// Main code-server container.
 	main := corev1.Container{
 		Name:         "code-server",
-		Image:         profile.Spec.PodSpec.Image,
-		Resources:     profile.Spec.PodSpec.Resources,
-		VolumeMounts:  profile.Spec.PodSpec.VolumeMounts,
-		Env:           profile.Spec.PodSpec.Env,
+		Image:        profile.Spec.PodSpec.Image,
+		Resources:    profile.Spec.PodSpec.Resources,
+		VolumeMounts: profile.Spec.PodSpec.VolumeMounts,
+		Env:          profile.Spec.PodSpec.Env,
 	}
 	if len(profile.Spec.PodSpec.Command) > 0 {
 		main.Command = profile.Spec.PodSpec.Command
@@ -203,7 +203,7 @@ func buildContainers(profile *profilev1.Profile, objName string) []corev1.Contai
 		Name:  "nginx-tls",
 		Image: "nginx:1.27-alpine",
 		Ports: []corev1.ContainerPort{
-			{ContainerPort: 443, Name: "https", Protocol: corev1.ProtocolTCP},
+			{ContainerPort: 9443, Name: "https", Protocol: corev1.ProtocolTCP},
 		},
 		VolumeMounts: []corev1.VolumeMount{
 			{Name: "tls", MountPath: "/tls", ReadOnly: true},

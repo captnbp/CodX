@@ -1,0 +1,109 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "codx.fullname" . }}
+  labels:
+    {{- include "codx.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "codx.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: server
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "codx.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: server
+    spec:
+      serviceAccountName: {{ include "codx.serviceAccountName" . }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: codx
+          image: {{ include "codx.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - -config
+            - /etc/codx/config.yaml
+          ports:
+            - name: https
+              containerPort: 8443
+              protocol: TCP
+          env:
+            - name: CODX_OIDC_CLIENT_SECRET
+              {{- if .Values.oidc.clientSecret }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "codx.fullname" . }}-oidc
+                  key: clientSecret
+              {{- end }}
+            - name: CODX_REDIS_PASSWORD
+              {{- if .Values.redis.password }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "codx.fullname" . }}-redis
+                  key: redisPassword
+              {{- end }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/codx
+              readOnly: true
+            - name: tls-server
+              mountPath: /tls
+              readOnly: true
+            - name: tls-client
+              mountPath: /tls/client
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: https
+              scheme: HTTPS
+            initialDelaySeconds: 5
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: https
+              scheme: HTTPS
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "codx.fullname" . }}
+        - name: tls-server
+          secret:
+            secretName: {{ include "codx.fullname" . }}-server-tls
+        - name: tls-client
+          secret:
+            secretName: {{ include "codx.fullname" . }}-client-tls
+        - name: tmp
+          emptyDir: {}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

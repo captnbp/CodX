@@ -68,7 +68,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/profiles", s.handleListProfiles)
 	mux.HandleFunc("/api/workspace/start", s.handleStartWorkspace)
 	mux.HandleFunc("/api/workspace/stop", s.handleStopWorkspace)
+	mux.HandleFunc("/api/workspace/restart", s.handleRestartWorkspace)
 	mux.HandleFunc("/api/workspace/status", s.handleWorkspaceStatus)
+	mux.HandleFunc("/api/admin/users", s.handleAdminListUsers)
+	mux.HandleFunc("/api/admin/users/", s.handleAdminUserAction)
+	mux.HandleFunc("/admin", s.handleAdminUI)
 	mux.HandleFunc("/user/", s.handleProxy)
 
 	// Root serves the profile picker page.
@@ -358,9 +362,11 @@ func (s *Server) handleStartWorkspace(w http.ResponseWriter, r *http.Request) {
 
 	// Wait for the pod to be ready.
 	sendStep("Waiting for workspace pod to be ready...")
-	// TODO(Phase 5): poll pod readiness. For now, we assume the pod is
-	// ready once the certificate is issued and the objects are created.
-	// In Phase 5 we'll add a WaitForPodReady method.
+	if err := s.workspaces.WaitForPodReady(r.Context(), sess.Slug, 5*time.Second); err != nil {
+		sendError(fmt.Sprintf("Pod not ready: %v", err))
+		return
+	}
+	sendStep("Workspace pod is ready.")
 
 	workspaceURL := fmt.Sprintf("/user/%s/", sess.Slug)
 	sendStep("Workspace is ready!")
