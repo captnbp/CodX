@@ -93,12 +93,14 @@ func newFakeOIDCServerWithClaims(t *testing.T, clientID string, claims map[strin
 		}
 		idToken := f.makeIDToken(claims)
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
+		if err := json.NewEncoder(w).Encode(map[string]any{
 			"access_token": "fake-access-token",
 			"token_type":   "Bearer",
 			"expires_in":   3600,
 			"id_token":     idToken,
-		})
+		}); err != nil {
+			f.t.Fatalf("encode token response: %v", err)
+		}
 	})
 	_ = origHandler
 	f.server.Config.Handler = mux
@@ -112,14 +114,16 @@ func (f *fakeOIDCServer) issuer() string {
 
 func (f *fakeOIDCServer) handleDiscovery(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{
+	if err := json.NewEncoder(w).Encode(map[string]any{
 		"issuer":                                f.server.URL,
 		"authorization_endpoint":                 f.server.URL + "/auth",
 		"token_endpoint":                         f.server.URL + "/token",
 		"jwks_uri":                               f.server.URL + "/jwks",
 		"id_token_signing_alg_values_supported": []string{"ES256"},
 		"response_types_supported":               []string{"code"},
-	})
+	}); err != nil {
+		f.t.Fatalf("encode discovery: %v", err)
+	}
 }
 
 func (f *fakeOIDCServer) handleAuth(w http.ResponseWriter, r *http.Request) {
@@ -140,17 +144,21 @@ func (f *fakeOIDCServer) handleToken(w http.ResponseWriter, r *http.Request) {
 	})
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{
+	if err := json.NewEncoder(w).Encode(map[string]any{
 		"access_token": "fake-access-token",
 		"token_type":   "Bearer",
 		"expires_in":   3600,
 		"id_token":     idToken,
-	})
+	}); err != nil {
+		f.t.Fatalf("encode token response: %v", err)
+	}
 }
 
 func (f *fakeOIDCServer) handleJWKS(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(jose.JSONWebKeySet{Keys: []jose.JSONWebKey{f.jwk.Public()}})
+	if err := json.NewEncoder(w).Encode(jose.JSONWebKeySet{Keys: []jose.JSONWebKey{f.jwk.Public()}}); err != nil {
+		f.t.Fatalf("encode JWKS: %v", err)
+	}
 }
 
 func (f *fakeOIDCServer) makeIDToken(claims map[string]any) string {
