@@ -1,6 +1,6 @@
 module github.com/captnbp/CodX
 
-go 1.26.5
+go 1.26.8
 
 require (
 	github.com/cert-manager/cert-manager v1.21.2
