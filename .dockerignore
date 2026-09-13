@@ -1,0 +1,31 @@
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+
+# Build artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+codx
+
+# Test artifacts
+*.out
+coverage.txt
+
+# Helm chart (not needed in the Docker image)
+charts/
+
+# CI
+.github/
+
+# Documentation
+*.md
+
+# Scratchpad / temp
+hack/
