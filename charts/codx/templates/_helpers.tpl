@@ -1,23 +1,58 @@
+{{/* vim: set filetype=mustache: */}}
+
 {{/*
-Expand the name of the chart.
+Return the proper codx image name
 */}}
-{{- define "codx.name" -}}
-{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
+{{- define "codx.image" -}}
+{{ include "common.images.image" (dict "imageRoot" .Values.image "global" .Values.global) }}
 {{- end -}}
 
 {{/*
-Fully qualified app name (release name or overridden).
+Return the proper Docker Image Registry Secret Names
 */}}
-{{- define "codx.fullname" -}}
-{{- if .Values.fullnameOverride -}}
-{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" -}}
-{{- else -}}
-{{- $name := default .Chart.Name .Values.nameOverride -}}
-{{- if contains $name .Release.Name -}}
-{{- .Release.Name | trunc 63 | trimSuffix "-" -}}
-{{- else -}}
-{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" -}}
+{{- define "codx.imagePullSecrets" -}}
+{{- include "common.images.pullSecrets" (dict "images" .Values.image "global" .Values.global) -}}
 {{- end -}}
+
+{{/*
+Create the name of the service account to use
+*/}}
+{{- define "codx.serviceAccountName" -}}
+{{- if .Values.serviceAccount.create -}}
+    {{ default (include "common.names.fullname" .) .Values.serviceAccount.name }}
+{{- else -}}
+    {{ default "default" .Values.serviceAccount.name }}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Return true if cert-manager required annotations for TLS signed certificates are set in the Ingress annotations
+Ref: https://cert-manager.io/docs/usage/ingress/#supported-annotations
+*/}}
+{{- define "codx.ingress.certManagerRequest" -}}
+{{ if or (hasKey . "cert-manager.io/cluster-issuer") (hasKey . "cert-manager.io/issuer") }}
+    {{- true -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Return true if a TLS credentials secret object should be created
+*/}}
+{{- define "codx.createTlsSecret" -}}
+{{- if and (not .Values.tls.existingSecret) .Values.tls.enabled }}
+    {{- true -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Return the TLS secret name
+*/}}
+{{- define "codx.issuerName" -}}
+{{- $issuerName := .Values.tls.issuerRef.existingIssuerName -}}
+{{- if $issuerName -}}
+    {{- printf "%s" (tpl $issuerName $) -}}
+{{- else -}}
+    {{- printf "%s-http" (include "common.names.fullname" .) -}}
 {{- end -}}
 {{- end -}}
 
@@ -30,45 +65,4 @@ Instance name: defaults to release name, used in workspace object names.
 {{- else -}}
 {{- .Release.Name -}}
 {{- end -}}
-{{- end -}}
-
-{{/*
-Namespace: defaults to the release namespace.
-*/}}
-{{- define "codx.namespace" -}}
-{{- if .Values.namespace -}}
-{{- .Values.namespace -}}
-{{- else -}}
-{{- .Release.Namespace -}}
-{{- end -}}
-{{- end -}}
-
-{{/*
-Service account name.
-*/}}
-{{- define "codx.serviceAccountName" -}}
-{{- if .Values.serviceAccount.create -}}
-{{- default (include "codx.fullname" .) .Values.serviceAccount.name -}}
-{{- else -}}
-{{- default "default" .Values.serviceAccount.name -}}
-{{- end -}}
-{{- end -}}
-
-{{/*
-Common labels.
-*/}}
-{{- define "codx.labels" -}}
-app.kubernetes.io/name: {{ include "codx.name" . }}
-app.kubernetes.io/instance: {{ .Release.Name }}
-app.kubernetes.io/managed-by: {{ .Release.Service }}
-app.kubernetes.io/component: server
-app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
-{{- end -}}
-
-{{/*
-Image reference.
-*/}}
-{{- define "codx.image" -}}
-{{- $tag := .Values.image.tag | default .Chart.AppVersion -}}
-{{- printf "%s:%s" .Values.image.repository $tag -}}
 {{- end -}}

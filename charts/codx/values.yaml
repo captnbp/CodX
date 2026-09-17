@@ -1,23 +1,642 @@
 # CodX Helm Chart Values
+## @section Global parameters
+## Global Docker image parameters
+## Please, note that this will override the image parameters, including dependencies, configured to use the global value
+## Current available global Docker image parameters: imageRegistry, imagePullSecrets and storageClass
 
-# -- CodX image configuration
+## @param global.imageRegistry Global Docker image registry
+## @param global.imagePullSecrets Global Docker registry secret names as an array
+## @param global.storageClass Global StorageClass for Persistent Volume(s)
+##
+global:
+  imageRegistry: ""
+  ## e.g.
+  ## imagePullSecrets:
+  ##   - myRegistryKeySecretName
+  ##
+  imagePullSecrets: []
+  storageClass: ""
+
+## @section Common parameters
+
+## @param nameOverride String to partially override common.names.fullname template (will maintain the release name)
+##
+nameOverride: ""
+## @param fullnameOverride String to fully override common.names.fullname template
+##
+fullnameOverride: ""
+## @param commonLabels Labels to add to all deployed objects
+##
+commonLabels: {}
+## @param commonAnnotations Annotations to add to all deployed objects
+##
+commonAnnotations: {}
+## @param kubeVersion Force target Kubernetes version (using Helm capabilities if not set)
+##
+kubeVersion: ""
+## @param clusterDomain Default Kubernetes cluster domain
+##
+clusterDomain: cluster.local
+## @param extraDeploy Array of extra objects to deploy with the release
+##
+extraDeploy: []
+
+## Diagnostic mode
+## @param diagnosticMode.enabled Enable diagnostic mode (all probes will be disabled and the command will be overridden)
+## @param diagnosticMode.command Command to override all containers in the chart release
+## @param diagnosticMode.args Args to override all containers in the chart release
+##
+diagnosticMode:
+  enabled: false
+  command:
+    - sleep
+  args:
+    - infinity
+
+## @section codx parameters
+
+## codx image version
+## ref: https://hub.docker.com/r/bitnami/codx/tags/
+## @param image.registry codx image registry
+## @param image.repository codx image repository
+## @param image.tag codx image tag (immutable tags are recommended)
+## @param image.pullPolicy Image pull policy
+## @param image.pullSecrets Specify docker-registry secret names as an array
+## @param image.debug Specify if debug logs should be enabled
+##
 image:
-  repository: ghcr.io/captnbp/codx
-  tag: ""
+  registry: ghcr.io
+  repository: "captnbp/codx"
+  tag: latest
+  ## Specify a imagePullPolicy
+  ## Defaults to 'Always' if image tag is 'latest', else set to 'IfNotPresent'
+  ## ref: http://kubernetes.io/docs/user-guide/images/#pre-pulling-images
+  ##
   pullPolicy: IfNotPresent
+  ## Optionally specify an array of imagePullSecrets.
+  ## Secrets must be manually created in the namespace.
+  ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
+  ## e.g:
+  ## pullSecrets:
+  ##   - myRegistryKeySecretName
+  ##
+  pullSecrets: []
+  ## Set to true if you would like to see extra information on logs
+  ##
+  debug: false
+
+## @param extraEnvVars [object] Extra environment variables to be set on codx container
+## e.g:
+## extraEnvVars:
+##   - name: FOO
+##     value: "bar"
+##
+extraEnvVars: []
+
+## @param extraEnvVarsCM ConfigMap with extra environment variables
+##
+extraEnvVarsCM: ""
+## @param extraEnvVarsSecret Secret with extra environment variables
+##
+extraEnvVarsSecret: ""
+## @param command Default container command (useful when using custom images). Use array form
+##
+command: []
+## @param args Default container args (useful when using custom images). Use array form
+##
+args: []
+
+## @section codx deployment/statefulset parameters
+
+## @param schedulerName Specifies the schedulerName, if it's nil uses kube-scheduler
+## https://kubernetes.io/docs/tasks/administer-cluster/configure-multiple-schedulers/
+##
+schedulerName: ""
+
+## @param updateStrategy.type codxwarden statefulset strategy type
+## @param updateStrategy.rollingUpdate codxwarden statefulset rolling update configuration parameters
+## ref: https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/#update-strategies
+##
+updateStrategy:
+  type: RollingUpdate
+  rollingUpdate: {}
+
+## @param hostAliases codx pod host aliases
+## https://kubernetes.io/docs/concepts/services-networking/add-entries-to-pod-etc-hosts-with-host-aliases/
+##
+hostAliases: []
+## @param containerPorts.https codx container port to open for codx https
+##
+containerPorts:
+  https: 8443
+## codx pod Security Context
+## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
+## @param podSecurityContext.enabled Enable pod Security Context
+## @param podSecurityContext.fsGroup Group ID for the container
+## @param podSecurityContext.seccompProfile.type Type of seccomp profile to use
+##
+podSecurityContext:
+  enabled: true
+  fsGroup: 65532
+  seccompProfile:
+    type: RuntimeDefault
+## codx container Security Context
+## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-container
+## @param containerSecurityContext.enabled Enable container Security Context
+## @param containerSecurityContext.runAsUser User ID for the container
+## @param containerSecurityContext.runAsNonRoot Avoid running as root User
+## @param containerSecurityContext.allowPrivilegeEscalation Allow privilege escalation
+## @param containerSecurityContext.readOnlyRootFilesystem Read-only root filesystem
+## @param containerSecurityContext.capabilities.drop Capabilities to drop
+## @param containerSecurityContext.capabilities.add Capabilities to add
+##
+containerSecurityContext:
+  enabled: true
+  runAsUser: 65532
+  runAsNonRoot: true
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+    add: []
+## @param podLabels Extra labels for codx pods
+## Ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+##
+podLabels: {}
+## @param podAnnotations Annotations for codx pods
+## ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+##
+podAnnotations: {}
+## @param podAffinityPreset Pod affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`
+## ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#inter-pod-affinity-and-anti-affinity
+##
+podAffinityPreset: ""
+## @param podAntiAffinityPreset Pod anti-affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`
+## ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#inter-pod-affinity-and-anti-affinity
+##
+podAntiAffinityPreset: soft
+## Node affinity preset
+## ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#node-affinity
+##
+nodeAffinityPreset:
+  ## @param nodeAffinityPreset.type Node affinity preset type. Ignored if `affinity` is set. Allowed values: `soft` or `hard`
+  ##
+  type: ""
+  ## @param nodeAffinityPreset.key Node label key to match. Ignored if `affinity` is set.
+  ## E.g.
+  ## key: "kubernetes.io/e2e-az-name"
+  ##
+  key: ""
+  ## @param nodeAffinityPreset.values Node label values to match. Ignored if `affinity` is set.
+  ## E.g.
+  ## values:
+  ##   - e2e-az1
+  ##   - e2e-az2
+  ##
+  values: []
+## @param affinity Affinity for pod assignment. Evaluated as a template.
+## ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
+## Note: podAffinityPreset, podAntiAffinityPreset, and nodeAffinityPreset will be ignored when it's set
+##
+affinity: {}
+## @param nodeSelector Node labels for pod assignment. Evaluated as a template.
+## ref: https://kubernetes.io/docs/user-guide/node-selection/
+##
+nodeSelector: {}
+## @param tolerations Tolerations for pod assignment. Evaluated as a template.
+## ref: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
+##
+tolerations: []
+## @param topologySpreadConstraints Topology Spread Constraints for codx pods assignment spread across your cluster among failure-domains
+## Ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-topology-spread-constraints/#spread-constraints-for-pods
+##
+topologySpreadConstraints: []
+## @param priorityClassName codx pods' priorityClassName
+##
+priorityClassName: ""
+## codx containers' resource requests and limits
+## ref: http://kubernetes.io/docs/user-guide/compute-resources/
+## We usually recommend not to specify default resources and to leave this as a conscious
+## choice for the user. This also increases chances charts run on environments with little
+## resources, such as Minikube. If you do want to specify resources, uncomment the following
+## lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+## @param resources.limits The resources limits for the codx container
+## @param resources.requests The requested resources for the codx container
+##
+resources:
+  ## Example:
+  ## limits:
+  ##    cpu: 250m
+  ##    memory: 256Mi
+  limits: {}
+  ## Examples:
+  ## requests:
+  ##    cpu: 250m
+  ##    memory: 256Mi
+  requests: {}
 
 # -- Number of CodX replicas (scalable, sessions shared via Redis)
-replicaCount: 2
+## @param replicas Number of CodX replicas
+##
+replicas: 1
 
-# -- CodX instance name (defaults to release name, used in workspace object names)
-instanceName: ""
+## @section Exposure parameters
+##
 
-# -- Namespace where CodX creates workspace objects (defaults to the release namespace)
-namespace: ""
+## Service configuration
+##
+service:
+  ## @param service.type Kubernetes service type
+  ##
+  type: ClusterIP
+  ## @param service.ports.https codx service HTTPS port
+  ##
+  ports:
+    https: 8443
+  ## @param service.nodePorts [object] Specify the nodePort values for the LoadBalancer and NodePort service types.
+  ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#type-nodeport
+  ##
+  nodePorts:
+    https: ""
+  ## @param service.sessionAffinity Control where client requests go, to the same pod or round-robin
+  ## Values: ClientIP or None
+  ## ref: https://kubernetes.io/docs/user-guide/services/
+  ##
+  sessionAffinity: None
+  ## @param service.sessionAffinityConfig Additional settings for the sessionAffinity
+  ## sessionAffinityConfig:
+  ##   clientIP:
+  ##     timeoutSeconds: 300
+  ##
+  sessionAffinityConfig: {}
+  ## @param service.clusterIP codx service clusterIP IP
+  ## e.g:
+  ## clusterIP: None
+  ##
+  clusterIP: ""
+  ## @param service.loadBalancerIP loadBalancerIP for the SuiteCRM Service (optional, cloud specific)
+  ## ref: https://kubernetes.io/docs/user-guide/services/#type-loadbalancer
+  ##
+  loadBalancerIP: ""
+  ## @param service.loadBalancerSourceRanges Address that are allowed when service is LoadBalancer
+  ## https://kubernetes.io/docs/tasks/access-application-cluster/configure-cloud-provider-firewall/#restrict-access-for-loadbalancer-service
+  ## Example:
+  ## loadBalancerSourceRanges:
+  ##   - 10.10.10.0/24
+  ##
+  loadBalancerSourceRanges: []
+  ## @param service.externalTrafficPolicy Enable client source IP preservation
+  ## ref https://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/#preserving-the-client-source-ip
+  ##
+  externalTrafficPolicy: Cluster
+  ## @param service.annotations Additional custom annotations for codx service
+  ##
+  annotations: {}
+  ## @param service.extraPorts Extra port to expose on codx service
+  ##
+  extraPorts: []
+  ## @param service.extraHeadlessPorts Extra ports to expose on codx headless service
+  ##
+  extraHeadlessPorts: []
+  ## @param service.ipFamilyPolicy Controller Service ipFamilyPolicy (optional, cloud specific)
+  ## This can be either SingleStack, PreferDualStack or RequireDualStack
+  ## ref: https://kubernetes.io/docs/concepts/services-networking/dual-stack/#services
+  ##
+  ipFamilyPolicy: "PreferDualStack"
+  ## @param service.ipFamilies Controller Service ipFamilies (optional, cloud specific)
+  ## This can be either ["IPv4"], ["IPv6"], ["IPv4", "IPv6"] or ["IPv6", "IPv4"]
+  ## ref: https://kubernetes.io/docs/concepts/services-networking/dual-stack/#services
+  ##
+  ipFamilies: ["IPv6", "IPv4"]
+
+
+## codx ingress parameters
+## ref: http://kubernetes.io/docs/concepts/services-networking/ingress/
+##
+ingress:
+  ## @param ingress.enabled Enable ingress record generation for codx
+  ##
+  enabled: true
+  ## @param ingress.pathType Ingress path type
+  ##
+  pathType: ImplementationSpecific
+  ## @param ingress.apiVersion Force Ingress API version (automatically detected if not set)
+  ##
+  apiVersion: ""
+  ## @param ingress.hostname Default host for the ingress record
+  ##
+  hostname: codx.local
+  ## @param ingress.ingressClassName IngressClass that will be be used to implement the Ingress (Kubernetes 1.18+)
+  ## This is supported in Kubernetes 1.18+ and required if you have more than one IngressClass marked as the default for your cluster .
+  ## ref: https://kubernetes.io/blog/2020/04/02/improvements-to-the-ingress-api-in-kubernetes-1.18/
+  ##
+  ingressClassName: "traefik"
+  ## @param ingress.ingressControllerType ingressControllerType that will be be used to implement the Ingress specific annotations (Ex. nginx or traefik)
+  ingressControllerType: "traefik"
+  ## @param ingress.path Default path for the ingress record
+  ## NOTE: You may need to set this to '/*' in order to use this with ALB ingress controllers
+  ##
+  path: /
+  ## @param ingress.annotations Additional annotations for the Ingress resource. To enable certificate autogeneration, place here your cert-manager annotations.
+  ## Use this parameter to set the required annotations for cert-manager, see
+  ## ref: https://cert-manager.io/docs/usage/ingress/#supported-annotations
+  ## e.g:
+  ## annotations:
+  ##   kubernetes.io/ingress.class: nginx
+  ##   cert-manager.io/cluster-issuer: cluster-issuer-name
+  ##
+  annotations: {}
+  ## @param ingress.tls Enable TLS configuration for the host defined at `ingress.hostname` parameter
+  ## TLS certificates will be retrieved from a TLS secret with name: `{{- printf "%s-tls" .Values.ingress.hostname }}`
+  ## You can:
+  ##   - Use the `ingress.secrets` parameter to create this TLS secret
+  ##   - Rely on cert-manager to create it by setting the corresponding annotations
+  ##   - Rely on Helm to create self-signed certificates by setting `ingress.selfSigned=true`
+  ##
+  tls: false
+  ## @param ingress.selfSigned Create a TLS secret for this ingress record using self-signed certificates generated by Helm
+  ##
+  selfSigned: false
+  ## @param ingress.extraHosts An array with additional hostname(s) to be covered with the ingress record
+  ## e.g:
+  ## extraHosts:
+  ##   - name: codx.local
+  ##     path: /
+  ##
+  extraHosts: []
+  ## @param ingress.extraPaths An array with additional arbitrary paths that may need to be added to the ingress under the main host
+  ## e.g:
+  ## extraPaths:
+  ## - path: /*
+  ##   backend:
+  ##     serviceName: ssl-redirect
+  ##     servicePort: use-annotation
+  ##
+  extraPaths: []
+  ## @param ingress.extraTls TLS configuration for additional hostname(s) to be covered with this ingress record
+  ## ref: https://kubernetes.io/docs/concepts/services-networking/ingress/#tls
+  ## e.g:
+  ## extraTls:
+  ## - hosts:
+  ##     - codx.local
+  ##   secretName: codx.local-tls
+  ##
+  extraTls: []
+  ## @param ingress.secrets Custom TLS certificates as secrets
+  ## NOTE: 'key' and 'certificate' are expected in PEM format
+  ## NOTE: 'name' should line up with a 'secretName' set further up
+  ## If it is not set and you're using cert-manager, this is unneeded, as it will create a secret for you with valid certificates
+  ## If it is not set and you're NOT using cert-manager either, self-signed certificates will be created valid for 365 days
+  ## It is also possible to create and manage the certificates outside of this helm chart
+  ## Please see README.md for more information
+  ## e.g:
+  ## secrets:
+  ##   - name: codx.local-tls
+  ##     key: |-
+  ##       -----BEGIN RSA PRIVATE KEY-----
+  ##       ...
+  ##       -----END RSA PRIVATE KEY-----
+  ##     certificate: |-
+  ##       -----BEGIN CERTIFICATE-----
+  ##       ...
+  ##       -----END CERTIFICATE-----
+  ##
+  secrets: []
+  ## @param ingress.extraRules Additional rules to be covered with this ingress record
+  ## ref: https://kubernetes.io/docs/concepts/services-networking/ingress/#ingress-rules
+  ## e.g:
+  ## extraRules:
+  ## - host: example.local
+  ##     http:
+  ##       path: /
+  ##       backend:
+  ##         service:
+  ##           name: example-svc
+  ##           port:
+  ##             name: http
+  ##
+  extraRules: []
+
+## @section RBAC parameter
+## Specifies whether a ServiceAccount should be created
+##
+serviceAccount:
+  ## @param serviceAccount.create Enable the creation of a ServiceAccount for codxwarden pods
+  ##
+  create: true
+  ## @param serviceAccount.name Name of the created ServiceAccount
+  ## If not set and create is true, a name is generated using the fullname template
+  ##
+  name: ""
+  ## @param serviceAccount.automountServiceAccountToken Auto-mount the service account token in the pod
+  ##
+  automountServiceAccountToken: false
+  ## @param serviceAccount.annotations Additional custom annotations for the ServiceAccount
+  ##
+  annotations: {}
+
+## @section Global TLS settings for internal CA
+##
+tls:
+  ## @param tls.enabled Enable internal TLS between Ingress controller and unifi
+  enabled: true
+  ## @param tls.autoGenerated Create cert-manager signed TLS certificates.
+  ##
+  autoGenerated: true
+
+  ## @param tls.existingSecret Existing secret containing the certificates for Unifi
+  ##
+  existingSecret: ""
+  ## Base subject details for certificate generation, node_dn filtering, admin_dn 
+  ##
+  subject:
+    ## @param tls.subject.organizationalUnits Subject's organizational units
+    ##
+    organizationalUnits: "codx"
+    ## @param tls.subject.organizations Subject's organization
+    ##
+    organizations: "codx"
+    ## @param tls.subject.countries Subject's country
+    ##
+    countries: "fr"
+  issuerRef:
+    ## @param tls.issuerRef.existingIssuerName Existing name of the cert-manager http issuer. If provided, it won't create a default one.
+    ##
+    existingIssuerName: ""
+    ## @param tls.issuerRef.kind Kind of the cert-manager issuer resource (defaults to "Issuer")
+    ##
+    kind: "Issuer"
+    ## @param tls.issuerRef.group Group of the cert-manager issuer resource (defaults to "cert-manager.io")
+    ##
+    group: "cert-manager.io"
+  # -- TLS paths in the CodX pod
+  ## @param tls.serverCertDir Directory where the CodX server certificate is mounted (from cert-manager)
+  serverCertDir: /tls
+  ## @param tls.clientCertDir Directory where the CodX client certificate is mounted (from cert-manager)
+  clientCertDir: /tls/client
+  ## @param tls.caDir Directory where the CA certificate is mounted (from cert-manager)
+  caDir: /tls
+
+valkey:
+  ## @param valkey.enabled Enable Valkey integration for CodX
+  enabled: false
+  ## @param valkey.resources Resources for the Valkey container
+  resources: {}
+  # Persistent storage configuration (standalone deployment only)
+  dataStorage:
+    # Enable persistent volume claim creation
+    enabled: false
+
+    # Use existing PVC by name (skip dynamic provisioning if set)
+    persistentVolumeClaimName: ""
+
+    # Subpath inside PVC to mount
+    subPath: ""
+
+    # Name of the volume (referenced in deployment)
+    volumeName: "valkey-data"
+
+    # Request size (e.g. 5Gi) for dynamically provisioned volume
+    requestedSize: ""
+
+    # Name of the storage class to use
+    className: ""
+  # Content for valkey.conf (will be mounted via ConfigMap)
+  valkeyConfig: ""
+
+  auth:
+    # Enable ACL-based authentication
+    # IMPORTANT: When authentication is enabled, the 'default' user MUST be defined in either
+    # aclUsers or aclConfig. Without a default user, anyone can access the database without
+    # credentials, creating a security risk.
+    enabled: false
+
+    # Use an existing secret for user passwords. Key defaults to username.
+    # Supports templating, e.g.: "users-{{ .Release.Name }}"
+    usersExistingSecret: ""
+
+    # Map of users to create with ACL permissions.
+    # If usersExistingSecret is set, passwords from the secret take priority over inline passwords.
+    # NOTE: If using aclUsers, the 'default' user must be included here.
+    aclUsers: {}
+    # Example:
+    # default:
+    #   permissions: "~* &* +@all"
+    #   password: "secretpass"        # Inline password (fallback if usersExistingSecret not set)
+    #   passwordKey: "admin-pwd"      # Key in usersExistingSecret (defaults to username)
+    # read-user:
+    #   permissions: "~* -@all +@read +ping +info"
+
+    # Inline ACL configuration that will be appended after generated users.
+    # NOTE: If using aclConfig, ensure the 'default' user is defined here.
+    aclConfig: ""
+    # Example:
+    # aclConfig: |
+    #   user default on >secretpass ~* &* +@all
+
+  # Replica configuration for master-replica replication mode
+  replica:
+    enabled: false
+
+  tls:
+    # Enable TLS
+    enabled: true
+    # Name of the Secret containing TLS keys (required)
+    existingSecret: "codx-valkey-tls"
+    # Secret key name containing server public certificate
+    serverPublicKey: tls.crt
+    # Secret key name containing server private key
+    serverKey: tls.key
+    # Secret key name containing Certificate Authority public certificate
+    caPublicKey: ca.crt
+    # Require that clients authenticate with a certificate
+    requireClientCertificate: false
+
+  metrics:
+    # Enable Prometheus exporter sidecar
+    enabled: true
+    # Exporter configuration
+    exporter:
+      resources: {}
+        # Example:
+        # limits:
+        #   cpu: 100m
+        #   memory: 128Mi
+        # requests:
+        #   cpu: 100m
+        #   memory: 128Mi
+      extraEnvs: {}
+      # Example:
+      # LOG_LEVEL: info
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        capabilities:
+          drop:
+            - ALL
+        readOnlyRootFilesystem: true
+
+    serviceMonitor:
+      # Enable ServiceMonitor resource for scraping service metrics
+      enabled: true
+
+    podMonitor:
+      # Enable PodMonitor resource for scraping pod metrics
+      enabled: false
+
+
+    # PrometheusRule configuration for alerting rules (used by kube-prometheus-stack)
+    prometheusRule:
+      # Enable creation of PrometheusRule resource
+      enabled: false
+      # Extra labels to add to the PrometheusRule resource
+      extraLabels: {}
+      # Extra annotations to add to the PrometheusRule resource
+      extraAnnotations: {}
+      # List of Prometheus alerting rules
+      rules: []
+      # Example alerting rules:
+      # - alert: ValkeyDown
+      #   annotations:
+      #     summary: Valkey instance {{ "{{ $labels.instance }}" }} down
+      #     description: Valkey instance {{ "{{ $labels.instance }}" }} is down.
+      #   expr: |
+      #     redis_up{service="{{ include "valkey.fullname" . }}-metrics"} == 0
+      #   for: 2m
+      #   labels:
+      #     severity: error
+      # - alert: ValkeyMemoryHigh
+      #   annotations:
+      #     summary: Valkey instance {{ "{{ $labels.instance }}" }} is using too much memory
+      #     description: |
+      #        Valkey instance {{ "{{ $labels.instance }}" }} is using {{ "{{ $value }}" }}% of its available memory.
+      #   expr: |
+      #      redis_memory_used_bytes{service="{{ include "valkey.fullname" . }}-metrics"} * 100
+      #      /
+      #      redis_memory_max_bytes{service="{{ include "valkey.fullname" . }}-metrics"}
+      #      > 90 <= 100
+      #   for: 2m
+      #   labels:
+      #     severity: error
+      # - alert: ValkeyKeyEviction
+      #   annotations:
+      #     summary: Valkey instance {{ "{{ $labels.instance }}" }} has evicted keys
+      #     description: |
+      #        Valkey instance {{ "{{ $labels.instance }}" }} has evicted {{ "{{ $value }}" }} keys in the last 5 minutes.
+      #   expr: |
+      #     increase(redis_evicted_keys_total{service="{{ include "valkey.fullname" . }}-metrics"}[5m]) > 0
+      #   for: 1s
+      #   labels:
+      #     severity: error
+
+certManager:
+  renewal: 720h
+  validity: 2160h
 
 # -- CodX HTTP server
 http:
-  listenAddr: ":8443"
   # TLS cert/key paths (mounted from cert-manager)
   tlsCertFile: /tls/tls.crt
   tlsKeyFile: /tls/tls.key
@@ -38,21 +657,7 @@ redis:
   password: ""
   db: 0
   # Name of a secret containing the Redis TLS CA cert. If set, TLS is enabled.
-  caSecretName: ""
-
-# -- cert-manager parameters for workspace certificates
-certManager:
-  issuerType: Issuer
-  issuerGroup: cert-manager.io
-  issuerName: codx-workspace-issuer
-  renewal: 720h
-  validity: 2160h
-
-# -- TLS paths in the CodX pod
-tls:
-  serverCertDir: /tls
-  clientCertDir: /tls/client
-  caDir: /tls
+  caSecretName: "valkey-tls"
 
 # -- Username slug configuration
 slug:
@@ -63,62 +668,3 @@ slug:
 inactivity:
   signal: log-tail
   checkInterval: 60s
-
-# -- Ingress configuration
-ingress:
-  enabled: true
-  className: nginx
-  # FQDN of the CodX service (used for cert-manager certificate SANs)
-  host: codx.example.com
-  # TLS secret name for the ingress. If using cert-manager, set issuerRef.
-  tlsSecretName: codx-ingress-tls
-  # cert-manager issuer for the ingress certificate
-  issuerRef:
-    name: letsencrypt-prod
-    kind: ClusterIssuer
-    group: cert-manager.io
-
-# -- RBAC
-rbac:
-  create: true
-
-# -- Service account
-serviceAccount:
-  create: true
-  name: ""
-
-# -- Pod resources
-resources:
-  requests:
-    cpu: 100m
-    memory: 128Mi
-  limits:
-    cpu: 500m
-    memory: 512Mi
-
-# -- Pod security context
-podSecurityContext:
-  runAsNonRoot: true
-  runAsUser: 65532
-  fsGroup: 65532
-
-# -- Container security context
-securityContext:
-  allowPrivilegeEscalation: false
-  readOnlyRootFilesystem: true
-  capabilities:
-    drop:
-      - ALL
-
-# -- Node selector, tolerations, affinity
-nodeSelector: {}
-tolerations: []
-affinity: {}
-
-# -- cert-manager CA for mTLS (shared CA for CodX client cert and workspace certs)
-mtlsCA:
-  # If true, the chart creates a self-signed CA issuer for mTLS.
-  # Set to false to use an existing issuer.
-  createSelfSigned: true
-  # Name of the CA issuer to use (if createSelfSigned is false)
-  existingIssuerName: ""

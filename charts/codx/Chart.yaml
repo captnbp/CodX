@@ -4,6 +4,8 @@ description: CodX — per-user code-server workspaces on Kubernetes with OIDC au
 type: application
 version: 0.1.0
 appVersion: "0.1.0"
+home: https://github.com/captnbp/codx
+icon: ""
 keywords:
   - code-server
   - ide
@@ -11,4 +13,25 @@ keywords:
   - oidc
   - mtls
 maintainers:
-  - name: CodX
+  - name: Benoît Pourre
+    email: benoit.pourre@gmail.com
+    url: https://github.com/captnbp
+sources:
+  - https://github.com/captnbp/codx
+dependencies:
+  - name: common
+    repository: https://charts.bitnami.com/bitnami
+    tags:
+      - bitnami-common
+    version: 2.x.x
+  - name: valkey
+    repository: oci://ghcr.io/valkey-io/valkey-helm
+    tags:
+      - valkey
+    version: 0.12.0
+annotations:
+  category: DeveloperTools
+  artifacthub.io/images: |
+    - name: CodX
+      image: ghcr.io/captnbp/codx
+  artifacthub.io/license: MIT

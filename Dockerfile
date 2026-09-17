@@ -14,8 +14,11 @@ COPY . .
 
 # Build the CodX binary as a static binary.
 # CGO is disabled for a fully static binary compatible with distroless.
-ARG TARGETOS=linux
-ARG TARGETARCH=arm64
+# TARGETOS and TARGETARCH are set automatically by Docker Buildx when
+# using --platform. When building without Buildx, they default to the
+# builder's native platform.
+ARG TARGETOS
+ARG TARGETARCH
 ENV CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH}
 
 RUN go build \

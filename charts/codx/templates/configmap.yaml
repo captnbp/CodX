@@ -1,15 +1,22 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "codx.fullname" . }}
-  labels:
-    {{- include "codx.labels" . | nindent 4 }}
+  name: {{ include "common.names.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "common.labels.standard" . | nindent 4 }}
+    app.kubernetes.io/component: codx
+    {{- if .Values.commonLabels }}
+    {{- include "common.tplvalues.render" ( dict "value" .Values.commonLabels "context" $ ) | nindent 4 }}
+    {{- end }}
+  {{- if .Values.commonAnnotations }}
+  annotations: {{- include "common.tplvalues.render" ( dict "value" .Values.commonAnnotations "context" $ ) | nindent 4 }}
+  {{- end }}
 data:
   config.yaml: |
-    instanceName: {{ include "codx.instanceName" . | quote }}
-    namespace: {{ include "codx.namespace" . | quote }}
+    instanceName: {{ include "common.names.fullname" . }}
+    namespace: {{ .Release.Namespace }}
     http:
-      listenAddr: {{ .Values.http.listenAddr | quote }}
+      listenAddr: {{ .Values.containerPorts.https | quote }}
       tlsCertFile: {{ .Values.http.tlsCertFile | quote }}
       tlsKeyFile: {{ .Values.http.tlsKeyFile | quote }}
     oidc:
@@ -20,15 +27,15 @@ data:
       adminGroup: {{ .Values.oidc.adminGroup | quote }}
       usernameClaimName: {{ .Values.oidc.usernameClaimName | quote }}
     redis:
-      host: {{ .Values.redis.host | quote }}
+      host: {{ template "common.names.fullname" . }}-valkey.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}
       db: {{ .Values.redis.db }}
       {{- if .Values.redis.caSecretName }}
       caSecretName: {{ .Values.redis.caSecretName | quote }}
       {{- end }}
     certManager:
-      issuerType: {{ .Values.certManager.issuerType | quote }}
-      issuerGroup: {{ .Values.certManager.issuerGroup | quote }}
-      issuerName: {{ .Values.certManager.issuerName | quote }}
+      issuerType: {{ .Values.tls.issuerRef.kind | quote }}
+      issuerGroup: {{ .Values.tls.issuerRef.group | quote }}
+      issuerName: {{ include "codx.issuerName" . }}
       renewal: {{ .Values.certManager.renewal | quote }}
       validity: {{ .Values.certManager.validity | quote }}
     tls:
