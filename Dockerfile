@@ -28,7 +28,7 @@ RUN go build \
     ./cmd/codx
 
 # -- Runtime stage --
-FROM gcr.io/distroless/static-debian12:nonroot
+FROM gcr.io/distroless/static-debian13:nonroot
 
 WORKDIR /
 
