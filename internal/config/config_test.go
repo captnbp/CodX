@@ -97,9 +97,6 @@ certManager:
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !cfg.Redis.TLS {
-		t.Error("Redis.TLS should be auto-enabled when caSecretName is set")
-	}
 }
 
 func TestValidationMissingRequired(t *testing.T) {

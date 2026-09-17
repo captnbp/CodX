@@ -254,8 +254,8 @@ func applyDefaults(cfg *Config) {
 		cfg.OIDC.UsernameClaimName = "preferred_username"
 	}
 
-	if cfg.Redis.CASecretName != "" || cfg.Redis.CAFilePath != "" {
-		cfg.Redis.TLS = true
+	if cfg.Redis.CAFilePath == "" {
+		cfg.Redis.CAFilePath = "/tls/ca.crt"
 	}
 
 	if cfg.CertManager.IssuerType == "" {
