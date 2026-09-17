@@ -112,15 +112,14 @@ type RedisConfig struct {
 	// +default=0
 	DB int `yaml:"db"`
 
-	// CASecretName is the name of the Kubernetes secret containing the Redis
-	// TLS CA certificate. If set, TLS is enabled.
-	// +optional
-	CASecretName string `yaml:"caSecretName"`
-
-	// TLS enables TLS to Redis when true. Automatically true when
-	// CASecretName is set.
-	// +optional
+	// TLS enables TLS to Redis when true. Automatically true when	// +optional
 	TLS bool `yaml:"tls"`
+
+	// CAFilePath is the path to a PEM-encoded CA certificate file used to
+	// verify the Redis TLS certificate. Typically mounted from a Kubernetes
+	// secret. When set, TLS is automatically enabled.
+	// +optional
+	CAFilePath string `yaml:"caFilePath,omitempty"`
 }
 
 // CertManagerConfig configures how per-user workspace certificates are issued.
@@ -255,7 +254,7 @@ func applyDefaults(cfg *Config) {
 		cfg.OIDC.UsernameClaimName = "preferred_username"
 	}
 
-	if cfg.Redis.CASecretName != "" {
+	if cfg.Redis.CASecretName != "" || cfg.Redis.CAFilePath != "" {
 		cfg.Redis.TLS = true
 	}
 

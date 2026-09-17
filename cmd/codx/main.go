@@ -69,11 +69,12 @@ func run(configPath string) error {
 
 	// Set up the session store (Redis in production).
 	store := session.NewRedisStore(session.RedisOptions{
-		Addr:      cfg.Redis.Host,
-		Password:  cfg.Redis.Password,
-		DB:        cfg.Redis.DB,
-		TLS:       cfg.Redis.TLS,
-		KeyPrefix: cfg.InstanceName,
+		Addr:       cfg.Redis.Host,
+		Password:   cfg.Redis.Password,
+		DB:         cfg.Redis.DB,
+		TLS:        cfg.Redis.TLS,
+		CAFilePath: cfg.Redis.CAFilePath,
+		KeyPrefix:  cfg.InstanceName,
 	})
 	defer store.Close()
 

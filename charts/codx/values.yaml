@@ -648,7 +648,6 @@ oidc:
   issuer: ""
   clientId: ""
   clientSecret: ""
-  redirectUrl: ""
   groupClaimName: groups
   adminGroup: codx-admins
   usernameClaimName: preferred_username
@@ -658,8 +657,11 @@ redis:
   host: ""
   password: ""
   db: 0
-  # Name of a secret containing the Redis TLS CA cert. If set, TLS is enabled.
-  caSecretName: "valkey-tls"
+  # Enable TLS to Redis.
+  tls: true
+  # Path to a PEM-encoded CA certificate file for Redis TLS verification.
+  # Typically the path where caSecretName is mounted.
+  caFilePath: "/tls/ca.crt"
 
 # -- Username slug configuration
 slug:

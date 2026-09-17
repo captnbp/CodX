@@ -22,15 +22,18 @@ data:
     oidc:
       issuer: {{ .Values.oidc.issuer | quote }}
       clientId: {{ .Values.oidc.clientId | quote }}
-      redirectUrl: {{ .Values.oidc.redirectUrl | quote }}
+      redirectUrl: "{{ .Values.ingress.hostname | quote }}/auth/callback"
       groupClaimName: {{ .Values.oidc.groupClaimName | quote }}
       adminGroup: {{ .Values.oidc.adminGroup | quote }}
       usernameClaimName: {{ .Values.oidc.usernameClaimName | quote }}
     redis:
-      host: {{ template "common.names.fullname" . }}-valkey.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}
+      host: {{ template "common.names.fullname" . }}-valkey.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}:6379
       db: {{ .Values.redis.db }}
-      {{- if .Values.redis.caSecretName }}
-      caSecretName: {{ .Values.redis.caSecretName | quote }}
+      {{- if .Values.redis.tls }}
+      tls: true
+      {{- end }}
+      {{- if .Values.redis.caFilePath }}
+      caFilePath: {{ .Values.redis.caFilePath | quote }}
       {{- end }}
     certManager:
       issuerType: {{ .Values.tls.issuerRef.kind | quote }}

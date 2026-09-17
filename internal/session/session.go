@@ -8,9 +8,11 @@ package session
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -74,7 +76,7 @@ var ErrNotFound = errors.New("session not found")
 
 // RedisStore implements Store using Redis/Valkey.
 type RedisStore struct {
-	client   *redis.Client
+	client    *redis.Client
 	keyPrefix string
 	ttl       time.Duration
 }
@@ -89,6 +91,11 @@ type RedisOptions struct {
 	DB int
 	// TLS enables TLS.
 	TLS bool
+	// CAFilePath is the path to a PEM-encoded CA certificate file used to
+	// verify the Redis TLS certificate. If set, TLS is automatically enabled
+	// and the CA is loaded into the TLS config. If TLS is enabled but
+	// CAFilePath is empty, the system root CAs are used.
+	CAFilePath string
 	// KeyPrefix is prepended to all session keys.
 	KeyPrefix string
 	// TTL is the default session lifetime.
@@ -104,11 +111,33 @@ func NewRedisStore(opts RedisOptions) *RedisStore {
 	}
 	if opts.TLS {
 		ro.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+		if opts.CAFilePath != "" {
+			ro.TLSConfig = buildRedisTLSConfig(opts.CAFilePath)
+		}
 	}
 	return &RedisStore{
-		client:   redis.NewClient(ro),
+		client:    redis.NewClient(ro),
 		keyPrefix: opts.KeyPrefix,
 		ttl:       opts.TTL,
+	}
+}
+
+// buildRedisTLSConfig loads the CA certificate from the given file path and
+// returns a *tls.Config that uses it for server certificate verification.
+func buildRedisTLSConfig(caFilePath string) *tls.Config {
+	caCert, err := os.ReadFile(caFilePath)
+	if err != nil {
+		panic(fmt.Sprintf("failed to read Redis CA certificate from %s: %v", caFilePath, err))
+	}
+
+	caPool := x509.NewCertPool()
+	if !caPool.AppendCertsFromPEM(caCert) {
+		panic(fmt.Sprintf("failed to parse Redis CA certificate from %s", caFilePath))
+	}
+
+	return &tls.Config{
+		RootCAs:    caPool,
+		MinVersion: tls.VersionTLS12,
 	}
 }
 
