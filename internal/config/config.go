@@ -50,8 +50,10 @@ type Config struct {
 // HTTPConfig configures the CodX HTTP server.
 type HTTPConfig struct {
 	// ListenAddr is the address the HTTP server binds to.
+	// Supports IPv4 (e.g. "0.0.0.0:8443"), IPv6 (e.g. "[::]:8443"),
+	// and dual-stack (e.g. "[::]:8443" on most systems).
 	// +optional
-	// +default=":8443"
+	// +default="[::]:8443"
 	ListenAddr string `yaml:"listenAddr"`
 
 	// TLSCertFile is the path to the TLS certificate for the CodX server.
@@ -243,7 +245,7 @@ func Load(data []byte) (*Config, error) {
 // applyDefaults fills in default values for unset fields.
 func applyDefaults(cfg *Config) {
 	if cfg.HTTP.ListenAddr == "" {
-		cfg.HTTP.ListenAddr = ":8443"
+		cfg.HTTP.ListenAddr = "[::]:8443"
 	}
 
 	if cfg.OIDC.GroupClaimName == "" {

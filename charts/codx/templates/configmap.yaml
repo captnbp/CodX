@@ -16,7 +16,7 @@ data:
     instanceName: {{ include "common.names.fullname" . }}
     namespace: {{ .Release.Namespace }}
     http:
-      listenAddr: {{ .Values.containerPorts.https | quote }}
+      listenAddr: {{ .Values.http.listenAddr | quote }}
       tlsCertFile: {{ .Values.http.tlsCertFile | quote }}
       tlsKeyFile: {{ .Values.http.tlsKeyFile | quote }}
     oidc:

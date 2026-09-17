@@ -38,8 +38,8 @@ certManager:
 	}
 
 	// Defaults
-	if cfg.HTTP.ListenAddr != ":8443" {
-		t.Errorf("HTTP.ListenAddr default = %q, want :8443", cfg.HTTP.ListenAddr)
+	if cfg.HTTP.ListenAddr != "[::]:8443" {
+		t.Errorf("HTTP.ListenAddr default = %q, want [::]:8443", cfg.HTTP.ListenAddr)
 	}
 	if cfg.OIDC.GroupClaimName != "groups" {
 		t.Errorf("OIDC.GroupClaimName default = %q, want groups", cfg.OIDC.GroupClaimName)

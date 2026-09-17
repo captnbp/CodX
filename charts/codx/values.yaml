@@ -637,6 +637,8 @@ certManager:
 
 # -- CodX HTTP server
 http:
+  # Listen address (supports IPv4, IPv6, and dual-stack)
+  listenAddr: "[::]:8443"
   # TLS cert/key paths (mounted from cert-manager)
   tlsCertFile: /tls/tls.crt
   tlsKeyFile: /tls/tls.key
