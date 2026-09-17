@@ -76,7 +76,7 @@ certManager:
 	}
 }
 
-func TestRedisTLSEnabledByCASecret(t *testing.T) {
+func TestRedisTLSEnabledByCAFilePath(t *testing.T) {
 	yaml := `
 instanceName: "codx"
 http:
@@ -89,13 +89,73 @@ oidc:
   adminGroup: "codx-admins"
 redis:
   host: "valkey:6379"
-  caSecretName: "redis-ca"
+  tls: true
+  caFilePath: "/redis-tls/ca.crt"
 certManager:
   issuerName: "codx-workspace-issuer"
 `
 	cfg, err := Load([]byte(yaml))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if !cfg.Redis.TLS {
+		t.Error("Redis.TLS should be true when explicitly set")
+	}
+	if cfg.Redis.CAFilePath != "/redis-tls/ca.crt" {
+		t.Errorf("Redis.CAFilePath = %q, want /redis-tls/ca.crt", cfg.Redis.CAFilePath)
+	}
+}
+
+func TestRedisCAFilePathDefault(t *testing.T) {
+	yaml := `
+instanceName: "codx"
+http:
+  tlsCertFile: "/tls/tls.crt"
+  tlsKeyFile: "/tls/tls.key"
+oidc:
+  issuer: "https://keycloak.example.com/realms/myrealm"
+  clientId: "codx"
+  redirectUrl: "https://codx.example.com/auth/callback"
+  adminGroup: "codx-admins"
+redis:
+  host: "valkey:6379"
+certManager:
+  issuerName: "codx-workspace-issuer"
+`
+	cfg, err := Load([]byte(yaml))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Redis.CAFilePath != "/tls/ca.crt" {
+		t.Errorf("Redis.CAFilePath default = %q, want /tls/ca.crt", cfg.Redis.CAFilePath)
+	}
+	if cfg.Redis.TLS {
+		t.Error("Redis.TLS should be false when not explicitly set and no caFilePath provided")
+	}
+}
+
+func TestRedisTLSNotEnabledByDefault(t *testing.T) {
+	yaml := `
+instanceName: "codx"
+http:
+  tlsCertFile: "/tls/tls.crt"
+  tlsKeyFile: "/tls/tls.key"
+oidc:
+  issuer: "https://keycloak.example.com/realms/myrealm"
+  clientId: "codx"
+  redirectUrl: "https://codx.example.com/auth/callback"
+  adminGroup: "codx-admins"
+redis:
+  host: "valkey:6379"
+certManager:
+  issuerName: "codx-workspace-issuer"
+`
+	cfg, err := Load([]byte(yaml))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Redis.TLS {
+		t.Error("Redis.TLS should default to false")
 	}
 }
 
