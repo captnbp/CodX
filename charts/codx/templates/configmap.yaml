@@ -22,7 +22,7 @@ data:
     oidc:
       issuer: {{ .Values.oidc.issuer | quote }}
       clientId: {{ .Values.oidc.clientId | quote }}
-      redirectUrl: "{{ .Values.ingress.hostname | quote }}/auth/callback"
+      redirectUrl: "https://{{ .Values.ingress.hostname }}/auth/callback"
       groupClaimName: {{ .Values.oidc.groupClaimName | quote }}
       adminGroup: {{ .Values.oidc.adminGroup | quote }}
       usernameClaimName: {{ .Values.oidc.usernameClaimName | quote }}

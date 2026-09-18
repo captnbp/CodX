@@ -67,7 +67,7 @@ diagnosticMode:
 image:
   registry: ghcr.io
   repository: "captnbp/codx"
-  tag: latest
+  tag: sha-6ac5050
   ## Specify a imagePullPolicy
   ## Defaults to 'Always' if image tag is 'latest', else set to 'IfNotPresent'
   ## ref: http://kubernetes.io/docs/user-guide/images/#pre-pulling-images
@@ -672,3 +672,50 @@ slug:
 inactivity:
   signal: log-tail
   checkInterval: 60s
+
+## @section Profiles
+## Profile custom resources (profiles.codx.io/v1) created by the chart.
+## Each entry is a map: key -> Profile spec. The key becomes the resource name.
+## An empty map renders no Profile objects.
+## @param profiles Map of Profile resources to deploy. Each value is a full Profile spec.
+## e.g:
+## profiles:
+##   default:
+##     title: Default
+##     description: Standard code-server workspace
+##     inactivityStopDelaySeconds: 1800
+##     oidcGroups:
+##       - doca:users
+##     podSpec:
+##       image: codercom/code-server:latest
+##     pvc:
+##       size: 10Gi
+##
+profiles:
+  default:
+    title: Default
+    description: Standard code-server workspace
+    inactivityStopDelaySeconds: 1800
+    oidcGroups:
+      - doca:users
+      - doca:owners
+    podSpec:
+      image: docker.io/captnbp/code-server:4.136.2
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        # allowPrivilegeEscalation: false
+        # readOnlyRootFilesystem: true
+        # capabilities:
+        #   drop:
+        #     - ALL
+      resources:
+        limits:
+          cpu: 2
+          memory: 4Gi
+        requests:
+          cpu: 250m
+          memory: 256Mi
+    pvc:
+      size: 20Gi

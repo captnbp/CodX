@@ -43,3 +43,7 @@ tidy:
 .PHONY: fmt
 fmt:
 	go fmt ./...
+
+.PHONY: docs-crd
+docs-crd:
+	python3 hack/gen_crd_docs.py

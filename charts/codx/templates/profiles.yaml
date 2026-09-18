@@ -1,0 +1,22 @@
+{{- /*
+Render Profile custom resources (profiles.codx.io/v1) from .Values.profiles.
+Each entry is a map: key -> Profile spec. An empty map renders nothing.
+*/ -}}
+{{- range $name, $spec := .Values.profiles }}
+---
+apiVersion: codx.io/v1
+kind: Profile
+metadata:
+  name: {{ $name }}
+  namespace: {{ $.Release.Namespace }}
+  labels: {{- include "common.labels.standard" $ | nindent 4 }}
+    app.kubernetes.io/component: profile
+    {{- if $.Values.commonLabels }}
+    {{- include "common.tplvalues.render" ( dict "value" $.Values.commonLabels "context" $ ) | nindent 4 }}
+    {{- end }}
+  {{- if $.Values.commonAnnotations }}
+  annotations: {{- include "common.tplvalues.render" ( dict "value" $.Values.commonAnnotations "context" $ ) | nindent 4 }}
+  {{- end }}
+spec:
+  {{- toYaml $spec | nindent 2 }}
+{{- end }}
