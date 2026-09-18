@@ -16,6 +16,7 @@ import (
 	"github.com/captnbp/CodX/internal/proxy"
 	"github.com/captnbp/CodX/internal/session"
 	profilev1 "github.com/captnbp/CodX/api/profile/v1"
+	"github.com/go-logr/logr"
 )
 
 // SessionCookieName is the name of the cookie storing the session ID.
@@ -29,6 +30,7 @@ type Server struct {
 	profiles     *k8s.ProfileStore
 	workspaces   *k8s.WorkspaceManager
 	proxyFactory ProxyFactory
+	log          logr.Logger
 }
 
 // ProxyFactory creates a WorkspaceProxy for a given workspace FQDN.
@@ -54,7 +56,15 @@ func New(
 		profiles:     profiles,
 		workspaces:   workspaces,
 		proxyFactory: proxyFactory,
+		log:          logr.Discard(),
 	}
+}
+
+// WithLogger sets the structured logger used by the server for request and
+// profile resolution logging.
+func (s *Server) WithLogger(log logr.Logger) *Server {
+	s.log = log.WithName("web")
+	return s
 }
 
 // Handler returns an http.Handler with all routes registered.
@@ -135,6 +145,13 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 
 	profiles := s.profiles.AllowedForGroups(sess.Groups)
+
+	s.log.Info("serving profile picker",
+		"user", sess.Username,
+		"groups", sess.Groups,
+		"cachedProfiles", s.profiles.Count(),
+		"allowedProfiles", len(profiles),
+	)
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	fmt.Fprintf(w, `<!DOCTYPE html>
@@ -265,6 +282,13 @@ func (s *Server) handleListProfiles(w http.ResponseWriter, r *http.Request) {
 	}
 
 	profiles := s.profiles.AllowedForGroups(sess.Groups)
+
+	s.log.V(1).Info("list profiles",
+		"user", sess.Username,
+		"groups", sess.Groups,
+		"cachedProfiles", s.profiles.Count(),
+		"allowedProfiles", len(profiles),
+	)
 
 	type profileInfo struct {
 		Name        string `json:"name"`

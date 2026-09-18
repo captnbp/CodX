@@ -78,13 +78,19 @@ func run(configPath string) error {
 	})
 	defer store.Close()
 
-	// Set up the Kubernetes clientset.
-	// TODO: use real client-go clients loaded from in-cluster config.
-	clientset := &k8s.Clientset{}
+	// Set up the Kubernetes clientset from the in-cluster service account.
+	clientset, err := k8s.NewInClusterClientset()
+	if err != nil {
+		return fmt.Errorf("init kubernetes clients: %w", err)
+	}
+	log.Info("kubernetes clients initialized",
+		"namespace", cfg.Namespace,
+	)
 
-	// Set up the profile store.
-	profileStore := k8s.NewProfileStore()
-	_ = profileStore // TODO: load profiles via informer
+	// Set up the profile store and start watching Profile CRs.
+	profileStore := k8s.NewProfileStore().WithLogger(log)
+	go profileStore.Run(ctx, clientset.Profile, cfg.Namespace, 0)
+	log.Info("profile watcher started", "namespace", cfg.Namespace)
 
 	// Set up the workspace manager.
 	wm := k8s.NewWorkspaceManager(clientset, cfg)
@@ -99,7 +105,7 @@ func run(configPath string) error {
 	go watcher.Run(ctx)
 
 	// Set up the web server.
-	webServer := web.New(cfg, auth, store, profileStore, wm, nil)
+	webServer := web.New(cfg, auth, store, profileStore, wm, nil).WithLogger(log)
 
 	server := &http.Server{
 		Addr:         cfg.HTTP.ListenAddr,
