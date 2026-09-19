@@ -52,13 +52,12 @@ func New(workspaceFQDN string, cfg Config) (*WorkspaceProxy, error) {
 		TLSClientConfig: tlsConfig,
 	}
 
-	rp := httputil.NewSingleHostReverseProxy(target)
-	rp.Transport = transport
-
-	// Override the Host header so the workspace nginx sees the expected FQDN.
-	rp.Rewrite = func(rw *httputil.ProxyRequest) {
-		rw.SetURL(target)
-		rw.Out.Host = workspaceFQDN
+	rp := &httputil.ReverseProxy{
+		Transport: transport,
+		Rewrite: func(rw *httputil.ProxyRequest) {
+			rw.SetURL(target)
+			rw.Out.Host = workspaceFQDN
+		},
 	}
 
 	return &WorkspaceProxy{
