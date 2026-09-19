@@ -24,7 +24,6 @@ data:
         # TLS 1.3 only with modern ciphers
         ssl_protocols TLSv1.3;
         ssl_prefer_server_ciphers on;
-        ssl_ciphers TLS_AES_256_GCM_SHA384:TLS_AES_128_GCM_SHA256:TLS_CHACHA20_POLY1305_SHA256;
 
         # Client certificate verification (mTLS)
         ssl_client_certificate /tls/ca.crt;
@@ -48,6 +47,11 @@ data:
         # code-server backend listens on localhost:8080
         upstream code-server {
             server 127.0.0.1:8080;
+        }
+
+        map $http_upgrade $connection_upgrade {
+            default upgrade;
+            ''      close;
         }
 
         server {

@@ -201,7 +201,7 @@ func buildContainers(profile *profilev1.Profile, objName string) []corev1.Contai
 	// Nginx TLS termination sidecar.
 	containers = append(containers, corev1.Container{
 		Name:  "nginx-tls",
-		Image: "nginx:1.27-alpine",
+		Image: "nginx:1.31-alpine",
 		Ports: []corev1.ContainerPort{
 			{ContainerPort: 9443, Name: "https", Protocol: corev1.ProtocolTCP},
 		},
