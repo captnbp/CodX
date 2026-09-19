@@ -31,6 +31,13 @@ data:
         ssl_verify_client on;
         ssl_verify_depth 2;
 
+        # Temp paths under /tmp so nginx works with a read-only root filesystem.
+        client_body_temp_path /tmp/client_temp;
+        proxy_temp_path /tmp/proxy_temp;
+        fastcgi_temp_path /tmp/fastcgi_temp;
+        uwsgi_temp_path /tmp/uwsgi_temp;
+        scgi_temp_path /tmp/scgi_temp;
+
         # Access log with timestamps (used by CodX inactivity watcher)
         log_format codx '$remote_addr - $remote_user [$time_iso8601] '
                         '"$request" $status $body_bytes_sent '
@@ -44,7 +51,8 @@ data:
         }
 
         server {
-            listen 9443 ssl http2;
+            listen 9443 ssl;
+            http2 on;
             server_name _;
 
             # Workspace TLS certificate (mounted from cert-manager secret)

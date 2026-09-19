@@ -208,6 +208,16 @@ func buildContainers(profile *profilev1.Profile, objName string) []corev1.Contai
 		VolumeMounts: []corev1.VolumeMount{
 			{Name: "tls", MountPath: "/tls", ReadOnly: true},
 			{Name: "nginx-config", MountPath: "/etc/nginx/nginx.conf", SubPath: "nginx.conf", ReadOnly: true},
+			{Name: "nginx-tmp", MountPath: "/tmp"},
+		},
+		SecurityContext: &corev1.SecurityContext{
+			RunAsUser:                int64Ptr(101),
+			RunAsNonRoot:             boolPtr(true),
+			ReadOnlyRootFilesystem:   boolPtr(true),
+			AllowPrivilegeEscalation: boolPtr(false),
+			Capabilities: &corev1.Capabilities{
+				Drop: []corev1.Capability{"ALL"},
+			},
 		},
 	})
 
@@ -218,9 +228,10 @@ func buildContainers(profile *profilev1.Profile, objName string) []corev1.Contai
 }
 
 // buildVolumes builds the volume list: the PVC volume, the TLS secret volume,
-// the nginx config volume, plus any extra volumes from the profile.
+// the nginx config volume, the nginx tmp volume, plus any extra volumes from
+// the profile.
 func buildVolumes(profile *profilev1.Profile, objName string) []corev1.Volume {
-	volumes := make([]corev1.Volume, 0, 3+len(profile.Spec.PodSpec.Volumes))
+	volumes := make([]corev1.Volume, 0, 4+len(profile.Spec.PodSpec.Volumes))
 
 	// PVC for /home/coder.
 	volumes = append(volumes, corev1.Volume{
@@ -254,6 +265,15 @@ func buildVolumes(profile *profilev1.Profile, objName string) []corev1.Volume {
 		},
 	})
 
+	// Writable /tmp for the nginx sidecar (pid + temp paths) so it runs under
+	// a read-only root filesystem.
+	volumes = append(volumes, corev1.Volume{
+		Name: "nginx-tmp",
+		VolumeSource: corev1.VolumeSource{
+			EmptyDir: &corev1.EmptyDirVolumeSource{},
+		},
+	})
+
 	// Extra volumes from profile.
 	volumes = append(volumes, profile.Spec.PodSpec.Volumes...)
 
@@ -283,3 +303,6 @@ type Clientset struct {
 	CertManager CertManagerClient
 	Profile     ProfileClient
 }
+
+func int64Ptr(v int64) *int64 { return &v }
+func boolPtr(v bool) *bool    { return &v }
