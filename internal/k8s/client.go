@@ -9,8 +9,10 @@ import (
 	cmv1versioned "github.com/cert-manager/cert-manager/pkg/client/clientset/versioned"
 	cmv1typed "github.com/cert-manager/cert-manager/pkg/client/clientset/versioned/typed/certmanager/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -127,4 +129,57 @@ func (c *realProfileClient) Get(ctx context.Context, namespace, name string, opt
 		return nil, fmt.Errorf("convert profile %s: %w", name, err)
 	}
 	return &p, nil
+}
+
+func (c *realProfileClient) Watch(ctx context.Context, namespace string, opts metav1.ListOptions) (ProfileWatch, error) {
+	raw, err := c.client.Resource(profileGVR).Namespace(namespace).Watch(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+	w := &realProfileWatch{
+		raw: raw,
+		out: make(chan ProfileWatchEvent),
+	}
+	go w.pump()
+	return w, nil
+}
+
+// realProfileWatch adapts a raw watch.Interface from the dynamic client into
+// a typed ProfileWatch by decoding each unstructured event into a
+// *profilev1.Profile.
+type realProfileWatch struct {
+	raw watch.Interface
+	out chan ProfileWatchEvent
+}
+
+// pump reads raw events from the dynamic client watch, converts each object
+// to a typed *profilev1.Profile, and forwards it to the typed channel. When
+// the raw stream ends (server closes or Stop is called), the typed channel is
+// closed.
+func (w *realProfileWatch) pump() {
+	defer close(w.out)
+	for event := range w.raw.ResultChan() {
+		obj, ok := event.Object.(*unstructured.Unstructured)
+		if !ok {
+			continue
+		}
+		var p profilev1.Profile
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, &p); err != nil {
+			continue
+		}
+		select {
+		case w.out <- ProfileWatchEvent{Type: event.Type, Profile: &p}:
+		default:
+			// Drop the event if no consumer is reading; the watch contract does
+			// not guarantee delivery to a slow consumer.
+		}
+	}
+}
+
+func (w *realProfileWatch) Stop() {
+	w.raw.Stop()
+}
+
+func (w *realProfileWatch) ResultChan() <-chan ProfileWatchEvent {
+	return w.out
 }

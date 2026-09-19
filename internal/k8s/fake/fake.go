@@ -13,6 +13,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/watch"
 )
 
 // CoreV1Client is an in-memory implementation of k8s.CoreV1Client.
@@ -291,3 +292,28 @@ func (f *ProfileClient) Get(ctx context.Context, namespace, name string, opts me
 	}
 	return nil, apierrors.NewNotFound(schema.GroupResource{Group: "codx.io", Resource: "profiles"}, name)
 }
+
+// Watch returns a ProfileWatch that emits the current profiles as Added
+// events then closes. It is a simple snapshot watch suitable for tests that
+// do not need live updates.
+func (f *ProfileClient) Watch(ctx context.Context, namespace string, opts metav1.ListOptions) (k8s.ProfileWatch, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	ch := make(chan k8s.ProfileWatchEvent)
+	go func() {
+		defer close(ch)
+		for _, p := range f.Profiles {
+			ch <- k8s.ProfileWatchEvent{Type: watch.Added, Profile: p.DeepCopy()}
+		}
+	}()
+	return &profileWatch{ch: ch}, nil
+}
+
+// profileWatch implements k8s.ProfileWatch for the in-memory fake.
+type profileWatch struct {
+	ch chan k8s.ProfileWatchEvent
+}
+
+func (w *profileWatch) Stop() {}
+
+func (w *profileWatch) ResultChan() <-chan k8s.ProfileWatchEvent { return w.ch }

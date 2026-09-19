@@ -7,6 +7,7 @@ import (
 	cmv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/watch"
 )
 
 // CoreV1Client is the subset of the Kubernetes corev1 clientset used by CodX.
@@ -65,8 +66,27 @@ type CertificateInterface interface {
 	List(ctx context.Context, opts metav1.ListOptions) (*cmv1.CertificateList, error)
 }
 
+// ProfileWatchEvent is a typed watch event carrying a Profile resource.
+type ProfileWatchEvent struct {
+	Type    watch.EventType
+	Profile *profilev1.Profile
+}
+
+// ProfileWatch is a typed watch channel for Profile resources. It mirrors
+// k8s.io/apimachinery/pkg/watch.Interface but delivers already-decoded
+// *profilev1.Profile values instead of raw runtime.Object.
+type ProfileWatch interface {
+	// Stop stops the watch and closes the result channel. The consumer must
+	// call Stop once it no longer reads events.
+	Stop()
+	// ResultChan returns the channel of typed watch events. The channel is
+	// closed when the watch is stopped or the server ends the stream.
+	ResultChan() <-chan ProfileWatchEvent
+}
+
 // ProfileClient is the interface for reading Profile CRs.
 type ProfileClient interface {
 	List(ctx context.Context, namespace string, opts metav1.ListOptions) (*profilev1.ProfileList, error)
 	Get(ctx context.Context, namespace, name string, opts metav1.GetOptions) (*profilev1.Profile, error)
+	Watch(ctx context.Context, namespace string, opts metav1.ListOptions) (ProfileWatch, error)
 }

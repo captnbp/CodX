@@ -10,6 +10,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/watch"
 )
 
 // fakeCoreV1Client implements CoreV1Client for testing.
@@ -290,3 +291,25 @@ func (f *fakeProfileClient) Get(ctx context.Context, namespace, name string, opt
 	}
 	return nil, apierrors.NewNotFound(schema.GroupResource{Group: "codx.io", Resource: "profiles"}, name)
 }
+
+func (f *fakeProfileClient) Watch(ctx context.Context, namespace string, opts metav1.ListOptions) (ProfileWatch, error) {
+	ch := make(chan ProfileWatchEvent)
+	w := &fakeProfileWatch{ch: ch}
+	go func() {
+		defer close(ch)
+		for _, p := range f.profiles {
+			ch <- ProfileWatchEvent{Type: watch.Added, Profile: p.DeepCopy()}
+		}
+	}()
+	return w, nil
+}
+
+// fakeProfileWatch implements ProfileWatch for tests. It emits the current
+// set of profiles as Added events then closes the channel.
+type fakeProfileWatch struct {
+	ch chan ProfileWatchEvent
+}
+
+func (w *fakeProfileWatch) Stop() {}
+
+func (w *fakeProfileWatch) ResultChan() <-chan ProfileWatchEvent { return w.ch }
