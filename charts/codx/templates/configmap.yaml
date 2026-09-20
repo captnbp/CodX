@@ -51,3 +51,10 @@ data:
     inactivity:
       signal: {{ .Values.inactivity.signal | quote }}
       checkInterval: {{ .Values.inactivity.checkInterval | quote }}
+    workspaceService:
+      {{- if .Values.workspaceService.annotations }}
+      annotations:
+        {{- toYaml .Values.workspaceService.annotations | nindent 8 }}
+      {{- end }}
+      ipFamilies: {{ toYaml .Values.workspaceService.ipFamilies | nindent 8 }}
+      ipFamilyPolicy: {{ .Values.workspaceService.ipFamilyPolicy | quote }}

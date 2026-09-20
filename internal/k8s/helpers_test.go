@@ -18,6 +18,10 @@ func testConfig() *config.Config {
 			Validity:    "2160h",
 		},
 		Slug: config.SlugConfig{MaxLength: 63},
+		WorkspaceService: config.WorkspaceServiceConfig{
+			IPFamilies:      []string{"IPv6", "IPv4"},
+			IPFamilyPolicy: "PreferDualStack",
+		},
 	}
 }
 

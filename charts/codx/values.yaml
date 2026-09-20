@@ -673,7 +673,16 @@ inactivity:
   signal: log-tail
   checkInterval: 60s
 
-## @section Profiles
+## @section Workspace Service
+## WorkspaceService configures the per-user workspace Service objects.
+## @param workspaceService.annotations Extra annotations to add to every workspace Service.
+## @param workspaceService.ipFamilies List of IP families (e.g. IPv4, IPv6) assigned to workspace Services.
+## @param workspaceService.ipFamilyPolicy Dual-stack-ness requested or required by workspace Services.
+##
+workspaceService:
+  annotations: {}
+  ipFamilies: ["IPv6", "IPv4"]
+  ipFamilyPolicy: "PreferDualStack"
 ## Profile custom resources (profiles.codx.io/v1) created by the chart.
 ## Each entry is a map: key -> Profile spec. The key becomes the resource name.
 ## An empty map renders no Profile objects.

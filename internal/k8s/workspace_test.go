@@ -293,18 +293,29 @@ func TestServiceFQDN(t *testing.T) {
 	}
 }
 
-func TestBuildServiceLabels(t *testing.T) {
-	svc := BuildService("codx", "john-doe", "codx-system", nil)
-	if svc.Labels[LabelInstance] != "john-doe" {
-		t.Errorf("instance label = %q", svc.Labels[LabelInstance])
+func TestBuildServiceIPFamilies(t *testing.T) {
+	cfg := testConfig()
+	cfg.WorkspaceService.IPFamilies = []string{"IPv4"}
+	cfg.WorkspaceService.IPFamilyPolicy = "SingleStack"
+	cfg.WorkspaceService.Annotations = map[string]string{"test": "value"}
+
+	svc := BuildService("codx", "john-doe", "codx-system", nil, cfg)
+
+	if len(svc.Spec.IPFamilies) != 1 {
+		t.Errorf("IPFamilies length = %d, want 1", len(svc.Spec.IPFamilies))
 	}
-	if svc.Labels[LabelManagedBy] != "codx" {
-		t.Errorf("managed-by label = %q", svc.Labels[LabelManagedBy])
+	if svc.Spec.IPFamilies[0] != corev1.IPv4Protocol {
+		t.Errorf("IPFamilies[0] = %q, want %q", svc.Spec.IPFamilies[0], corev1.IPv4Protocol)
 	}
-	if svc.Labels[LabelName] != "codx" {
-		t.Errorf("name label = %q", svc.Labels[LabelName])
+
+	if svc.Spec.IPFamilyPolicy == nil {
+		t.Fatal("IPFamilyPolicy is nil")
 	}
-	if svc.Labels[LabelComponent] != "workspace" {
-		t.Errorf("component label = %q", svc.Labels[LabelComponent])
+	if *svc.Spec.IPFamilyPolicy != corev1.IPFamilyPolicySingleStack {
+		t.Errorf("IPFamilyPolicy = %q, want %q", *svc.Spec.IPFamilyPolicy, corev1.IPFamilyPolicySingleStack)
+	}
+
+	if svc.Annotations["test"] != "value" {
+		t.Errorf("Annotations[test] = %q, want value", svc.Annotations["test"])
 	}
 }

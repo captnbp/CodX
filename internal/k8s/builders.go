@@ -41,12 +41,13 @@ func ServiceFQDN(instance, slug, namespace string) string {
 }
 
 // BuildService creates a Service object for a workspace.
-func BuildService(instance, slug, namespace string, profile *profilev1.Profile) *corev1.Service {
-	return &corev1.Service{
+func BuildService(instance, slug, namespace string, profile *profilev1.Profile, cfg *config.Config) *corev1.Service {
+	svc := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      objectName(instance, slug),
-			Namespace: namespace,
-			Labels:    workspaceLabels(instance, slug),
+			Name:        objectName(instance, slug),
+			Namespace:   namespace,
+			Labels:      workspaceLabels(instance, slug),
+			Annotations: mergeAnnotations(nil, cfg.WorkspaceService.Annotations),
 		},
 		Spec: corev1.ServiceSpec{
 			Selector: map[string]string{
@@ -63,6 +64,21 @@ func BuildService(instance, slug, namespace string, profile *profilev1.Profile) 
 			},
 		},
 	}
+
+	// Apply IP family settings from config.
+	if len(cfg.WorkspaceService.IPFamilies) > 0 {
+		families := make([]corev1.IPFamily, len(cfg.WorkspaceService.IPFamilies))
+		for i, f := range cfg.WorkspaceService.IPFamilies {
+			families[i] = corev1.IPFamily(f)
+		}
+		svc.Spec.IPFamilies = families
+	}
+	if cfg.WorkspaceService.IPFamilyPolicy != "" {
+		policy := corev1.IPFamilyPolicy(cfg.WorkspaceService.IPFamilyPolicy)
+		svc.Spec.IPFamilyPolicy = &policy
+	}
+
+	return svc
 }
 
 // BuildPVC creates a PVC for the user's home directory.
@@ -299,6 +315,18 @@ func objectName(instance, slug string) string {
 
 // mergeLabels merges base labels with extra labels (extra wins on conflict).
 func mergeLabels(base, extra map[string]string) map[string]string {
+	result := make(map[string]string, len(base)+len(extra))
+	for k, v := range base {
+		result[k] = v
+	}
+	for k, v := range extra {
+		result[k] = v
+	}
+	return result
+}
+
+// mergeAnnotations merges base annotations with extra annotations (extra wins on conflict).
+func mergeAnnotations(base, extra map[string]string) map[string]string {
 	result := make(map[string]string, len(base)+len(extra))
 	for k, v := range base {
 		result[k] = v

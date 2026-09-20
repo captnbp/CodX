@@ -44,7 +44,7 @@ func (m *WorkspaceManager) EnsureWorkspace(ctx context.Context, profile *profile
 	steps := make([]WorkspaceStep, 0, 4)
 
 	// 1. Service.
-	svc := BuildService(instance, userSlug, namespace, profile)
+	svc := BuildService(instance, userSlug, namespace, profile, m.cfg)
 	if _, err := m.clients.CoreV1.Services(namespace).Create(ctx, svc, metav1.CreateOptions{}); err != nil {
 		if !apierrors.IsAlreadyExists(err) {
 			return steps, fmt.Errorf("create service: %w", err)

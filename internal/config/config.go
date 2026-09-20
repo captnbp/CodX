@@ -45,6 +45,9 @@ type Config struct {
 
 	// Inactivity configures how workspace inactivity is detected.
 	Inactivity InactivityConfig `yaml:"inactivity"`
+
+	// WorkspaceService configures the per-user workspace Service objects.
+	WorkspaceService WorkspaceServiceConfig `yaml:"workspaceService"`
 }
 
 // HTTPConfig configures the CodX HTTP server.
@@ -217,6 +220,25 @@ type InactivityConfig struct {
 	CheckInterval string `yaml:"checkInterval"`
 }
 
+// WorkspaceServiceConfig configures the per-user workspace Service objects.
+type WorkspaceServiceConfig struct {
+	// Annotations are extra annotations to add to every workspace Service.
+	// +optional
+	Annotations map[string]string `yaml:"annotations,omitempty"`
+
+	// IPFamilies is the list of IP families (e.g. IPv4, IPv6) assigned to
+	// workspace Services. Defaults to ["IPv6", "IPv4"].
+	// +optional
+	// +default=["IPv6", "IPv4"]
+	IPFamilies []string `yaml:"ipFamilies,omitempty"`
+
+	// IPFamilyPolicy represents the dual-stack-ness requested or required by
+	// workspace Services. Defaults to "PreferDualStack".
+	// +optional
+	// +default="PreferDualStack"
+	IPFamilyPolicy string `yaml:"ipFamilyPolicy,omitempty"`
+}
+
 // Load reads configuration from the given YAML data, applies defaults, and
 // validates required fields. Environment variables CODX_OIDC_CLIENT_SECRET and
 // CODX_REDIS_PASSWORD override the corresponding YAML fields.
@@ -293,6 +315,14 @@ func applyDefaults(cfg *Config) {
 	}
 	if cfg.Inactivity.CheckInterval == "" {
 		cfg.Inactivity.CheckInterval = "60s"
+	}
+
+	// WorkspaceService defaults.
+	if len(cfg.WorkspaceService.IPFamilies) == 0 {
+		cfg.WorkspaceService.IPFamilies = []string{"IPv6", "IPv4"}
+	}
+	if cfg.WorkspaceService.IPFamilyPolicy == "" {
+		cfg.WorkspaceService.IPFamilyPolicy = "PreferDualStack"
 	}
 }
 
