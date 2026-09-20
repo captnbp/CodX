@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -54,9 +55,39 @@ func New(workspaceFQDN string, cfg Config) (*WorkspaceProxy, error) {
 
 	rp := &httputil.ReverseProxy{
 		Transport: transport,
-		Rewrite: func(rw *httputil.ProxyRequest) {
-			rw.SetURL(target)
-			rw.Out.Host = workspaceFQDN
+		Director: func(r *http.Request) {
+			// Preserve the original Host header so nginx sees the expected FQDN.
+			r.Host = workspaceFQDN
+			r.URL.Scheme = target.Scheme
+			r.URL.Host = target.Host
+			r.URL.Path = target.Path
+			// Add standard X-Forwarded-* headers for the downstream nginx.
+			if clientIP := r.Header.Get("X-Forwarded-For"); clientIP != "" {
+				r.Header.Set("X-Forwarded-For", clientIP)
+			} else {
+				r.Header.Set("X-Forwarded-For", r.RemoteAddr)
+			}
+			if realIP := r.Header.Get("X-Real-IP"); realIP == "" {
+				r.Header.Set("X-Real-IP", r.RemoteAddr)
+			}
+			if host := r.Header.Get("X-Forwarded-Host"); host == "" {
+				r.Header.Set("X-Forwarded-Host", r.Host)
+			}
+			if port := r.Header.Get("X-Forwarded-Port"); port == "" {
+				// Try to extract port from Host header (host:port)
+				if _, portStr, err := net.SplitHostPort(r.Host); err == nil {
+					r.Header.Set("X-Forwarded-Port", portStr)
+				} else {
+					// Default to 443 for HTTPS
+					r.Header.Set("X-Forwarded-Port", "443")
+				}
+			}
+			if proto := r.Header.Get("X-Forwarded-Proto"); proto == "" {
+				r.Header.Set("X-Forwarded-Proto", "https")
+			}
+			if server := r.Header.Get("X-Forwarded-Server"); server == "" {
+				r.Header.Set("X-Forwarded-Server", workspaceFQDN)
+			}
 		},
 	}
 
