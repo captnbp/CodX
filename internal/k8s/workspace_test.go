@@ -319,3 +319,32 @@ func TestBuildServiceIPFamilies(t *testing.T) {
 		t.Errorf("Annotations[test] = %q, want value", svc.Annotations["test"])
 	}
 }
+
+func TestBuildPodEnvUsername(t *testing.T) {
+	profile := testProfile("python-dev", "Python Dev", nil)
+	pod := BuildPod("codx", "john-doe", "codx-system", "codx-john-doe.codx-system.svc.cluster.local", profile)
+
+	// Find the code-server container.
+	var codeServer *corev1.Container
+	for i := range pod.Spec.Containers {
+		if pod.Spec.Containers[i].Name == "code-server" {
+			codeServer = &pod.Spec.Containers[i]
+			break
+		}
+	}
+	if codeServer == nil {
+		t.Fatal("code-server container not found")
+	}
+
+	// Check CODX_USERNAME env var.
+	found := false
+	for _, env := range codeServer.Env {
+		if env.Name == "CODX_USERNAME" && env.Value == "john-doe" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("CODX_USERNAME env var not found or incorrect in code-server container")
+	}
+}

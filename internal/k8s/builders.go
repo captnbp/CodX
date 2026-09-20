@@ -179,7 +179,7 @@ func BuildPod(instance, slug, namespace, fqdn string, profile *profilev1.Profile
 		Spec: corev1.PodSpec{
 			SecurityContext:    profile.Spec.PodSpec.SecurityContext,
 			InitContainers:     profile.Spec.PodSpec.InitContainers,
-			Containers:         buildContainers(profile, objName),
+			Containers:         buildContainers(profile, objName, slug),
 			Volumes:             buildVolumes(profile, objName),
 			EnableServiceLinks: resolveEnableServiceLinks(profile),
 		},
@@ -201,7 +201,7 @@ func resolveEnableServiceLinks(profile *profilev1.Profile) *bool {
 
 // buildContainers builds the container list: the code-server main container,
 // the nginx sidecar, plus any extra sidecars from the profile.
-func buildContainers(profile *profilev1.Profile, objName string) []corev1.Container {
+func buildContainers(profile *profilev1.Profile, objName, userSlug string) []corev1.Container {
 	containers := make([]corev1.Container, 0, 2+len(profile.Spec.PodSpec.Sidecars))
 
 	// Main code-server container.
@@ -218,6 +218,11 @@ func buildContainers(profile *profilev1.Profile, objName string) []corev1.Contai
 	if len(profile.Spec.PodSpec.Args) > 0 {
 		main.Args = profile.Spec.PodSpec.Args
 	}
+	// Add CODX_USERNAME env var so code-server knows the user.
+	main.Env = append(main.Env, corev1.EnvVar{
+		Name:  "CODX_USERNAME",
+		Value: userSlug,
+	})
 	// Mount PVC at /home/coder.
 	main.VolumeMounts = append(main.VolumeMounts, corev1.VolumeMount{
 		Name:      "home",
