@@ -80,6 +80,15 @@ spec:
                     items:
                       type: string
                     type: array
+                  enableServiceLinks:
+                    default: false
+                    description: |-
+                      EnableServiceLinks controls whether Kubernetes injects service-linked
+                      environment variables (e.g. *_SERVICE_HOST, *_SERVICE_PORT) into the
+                      code-server container. Defaults to false to keep the workspace
+                      environment clean and avoid leaking cluster service discovery into
+                      user workspaces. Set to true to enable the legacy injection behavior.
+                    type: boolean
                   env:
                     description: Env adds extra environment variables to the main
                       container.

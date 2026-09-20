@@ -93,6 +93,38 @@ func TestEnsureWorkspaceCreatesAllObjects(t *testing.T) {
 	if pod.Spec.Containers[1].Name != "nginx-tls" {
 		t.Errorf("Second container = %q, want nginx-tls", pod.Spec.Containers[1].Name)
 	}
+	if pod.Spec.EnableServiceLinks == nil {
+		t.Error("EnableServiceLinks is nil, want false by default")
+	} else if *pod.Spec.EnableServiceLinks {
+		t.Error("EnableServiceLinks = true, want false by default")
+	}
+}
+
+func TestEnsureWorkspaceEnableServiceLinksTrue(t *testing.T) {
+	cs := newTestClientset()
+	cfg := testConfig()
+	mgr := NewWorkspaceManager(cs, cfg)
+	profile := testProfile("python-dev", "Python Dev", nil)
+	trueVal := true
+	profile.Spec.PodSpec.EnableServiceLinks = &trueVal
+
+	_, err := mgr.EnsureWorkspace(context.Background(), profile, "john-doe")
+	if err != nil {
+		t.Fatalf("EnsureWorkspace: %v", err)
+	}
+
+	coreV1 := cs.CoreV1.(*fakeCoreV1Client)
+	objName := "codx-john-doe"
+	pod, err := coreV1.Pods("").Get(context.Background(), objName, metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("Pod not found: %v", err)
+	}
+	if pod.Spec.EnableServiceLinks == nil {
+		t.Fatal("EnableServiceLinks is nil, want true")
+	}
+	if !*pod.Spec.EnableServiceLinks {
+		t.Error("EnableServiceLinks = false, want true")
+	}
 }
 
 func TestEnsureWorkspaceIdempotent(t *testing.T) {

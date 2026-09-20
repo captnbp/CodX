@@ -69,7 +69,12 @@ def render_table(rows):
            "|-------|------|----------|---------|-------------|"]
     for name, ftype, required, default, desc in rows:
         req = "Yes" if required else "No"
-        dflt = default if default else "-"
+        if default is None or default == "":
+            dflt = "-"
+        elif isinstance(default, bool):
+            dflt = "true" if default else "false"
+        else:
+            dflt = default
         out.append(f"| `{name}` | `{ftype}` | {req} | `{dflt}` | {desc} |")
     return "\n".join(out)
 

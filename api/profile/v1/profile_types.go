@@ -117,6 +117,15 @@ type ProfilePodSpec struct {
 	// Resources sets resource requests and limits for the main container.
 	// +optional
 	Resources corev1.ResourceRequirements `json:"resources,omitempty"`
+
+	// EnableServiceLinks controls whether Kubernetes injects service-linked
+	// environment variables (e.g. *_SERVICE_HOST, *_SERVICE_PORT) into the
+	// code-server container. Defaults to false to keep the workspace
+	// environment clean and avoid leaking cluster service discovery into
+	// user workspaces. Set to true to enable the legacy injection behavior.
+	// +optional
+	// +kubebuilder:default:=false
+	EnableServiceLinks *bool `json:"enableServiceLinks,omitempty"`
 }
 
 // ProfilePVC defines the default settings for the user's home directory PVC.

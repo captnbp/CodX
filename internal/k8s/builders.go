@@ -161,14 +161,26 @@ func BuildPod(instance, slug, namespace, fqdn string, profile *profilev1.Profile
 			Annotations: profile.Spec.PodSpec.Annotations,
 		},
 		Spec: corev1.PodSpec{
-			SecurityContext: profile.Spec.PodSpec.SecurityContext,
-			InitContainers:  profile.Spec.PodSpec.InitContainers,
-			Containers:      buildContainers(profile, objName),
-			Volumes:         buildVolumes(profile, objName),
+			SecurityContext:    profile.Spec.PodSpec.SecurityContext,
+			InitContainers:     profile.Spec.PodSpec.InitContainers,
+			Containers:         buildContainers(profile, objName),
+			Volumes:             buildVolumes(profile, objName),
+			EnableServiceLinks: resolveEnableServiceLinks(profile),
 		},
 	}
 
 	return pod
+}
+
+// resolveEnableServiceLinks returns the value for PodSpec.EnableServiceLinks
+// from the profile. It defaults to false so the workspace environment stays
+// clean and the nginx-tls sidecar never receives service-linked env vars.
+func resolveEnableServiceLinks(profile *profilev1.Profile) *bool {
+	if profile.Spec.PodSpec.EnableServiceLinks != nil {
+		return profile.Spec.PodSpec.EnableServiceLinks
+	}
+	falseVal := false
+	return &falseVal
 }
 
 // buildContainers builds the container list: the code-server main container,
