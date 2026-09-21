@@ -84,6 +84,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/admin/users", s.handleAdminListUsers)
 	mux.HandleFunc("/api/admin/users/", s.handleAdminUserAction)
 	mux.HandleFunc("/admin", s.handleAdminUI)
+	mux.HandleFunc("/profile", s.handleProfile)
 	mux.HandleFunc("/user/", s.handleProxy)
 
 	// Root serves the profile picker page.
@@ -168,7 +169,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
   <div class="container">
     <span class="navbar-brand mb-0 h1">CodX</span>
     <div class="d-flex">
-      <span class="navbar-text text-light me-3">Signed in as <strong>%s</strong></span>
+      <a href="/profile" class="navbar-text text-light me-3 text-decoration-none">Signed in as <strong>%s</strong></a>
       <a href="/auth/logout" class="btn btn-outline-light btn-sm">Logout</a>
     </div>
   </div>
@@ -241,6 +242,90 @@ function stopWorkspace() {
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
 </body>
 </html>`)
+}
+
+func (s *Server) handleProfile(w http.ResponseWriter, r *http.Request) {
+	sess := SessionFromContext(r.Context())
+	if sess == nil {
+		http.Redirect(w, r, "/auth/login", http.StatusSeeOther)
+		return
+	}
+
+	s.log.V(1).Info("serving profile page",
+		"user", sess.Username,
+		"groups", sess.Groups,
+		"admin", sess.IsAdmin,
+	)
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	fmt.Fprintf(w, `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CodX - Profile</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+</head>
+<body class="bg-light">
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
+  <div class="container">
+    <span class="navbar-brand mb-0 h1">CodX</span>
+    <div class="d-flex">
+      <a href="/profile" class="navbar-text text-light me-3 text-decoration-none">Signed in as <strong>%s</strong></a>
+      <a href="/" class="btn btn-outline-light btn-sm me-2">Workspaces</a>
+      <a href="/auth/logout" class="btn btn-outline-light btn-sm">Logout</a>
+    </div>
+  </div>
+</nav>
+<div class="container">
+  <div class="row g-4">
+    <div class="col-lg-8">
+      <h2 class="mb-3">Profile</h2>
+      <div class="card">
+        <div class="card-body">
+          <p class="mb-2"><strong>Username:</strong> %s</p>
+          <p class="mb-2"><strong>Subject:</strong> <code>%s</code></p>
+          <p class="mb-2"><strong>Workspace slug:</strong> <code>%s</code></p>
+          <p class="mb-0"><strong>Admin:</strong> %s</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <h2 class="mb-3">OIDC Groups</h2>
+      <div class="card">
+        <div class="card-body">
+`, html.EscapeString(sess.Username),
+		html.EscapeString(sess.Username),
+		html.EscapeString(sess.Subject),
+		html.EscapeString(sess.Slug),
+		groupBadge(sess.IsAdmin))
+
+	for _, g := range sess.Groups {
+		fmt.Fprintf(w, `          <span class="badge text-bg-primary me-1 mb-1">%s</span>`,
+			html.EscapeString(g))
+	}
+
+	if len(sess.Groups) == 0 {
+		fmt.Fprintf(w, `          <p class="text-muted mb-0">No groups assigned.</p>`)
+	}
+
+	fmt.Fprintf(w, `
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+</body>
+</html>`)
+}
+
+// groupBadge returns a Bootstrap badge indicating whether the user is an admin.
+func groupBadge(isAdmin bool) string {
+	if isAdmin {
+		return `<span class="badge text-bg-success">yes</span>`
+	}
+	return `<span class="badge text-bg-secondary">no</span>`
 }
 
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
