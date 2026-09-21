@@ -94,9 +94,9 @@ function loadUsers() {
                 "<td><code>" + u.slug + "</code></td>" +
                 "<td>" + onlineBadge + "</td>" +
                 "<td>" +
-                '<button class="btn btn-sm btn-outline-primary me-1" onclick="extendPVC(\\'' + u.slug + '\\')">Extend PVC</button>' +
-                '<button class="btn btn-sm btn-outline-warning me-1" onclick="stopWorkspace(\\'' + u.slug + '\\')">Stop</button>' +
-                '<button class="btn btn-sm btn-outline-danger" onclick="deleteUser(\\'' + u.slug + '\\')">Delete</button>' +
+                '<button class="btn btn-sm btn-outline-primary me-1" onclick="extendPVC(\'' + u.slug + '\')">Extend PVC</button>' +
+                '<button class="btn btn-sm btn-outline-warning me-1" onclick="stopWorkspace(\'' + u.slug + '\')">Stop</button>' +
+                '<button class="btn btn-sm btn-outline-danger" onclick="deleteUser(\'' + u.slug + '\')">Delete</button>' +
                 "</td>";
             tbody.appendChild(tr);
         });
