@@ -18,22 +18,22 @@ import (
 
 // CoreV1Client is an in-memory implementation of k8s.CoreV1Client.
 type CoreV1Client struct {
-	mu          sync.Mutex
-	ServiceMap  map[string]*corev1.Service
-	PVCMap      map[string]*corev1.PersistentVolumeClaim
-	PodMap      map[string]*corev1.Pod
+	mu           sync.Mutex
+	ServiceMap   map[string]*corev1.Service
+	PVCMap       map[string]*corev1.PersistentVolumeClaim
+	PodMap       map[string]*corev1.Pod
 	ConfigMapMap map[string]*corev1.ConfigMap
-	SecretMap   map[string]*corev1.Secret
+	SecretMap    map[string]*corev1.Secret
 }
 
 // NewCoreV1Client creates a new in-memory CoreV1Client.
 func NewCoreV1Client() *CoreV1Client {
 	return &CoreV1Client{
-		ServiceMap:  make(map[string]*corev1.Service),
-		PVCMap:      make(map[string]*corev1.PersistentVolumeClaim),
-		PodMap:      make(map[string]*corev1.Pod),
+		ServiceMap:   make(map[string]*corev1.Service),
+		PVCMap:       make(map[string]*corev1.PersistentVolumeClaim),
+		PodMap:       make(map[string]*corev1.Pod),
 		ConfigMapMap: make(map[string]*corev1.ConfigMap),
-		SecretMap:   make(map[string]*corev1.Secret),
+		SecretMap:    make(map[string]*corev1.Secret),
 	}
 }
 
@@ -170,6 +170,16 @@ func (f *podInterface) Delete(ctx context.Context, name string, opts metav1.Dele
 	return nil
 }
 
+func (f *podInterface) List(ctx context.Context, opts metav1.ListOptions) (*corev1.PodList, error) {
+	f.client.mu.Lock()
+	defer f.client.mu.Unlock()
+	items := make([]corev1.Pod, 0, len(f.client.PodMap))
+	for _, pod := range f.client.PodMap {
+		items = append(items, *pod.DeepCopy())
+	}
+	return &corev1.PodList{Items: items}, nil
+}
+
 type configMapInterface struct{ client *CoreV1Client }
 
 func (f *configMapInterface) Get(ctx context.Context, name string, opts metav1.GetOptions) (*corev1.ConfigMap, error) {
@@ -206,8 +216,8 @@ func (f *secretInterface) Delete(ctx context.Context, name string, opts metav1.D
 
 // CertManagerClient is an in-memory implementation of k8s.CertManagerClient.
 type CertManagerClient struct {
-	mu       sync.Mutex
-	CertMap  map[string]*cmv1.Certificate
+	mu      sync.Mutex
+	CertMap map[string]*cmv1.Certificate
 }
 
 // NewCertManagerClient creates a new in-memory CertManagerClient.

@@ -27,6 +27,9 @@ type Config struct {
 	// HTTP configures the CodX HTTP server.
 	HTTP HTTPConfig `yaml:"http"`
 
+	// Metrics configures the Prometheus metrics endpoint.
+	Metrics MetricsConfig `yaml:"metrics"`
+
 	// OIDC configures the OIDC authentication provider.
 	OIDC OIDCConfig `yaml:"oidc"`
 
@@ -66,6 +69,26 @@ type HTTPConfig struct {
 	// TLSKeyFile is the path to the TLS key for the CodX server.
 	// TLS is mandatory.
 	TLSKeyFile string `yaml:"tlsKeyFile"`
+}
+
+// MetricsConfig configures the dedicated Prometheus metrics endpoint.
+type MetricsConfig struct {
+	// Enabled enables the dedicated /metrics endpoint.
+	// +optional
+	// +default=false
+	Enabled bool `yaml:"enabled"`
+
+	// ListenAddr is the address the metrics server binds to. Defaults to
+	// "[::]:9443".
+	// +optional
+	// +default="[::]:9443"
+	ListenAddr string `yaml:"listenAddr"`
+
+	// TLS enables TLS on the metrics endpoint using the CodX server
+	// certificate (http.tlsCertFile / http.tlsKeyFile).
+	// +optional
+	// +default=false
+	TLS bool `yaml:"tls"`
 }
 
 // OIDCConfig configures the OIDC authentication provider.
@@ -269,6 +292,10 @@ func applyDefaults(cfg *Config) {
 		cfg.HTTP.ListenAddr = "[::]:8443"
 	}
 
+	if cfg.Metrics.ListenAddr == "" {
+		cfg.Metrics.ListenAddr = "[::]:9443"
+	}
+
 	if cfg.OIDC.GroupClaimName == "" {
 		cfg.OIDC.GroupClaimName = "groups"
 	}
@@ -360,6 +387,10 @@ func Validate(cfg *Config) error {
 	}
 	if cfg.HTTP.TLSKeyFile == "" {
 		errs = append(errs, "http.tlsKeyFile is required (TLS is mandatory)")
+	}
+
+	if cfg.Metrics.Enabled && cfg.Metrics.ListenAddr == cfg.HTTP.ListenAddr {
+		errs = append(errs, fmt.Sprintf("metrics.listenAddr %q must differ from http.listenAddr when the metrics endpoint is enabled", cfg.Metrics.ListenAddr))
 	}
 
 	switch cfg.Inactivity.Signal {

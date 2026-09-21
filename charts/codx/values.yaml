@@ -643,6 +643,28 @@ http:
   tlsCertFile: /tls/tls.crt
   tlsKeyFile: /tls/tls.key
 
+## @section Metrics parameters
+## Prometheus metrics served on a dedicated endpoint.
+## @param metrics.enabled Enable the dedicated Prometheus /metrics endpoint (configured via the CodX ConfigMap)
+## @param metrics.port Port of the dedicated metrics endpoint
+## @param metrics.tls Enable TLS on the metrics endpoint using the CodX server certificate (configured via the CodX ConfigMap)
+## @param metrics.serviceMonitor.enabled Create a ServiceMonitor resource for Prometheus Operator
+## @param metrics.serviceMonitor.interval Scrape interval for the ServiceMonitor
+## @param metrics.serviceMonitor.scrapeTimeout Scrape timeout for the ServiceMonitor
+## @param metrics.serviceMonitor.labels Extra labels for the ServiceMonitor resource
+##
+metrics:
+  enabled: true
+  port: 9443
+  tls: true
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+    scrapeTimeout: 10s
+    labels: {}
+    # Extra labels to add to the ServiceMonitor resource, e.g:
+    # release: kube-prometheus-stack
+
 # -- OIDC authentication
 oidc:
   issuer: ""

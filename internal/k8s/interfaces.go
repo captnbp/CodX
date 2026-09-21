@@ -40,6 +40,7 @@ type PodInterface interface {
 	Get(ctx context.Context, name string, opts metav1.GetOptions) (*corev1.Pod, error)
 	Create(ctx context.Context, pod *corev1.Pod, opts metav1.CreateOptions) (*corev1.Pod, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
+	List(ctx context.Context, opts metav1.ListOptions) (*corev1.PodList, error)
 }
 
 // ConfigMapInterface wraps corev1 ConfigMap operations.

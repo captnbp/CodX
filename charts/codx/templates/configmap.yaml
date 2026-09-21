@@ -19,6 +19,12 @@ data:
       listenAddr: {{ .Values.http.listenAddr | quote }}
       tlsCertFile: {{ .Values.http.tlsCertFile | quote }}
       tlsKeyFile: {{ .Values.http.tlsKeyFile | quote }}
+    metrics:
+      enabled: {{ .Values.metrics.enabled }}
+      {{- if .Values.metrics.enabled }}
+      listenAddr: {{ printf "[::]:%v" .Values.metrics.port | quote }}
+      tls: {{ .Values.metrics.tls }}
+      {{- end }}
     oidc:
       issuer: {{ .Values.oidc.issuer | quote }}
       clientId: {{ .Values.oidc.clientId | quote }}

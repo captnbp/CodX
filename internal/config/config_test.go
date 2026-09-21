@@ -74,6 +74,73 @@ certManager:
 	if cfg.Inactivity.CheckInterval != "60s" {
 		t.Errorf("Inactivity.CheckInterval default = %q, want 60s", cfg.Inactivity.CheckInterval)
 	}
+	if cfg.Metrics.ListenAddr != "[::]:9443" {
+		t.Errorf("Metrics.ListenAddr default = %q, want [::]:9443", cfg.Metrics.ListenAddr)
+	}
+}
+
+func TestMetricsConfig(t *testing.T) {
+	yaml := `
+instanceName: "codx"
+http:
+  tlsCertFile: "/tls/tls.crt"
+  tlsKeyFile: "/tls/tls.key"
+metrics:
+  enabled: true
+  listenAddr: "[::]:9090"
+  tls: true
+oidc:
+  issuer: "https://keycloak.example.com/realms/myrealm"
+  clientId: "codx"
+  redirectUrl: "https://codx.example.com/auth/callback"
+  adminGroup: "codx-admins"
+redis:
+  host: "valkey:6379"
+certManager:
+  issuerName: "codx-workspace-issuer"
+`
+	cfg, err := Load([]byte(yaml))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !cfg.Metrics.Enabled {
+		t.Error("Metrics.Enabled should be true")
+	}
+	if cfg.Metrics.ListenAddr != "[::]:9090" {
+		t.Errorf("Metrics.ListenAddr = %q, want [::]:9090", cfg.Metrics.ListenAddr)
+	}
+	if !cfg.Metrics.TLS {
+		t.Error("Metrics.TLS should be true")
+	}
+}
+
+func TestMetricsListenAddrConflictWithHTTP(t *testing.T) {
+	yaml := `
+instanceName: "codx"
+http:
+  listenAddr: "[::]:8443"
+  tlsCertFile: "/tls/tls.crt"
+  tlsKeyFile: "/tls/tls.key"
+metrics:
+  enabled: true
+  listenAddr: "[::]:8443"
+oidc:
+  issuer: "https://keycloak.example.com/realms/myrealm"
+  clientId: "codx"
+  redirectUrl: "https://codx.example.com/auth/callback"
+  adminGroup: "codx-admins"
+redis:
+  host: "valkey:6379"
+certManager:
+  issuerName: "codx-workspace-issuer"
+`
+	_, err := Load([]byte(yaml))
+	if err == nil {
+		t.Fatal("expected validation error for metrics.listenAddr conflicting with http.listenAddr")
+	}
+	if !contains(err.Error(), "metrics.listenAddr") {
+		t.Errorf("error should mention metrics.listenAddr: %v", err)
+	}
 }
 
 func TestRedisTLSEnabledByCAFilePath(t *testing.T) {

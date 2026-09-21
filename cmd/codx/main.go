@@ -14,6 +14,7 @@ import (
 	"github.com/captnbp/CodX/internal/config"
 	"github.com/captnbp/CodX/internal/inactivity"
 	"github.com/captnbp/CodX/internal/k8s"
+	"github.com/captnbp/CodX/internal/metrics"
 	"github.com/captnbp/CodX/internal/oidc"
 	"github.com/captnbp/CodX/internal/session"
 	"github.com/captnbp/CodX/internal/web"
@@ -104,6 +105,65 @@ func run(configPath string) error {
 	watcher := inactivity.NewWatcher(activitySource, wm.StopWorkspace, checkInterval, log)
 	go watcher.Run(ctx)
 
+	// Start the metrics server (optional dedicated /metrics endpoint).
+	var metricsServer *http.Server
+	if cfg.Metrics.Enabled {
+		m := metrics.New()
+
+		mux := http.NewServeMux()
+		mux.Handle("/metrics", m.Handler())
+
+		metricsServer = &http.Server{
+			Addr:        cfg.Metrics.ListenAddr,
+			Handler:     mux,
+			ReadTimeout: 10 * time.Second,
+		}
+
+		go func() {
+			log.Info("metrics server starting",
+				"addr", cfg.Metrics.ListenAddr,
+				"tls", cfg.Metrics.TLS,
+			)
+			var err error
+			if cfg.Metrics.TLS {
+				// Reuse the CodX server certificate.
+				err = metricsServer.ListenAndServeTLS(cfg.HTTP.TLSCertFile, cfg.HTTP.TLSKeyFile)
+			} else {
+				err = metricsServer.ListenAndServe()
+			}
+			if err != nil && err != http.ErrServerClosed {
+				log.Error(err, "metrics server error")
+			}
+		}()
+
+		// Periodically refresh the workspace and health gauges.
+		go func() {
+			ticker := time.NewTicker(30 * time.Second)
+			defer ticker.Stop()
+
+			refresh := func() {
+				counts, err := wm.CountWorkspaces(ctx)
+				if err != nil {
+					log.Error(err, "failed to refresh workspace metrics")
+					m.SetHealthy(false)
+					return
+				}
+				m.SetWorkspaceCounts(counts.Running, counts.Pending)
+				m.SetHealthy(true)
+			}
+
+			refresh()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+					refresh()
+				}
+			}
+		}()
+	}
+
 	// Set up the web server.
 	webServer := web.New(cfg, auth, store, profileStore, wm, nil).WithLogger(log)
 
@@ -138,6 +198,11 @@ func run(configPath string) error {
 	defer cancel()
 	if err := server.Shutdown(shutdownCtx); err != nil {
 		log.Error(err, "graceful shutdown failed")
+	}
+	if metricsServer != nil {
+		if err := metricsServer.Shutdown(shutdownCtx); err != nil {
+			log.Error(err, "metrics server graceful shutdown failed")
+		}
 	}
 
 	log.Info("CodX server stopped")

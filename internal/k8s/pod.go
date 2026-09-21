@@ -9,6 +9,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
 // IsPodReady checks whether all of a pod's containers are ready.
 func IsPodReady(pod *corev1.Pod) bool {
 	for _, cond := range pod.Status.Conditions {
@@ -59,6 +60,43 @@ func (m *WorkspaceManager) IsWorkspaceRunning(ctx context.Context, userSlug stri
 		return false
 	}
 	return pod.Status.Phase == corev1.PodRunning
+}
+
+// WorkspaceCounts holds the number of workspace pods by state, used by the
+// Prometheus metrics endpoint.
+type WorkspaceCounts struct {
+	// Running is the number of workspace pods in the Running phase.
+	Running int
+
+	// Pending is the number of workspace pods created but not yet running
+	// (Pending phase).
+	Pending int
+}
+
+// CountWorkspaces counts the workspace pods managed by this CodX instance,
+// split by running and pending state.
+func (m *WorkspaceManager) CountWorkspaces(ctx context.Context) (WorkspaceCounts, error) {
+	namespace := m.cfg.Namespace
+	pods, err := m.clients.CoreV1.Pods(namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: fmt.Sprintf("%s=%s,%s=%s",
+			LabelComponent, ComponentName,
+			LabelManagedBy, m.cfg.InstanceName,
+		),
+	})
+	if err != nil {
+		return WorkspaceCounts{}, fmt.Errorf("list workspace pods: %w", err)
+	}
+
+	counts := WorkspaceCounts{}
+	for i := range pods.Items {
+		switch pods.Items[i].Status.Phase {
+		case corev1.PodRunning:
+			counts.Running++
+		case corev1.PodPending:
+			counts.Pending++
+		}
+	}
+	return counts, nil
 }
 
 // RestartWorkspace deletes the workspace pod so that it gets recreated (the

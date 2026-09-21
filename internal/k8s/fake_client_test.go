@@ -9,6 +9,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/watch"
 )
@@ -172,6 +173,29 @@ func (f *fakePodInterface) Delete(ctx context.Context, name string, opts metav1.
 	return nil
 }
 
+func (f *fakePodInterface) List(ctx context.Context, opts metav1.ListOptions) (*corev1.PodList, error) {
+	f.client.mu.Lock()
+	defer f.client.mu.Unlock()
+
+	selector := labels.Everything()
+	if opts.LabelSelector != "" {
+		var err error
+		selector, err = labels.Parse(opts.LabelSelector)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	items := make([]corev1.Pod, 0, len(f.client.pods))
+	for _, pod := range f.client.pods {
+		if !selector.Matches(labels.Set(pod.Labels)) {
+			continue
+		}
+		items = append(items, *pod.DeepCopy())
+	}
+	return &corev1.PodList{Items: items}, nil
+}
+
 type fakeConfigMapInterface struct {
 	client *fakeCoreV1Client
 }
@@ -212,8 +236,8 @@ func (f *fakeSecretInterface) Delete(ctx context.Context, name string, opts meta
 
 // fakeCertManagerClient implements CertManagerClient for testing.
 type fakeCertManagerClient struct {
-	mu       sync.Mutex
-	certs    map[string]*cmv1.Certificate
+	mu    sync.Mutex
+	certs map[string]*cmv1.Certificate
 }
 
 func newFakeCertManagerClient() *fakeCertManagerClient {
