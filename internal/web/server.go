@@ -170,7 +170,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
     <span class="navbar-brand mb-0 h1">CodX</span>
     <div class="d-flex">
       <a href="/profile" class="navbar-text text-light me-3 text-decoration-none">Signed in as <strong>%s</strong></a>
-      <a href="/auth/logout" class="btn btn-outline-light btn-sm">Logout</a>
+%s      <a href="/auth/logout" class="btn btn-outline-light btn-sm">Logout</a>
     </div>
   </div>
 </nav>
@@ -178,7 +178,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
   <div class="row g-4">
     <div class="col-lg-8">
       <h2 class="mb-3">Available Workspaces</h2>
-      <div class="row row-cols-1 row-cols-md-2 g-3">`, html.EscapeString(sess.Username))
+      <div class="row row-cols-1 row-cols-md-2 g-3">`, html.EscapeString(sess.Username), adminNavLink(sess.IsAdmin))
 
 	for _, p := range profiles {
 		fmt.Fprintf(w, `<div class="col">
@@ -273,7 +273,7 @@ func (s *Server) handleProfile(w http.ResponseWriter, r *http.Request) {
     <div class="d-flex">
       <a href="/profile" class="navbar-text text-light me-3 text-decoration-none">Signed in as <strong>%s</strong></a>
       <a href="/" class="btn btn-outline-light btn-sm me-2">Workspaces</a>
-      <a href="/auth/logout" class="btn btn-outline-light btn-sm">Logout</a>
+%s      <a href="/auth/logout" class="btn btn-outline-light btn-sm">Logout</a>
     </div>
   </div>
 </nav>
@@ -295,6 +295,7 @@ func (s *Server) handleProfile(w http.ResponseWriter, r *http.Request) {
       <div class="card">
         <div class="card-body">
 `, html.EscapeString(sess.Username),
+		adminNavLink(sess.IsAdmin),
 		html.EscapeString(sess.Username),
 		html.EscapeString(sess.Subject),
 		html.EscapeString(sess.Slug),
@@ -326,6 +327,14 @@ func groupBadge(isAdmin bool) string {
 		return `<span class="badge text-bg-success">yes</span>`
 	}
 	return `<span class="badge text-bg-secondary">no</span>`
+}
+
+// adminNavLink returns a navbar link to the admin page, shown only for admins.
+func adminNavLink(isAdmin bool) string {
+	if isAdmin {
+		return `<a href="/admin" class="btn btn-outline-warning btn-sm me-2">Admin</a>`
+	}
+	return ""
 }
 
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
