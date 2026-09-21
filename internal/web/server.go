@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"html"
 	"net/http"
 	"time"
 
@@ -155,40 +156,89 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	fmt.Fprintf(w, `<!DOCTYPE html>
-<html>
-<head><title>CodX</title></head>
-<body>
-<h1>CodX</h1>
-<p>Welcome, %s!</p>
-<h2>Available Workspaces</h2>
-<ul>`, sess.Username)
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CodX</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+</head>
+<body class="bg-light">
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
+  <div class="container">
+    <span class="navbar-brand mb-0 h1">CodX</span>
+    <div class="d-flex">
+      <span class="navbar-text text-light me-3">Signed in as <strong>%s</strong></span>
+      <a href="/auth/logout" class="btn btn-outline-light btn-sm">Logout</a>
+    </div>
+  </div>
+</nav>
+<div class="container">
+  <div class="row g-4">
+    <div class="col-lg-8">
+      <h2 class="mb-3">Available Workspaces</h2>
+      <div class="row row-cols-1 row-cols-md-2 g-3">`, html.EscapeString(sess.Username))
 
 	for _, p := range profiles {
-		fmt.Fprintf(w, `<li><a href="#" onclick="startWorkspace('%s')">%s</a> — %s</li>`,
-			p.Name, p.Spec.Title, p.Spec.Description)
+		fmt.Fprintf(w, `<div class="col">
+        <div class="card h-100">
+          <div class="card-body">
+            <h5 class="card-title">%s</h5>
+            <p class="card-text text-muted">%s</p>
+            <button class="btn btn-primary" onclick="startWorkspace('%s')">Start</button>
+          </div>
+        </div>
+      </div>`,
+			html.EscapeString(p.Spec.Title), html.EscapeString(p.Spec.Description), html.EscapeString(p.Name))
 	}
 
-	fmt.Fprintf(w, `</ul>
-<div id="status"></div>
+	fmt.Fprintf(w, `</div>
+    </div>
+    <div class="col-lg-4">
+      <h2 class="mb-3">Workspace</h2>
+      <div class="d-grid gap-2">
+        <button class="btn btn-danger" onclick="stopWorkspace()">Stop my workspace</button>
+      </div>
+      <div id="status" class="mt-3"></div>
+    </div>
+  </div>
+</div>
 <script>
 function startWorkspace(profileName) {
     var evtSource = new EventSource("/api/workspace/start?profile=" + encodeURIComponent(profileName));
     var statusDiv = document.getElementById("status");
-    statusDiv.innerHTML = "<p>Starting workspace...</p>";
+    statusDiv.innerHTML = '<div class="alert alert-info">Starting workspace...</div>';
     evtSource.addEventListener("step", function(e) {
-        statusDiv.innerHTML += "<p>" + e.data + "</p>";
+        statusDiv.innerHTML += '<div class="alert alert-secondary">' + e.data + '</div>';
     });
     evtSource.addEventListener("ready", function(e) {
-        statusDiv.innerHTML += "<p>Workspace ready! Redirecting...</p>";
+        statusDiv.innerHTML += '<div class="alert alert-success">Workspace ready! Redirecting...</div>';
         setTimeout(function() { window.location.href = e.data; }, 500);
         evtSource.close();
     });
     evtSource.addEventListener("error", function(e) {
-        statusDiv.innerHTML += "<p style='color:red'>Error: " + e.data + "</p>";
+        statusDiv.innerHTML += '<div class="alert alert-danger">Error: ' + e.data + '</div>';
         evtSource.close();
     });
 }
+function stopWorkspace() {
+    var statusDiv = document.getElementById("status");
+    statusDiv.innerHTML = '<div class="alert alert-info">Stopping workspace...</div>';
+    fetch("/api/workspace/stop", { method: "POST" })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.status === "stopped") {
+                statusDiv.innerHTML += '<div class="alert alert-success">Workspace stopped.</div>';
+            } else {
+                statusDiv.innerHTML += '<div class="alert alert-danger">Error: ' + (data.error || "unknown error") + '</div>';
+            }
+        })
+        .catch(function(err) {
+            statusDiv.innerHTML += '<div class="alert alert-danger">Error: ' + err + '</div>';
+        });
+}
 </script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
 </body>
 </html>`)
 }

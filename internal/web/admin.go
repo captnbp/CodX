@@ -53,27 +53,50 @@ func (s *Server) handleAdminUI(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	fmt.Fprintf(w, `<!DOCTYPE html>
-<html>
-<head><title>CodX Admin</title></head>
-<body>
-<h1>CodX Admin</h1>
-<h2>User Workspaces</h2>
-<table id="users" border="1">
-<tr><th>Username</th><th>Slug</th><th>Online</th><th>Actions</th></tr>
-</table>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CodX Admin</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+</head>
+<body class="bg-light">
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
+  <div class="container">
+    <span class="navbar-brand mb-0 h1">CodX Admin</span>
+    <div class="d-flex">
+      <a href="/" class="btn btn-outline-light btn-sm">Back</a>
+    </div>
+  </div>
+</nav>
+<div class="container">
+  <h2 class="mb-3">User Workspaces</h2>
+  <div class="table-responsive">
+    <table class="table table-striped table-hover align-middle">
+      <thead class="table-dark">
+        <tr><th>Username</th><th>Slug</th><th>Online</th><th>Actions</th></tr>
+      </thead>
+      <tbody id="users"></tbody>
+    </table>
+  </div>
+</div>
 <script>
 function loadUsers() {
     fetch("/api/admin/users").then(r => r.json()).then(users => {
         var tbody = document.querySelector("#users");
+        tbody.innerHTML = "";
         users.forEach(u => {
             var tr = document.createElement("tr");
+            var onlineBadge = u.online
+                ? '<span class="badge text-bg-success">online</span>'
+                : '<span class="badge text-bg-secondary">offline</span>';
             tr.innerHTML = "<td>" + u.username + "</td>" +
-                "<td>" + u.slug + "</td>" +
-                "<td>" + (u.online ? "yes" : "no") + "</td>" +
+                "<td><code>" + u.slug + "</code></td>" +
+                "<td>" + onlineBadge + "</td>" +
                 "<td>" +
-                "<button onclick=\"extendPVC('" + u.slug + "')\">Extend PVC</button> " +
-                "<button onclick=\"stopWorkspace('" + u.slug + "')\">Stop</button> " +
-                "<button onclick=\"deleteUser('" + u.slug + "')\">Delete</button>" +
+                '<button class="btn btn-sm btn-outline-primary me-1" onclick="extendPVC(\\'' + u.slug + '\\')">Extend PVC</button>' +
+                '<button class="btn btn-sm btn-outline-warning me-1" onclick="stopWorkspace(\\'' + u.slug + '\\')">Stop</button>' +
+                '<button class="btn btn-sm btn-outline-danger" onclick="deleteUser(\\'' + u.slug + '\\')">Delete</button>' +
                 "</td>";
             tbody.appendChild(tr);
         });
@@ -83,19 +106,20 @@ function extendPVC(slug) {
     var size = prompt("New PVC size (e.g. 50Gi):");
     if (!size) return;
     fetch("/api/admin/users/" + slug + "/extend?pvcSize=" + encodeURIComponent(size), {method: "POST"})
-        .then(r => r.json()).then(alert(JSON.stringify(r))).then(loadUsers);
+        .then(r => r.json()).then(function(d){ alert(JSON.stringify(d)); }).then(loadUsers);
 }
 function stopWorkspace(slug) {
     fetch("/api/admin/users/" + slug + "/stop", {method: "POST"})
-        .then(r => r.json()).then(alert(JSON.stringify(r))).then(loadUsers);
+        .then(r => r.json()).then(function(d){ alert(JSON.stringify(d)); }).then(loadUsers);
 }
 function deleteUser(slug) {
     if (!confirm("Delete workspace for " + slug + "? This removes all data.")) return;
     fetch("/api/admin/users/" + slug + "/delete", {method: "POST"})
-        .then(r => r.json()).then(alert(JSON.stringify(r))).then(loadUsers);
+        .then(r => r.json()).then(function(d){ alert(JSON.stringify(d)); }).then(loadUsers);
 }
 loadUsers();
 </script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
 </body>
 </html>`)
 }
