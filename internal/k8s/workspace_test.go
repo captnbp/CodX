@@ -403,8 +403,8 @@ func TestBuildPodEnvoySidecar(t *testing.T) {
 	for _, v := range pod.Spec.Volumes {
 		if v.Name == "envoy-config" {
 			found = true
-			if v.VolumeSource.ConfigMap == nil || v.VolumeSource.ConfigMap.Name != "codx-envoy" {
-				t.Errorf("envoy-config volume ConfigMap = %+v, want codx-envoy", v.VolumeSource.ConfigMap)
+			if v.ConfigMap == nil || v.ConfigMap.Name != "codx-envoy" {
+				t.Errorf("envoy-config volume ConfigMap = %+v, want codx-envoy", v.ConfigMap)
 			}
 		}
 	}
