@@ -54,6 +54,10 @@ type Config struct {
 
 	// Workspace configures the per-user workspace Pod objects.
 	Workspace WorkspaceConfig `yaml:"workspace"`
+
+	// Tracing configures OpenTelemetry tracing for the CodX server itself.
+	// +optional
+	Tracing TracingConfig `yaml:"tracing,omitempty"`
 }
 
 // DefaultEnvoyImage is the container image used by the Envoy TLS termination
@@ -283,25 +287,30 @@ type WorkspaceConfig struct {
 	Tracing TracingConfig `yaml:"tracing,omitempty"`
 }
 
-// TracingConfig configures OpenTelemetry tracing for the workspace Envoy
-// sidecar (envoy.tracers.opentelemetry, OTLP gRPC exporter).
+// TracingConfig configures OpenTelemetry tracing with an OTLP exporter.
+//
+// It is used in two places:
+//   - top-level "tracing": the CodX server itself (OTLP/HTTP exporter, the
+//     endpoint usually uses port 4318),
+//   - "workspace.tracing": the workspace Envoy sidecar (envoy.tracers
+//     .opentelemetry, OTLP gRPC exporter, the endpoint usually uses port 4317).
 type TracingConfig struct {
-	// Enabled enables OpenTelemetry tracing in the Envoy sidecar.
+	// Enabled enables OpenTelemetry tracing.
 	// +optional
 	// +default=false
 	Enabled bool `yaml:"enabled"`
 
-	// OTLPEndpoint is the host:port of the OpenTelemetry collector using the
-	// OTLP gRPC protocol (e.g. otel-collector.observability:4317).
+	// OTLPEndpoint is the host:port of the OpenTelemetry collector.
 	// Required when enabled is true.
 	// +optional
 	OTLPEndpoint string `yaml:"otlpEndpoint,omitempty"`
 
-	// ServiceName is the OpenTelemetry service name reported for workspace
-	// requests. The Envoy configuration is shared by all workspaces, so this
-	// name is global. Defaults to "codx-workspace".
+	// ServiceName is the OpenTelemetry service name reported for requests.
+	// Defaults to "codx" for the server and "codx-workspace" for the
+	// workspace Envoy sidecar (the Envoy configuration is shared by all
+	// workspaces, so that name is global).
 	// +optional
-	// +default="codx-workspace"
+	// +default="codx"
 	ServiceName string `yaml:"serviceName,omitempty"`
 }
 
@@ -402,6 +411,11 @@ func applyDefaults(cfg *Config) {
 	if cfg.Workspace.Tracing.ServiceName == "" {
 		cfg.Workspace.Tracing.ServiceName = "codx-workspace"
 	}
+
+	// Server tracing defaults.
+	if cfg.Tracing.ServiceName == "" {
+		cfg.Tracing.ServiceName = "codx"
+	}
 }
 
 // Validate checks that required configuration fields are set and consistent.
@@ -463,6 +477,10 @@ func Validate(cfg *Config) error {
 
 	if cfg.Workspace.Tracing.Enabled && cfg.Workspace.Tracing.OTLPEndpoint == "" {
 		errs = append(errs, "workspace.tracing.otlpEndpoint is required when workspace.tracing.enabled is true")
+	}
+
+	if cfg.Tracing.Enabled && cfg.Tracing.OTLPEndpoint == "" {
+		errs = append(errs, "tracing.otlpEndpoint is required when tracing.enabled is true")
 	}
 
 	if len(errs) > 0 {

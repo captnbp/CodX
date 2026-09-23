@@ -12,6 +12,8 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+
+	"github.com/captnbp/CodX/internal/tracing"
 )
 
 // WorkspaceProxy is a reverse proxy that forwards requests to a workspace
@@ -49,9 +51,12 @@ func New(workspaceFQDN string, cfg Config) (*WorkspaceProxy, error) {
 		return nil, fmt.Errorf("build TLS config: %w", err)
 	}
 
-	transport := &http.Transport{
+	// Wrap the transport with the otelhttp transport: client spans for
+	// proxied requests and W3C trace context injection so the workspace
+	// Envoy sidecar joins the trace.
+	transport := tracing.Transport(&http.Transport{
 		TLSClientConfig: tlsConfig,
-	}
+	})
 
 	rp := &httputil.ReverseProxy{
 		Transport: transport,

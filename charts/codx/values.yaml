@@ -723,6 +723,18 @@ workspace:
     enabled: false
     otlpEndpoint: ""
     serviceName: codx-workspace
+
+## @section Tracing
+## Tracing configures OpenTelemetry tracing for the CodX server itself
+## (OTLP/HTTP exporter to the collector at otlpEndpoint).
+## @param tracing.enabled Enable OpenTelemetry tracing for the CodX server
+## @param tracing.otlpEndpoint OpenTelemetry collector endpoint (OTLP/HTTP, host:port, usually port 4318)
+## @param tracing.serviceName OpenTelemetry service name reported for the CodX server
+##
+tracing:
+  enabled: false
+  otlpEndpoint: ""
+  serviceName: codx
 ## Profile custom resources (profiles.codx.io/v1) created by the chart.
 ## Each entry is a map: key -> Profile spec. The key becomes the resource name.
 ## An empty map renders no Profile objects.

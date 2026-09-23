@@ -78,3 +78,13 @@ data:
         serviceName: {{ .Values.workspace.tracing.serviceName | quote }}
         {{- end }}
     {{- end }}
+    {{- if .Values.tracing }}
+    tracing:
+      enabled: {{ .Values.tracing.enabled }}
+      {{- if .Values.tracing.otlpEndpoint }}
+      otlpEndpoint: {{ .Values.tracing.otlpEndpoint | quote }}
+      {{- end }}
+      {{- if .Values.tracing.serviceName }}
+      serviceName: {{ .Values.tracing.serviceName | quote }}
+      {{- end }}
+    {{- end }}

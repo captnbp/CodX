@@ -86,6 +86,74 @@ certManager:
 	if cfg.Workspace.Tracing.ServiceName != "codx-workspace" {
 		t.Errorf("Workspace.Tracing.ServiceName default = %q, want codx-workspace", cfg.Workspace.Tracing.ServiceName)
 	}
+	if cfg.Tracing.Enabled {
+		t.Error("Tracing.Enabled should default to false")
+	}
+	if cfg.Tracing.ServiceName != "codx" {
+		t.Errorf("Tracing.ServiceName default = %q, want codx", cfg.Tracing.ServiceName)
+	}
+}
+
+func TestServerTracing(t *testing.T) {
+	yaml := `
+instanceName: "codx"
+http:
+  tlsCertFile: "/tls/tls.crt"
+  tlsKeyFile: "/tls/tls.key"
+oidc:
+  issuer: "https://keycloak.example.com/realms/myrealm"
+  clientId: "codx"
+  redirectUrl: "https://codx.example.com/auth/callback"
+  adminGroup: "codx-admins"
+redis:
+  host: "valkey:6379"
+certManager:
+  issuerName: "codx-workspace-issuer"
+tracing:
+  enabled: true
+  otlpEndpoint: "otel-collector.observability:4318"
+  serviceName: "my-codx"
+`
+	cfg, err := Load([]byte(yaml))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !cfg.Tracing.Enabled {
+		t.Error("Tracing.Enabled should be true")
+	}
+	if cfg.Tracing.OTLPEndpoint != "otel-collector.observability:4318" {
+		t.Errorf("Tracing.OTLPEndpoint = %q, want otel-collector.observability:4318", cfg.Tracing.OTLPEndpoint)
+	}
+	if cfg.Tracing.ServiceName != "my-codx" {
+		t.Errorf("Tracing.ServiceName = %q, want my-codx", cfg.Tracing.ServiceName)
+	}
+}
+
+func TestValidationServerTracingEnabledWithoutEndpoint(t *testing.T) {
+	yaml := `
+instanceName: "codx"
+http:
+  tlsCertFile: "/tls/tls.crt"
+  tlsKeyFile: "/tls/tls.key"
+oidc:
+  issuer: "https://kc.example.com/realm"
+  clientId: "codx"
+  redirectUrl: "https://codx.example.com/auth/callback"
+  adminGroup: "admins"
+redis:
+  host: "valkey:6379"
+certManager:
+  issuerName: "issuer"
+tracing:
+  enabled: true
+`
+	_, err := Load([]byte(yaml))
+	if err == nil {
+		t.Fatal("expected validation error for tracing enabled without otlpEndpoint")
+	}
+	if !contains(err.Error(), "tracing.otlpEndpoint") {
+		t.Errorf("error should mention tracing.otlpEndpoint: %v", err)
+	}
 }
 
 func TestWorkspaceTracing(t *testing.T) {
