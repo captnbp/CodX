@@ -6,6 +6,7 @@ import (
 
 	cmv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	cmmeta "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
+	"github.com/captnbp/CodX/internal/config"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -322,7 +323,7 @@ func TestBuildServiceIPFamilies(t *testing.T) {
 
 func TestBuildPodEnvUsername(t *testing.T) {
 	profile := testProfile("python-dev", "Python Dev", nil)
-	pod := BuildPod("codx", "john-doe", "codx-system", "codx-john-doe.codx-system.svc.cluster.local", profile)
+	pod := BuildPod("codx", "john-doe", "codx-system", "codx-john-doe.codx-system.svc.cluster.local", profile, testConfig())
 
 	// Find the code-server container.
 	var codeServer *corev1.Container
@@ -346,5 +347,23 @@ func TestBuildPodEnvUsername(t *testing.T) {
 	}
 	if !found {
 		t.Error("CODX_USERNAME env var not found or incorrect in code-server container")
+	}
+}
+
+func TestBuildPodNginxImage(t *testing.T) {
+	profile := testProfile("python-dev", "Python Dev", nil)
+
+	// Default image when workspace.nginxImage is not set.
+	pod := BuildPod("codx", "john-doe", "codx-system", "codx-john-doe.codx-system.svc.cluster.local", profile, testConfig())
+	if pod.Spec.Containers[1].Image != config.DefaultNginxImage {
+		t.Errorf("nginx-tls image = %q, want default %q", pod.Spec.Containers[1].Image, config.DefaultNginxImage)
+	}
+
+	// Image from config.
+	cfg := testConfig()
+	cfg.Workspace.NginxImage = "nginx:1.32-alpine"
+	pod = BuildPod("codx", "john-doe", "codx-system", "codx-john-doe.codx-system.svc.cluster.local", profile, cfg)
+	if pod.Spec.Containers[1].Image != "nginx:1.32-alpine" {
+		t.Errorf("nginx-tls image = %q, want nginx:1.32-alpine", pod.Spec.Containers[1].Image)
 	}
 }

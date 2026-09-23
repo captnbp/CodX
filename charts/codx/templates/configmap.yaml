@@ -64,3 +64,9 @@ data:
       {{- end }}
       ipFamilies: {{ toYaml .Values.workspaceService.ipFamilies | nindent 8 }}
       ipFamilyPolicy: {{ .Values.workspaceService.ipFamilyPolicy | quote }}
+    {{- if .Values.workspace }}
+    workspace:
+      {{- if .Values.workspace.nginxImage }}
+      nginxImage: {{ .Values.workspace.nginxImage | quote }}
+      {{- end }}
+    {{- end }}

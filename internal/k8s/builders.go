@@ -165,7 +165,7 @@ func BuildCertificate(instance, slug, namespace, fqdn string, cfg config.CertMan
 
 // BuildPod creates the workspace Pod with the code-server container, nginx
 // sidecar, and PVC mount.
-func BuildPod(instance, slug, namespace, fqdn string, profile *profilev1.Profile) *corev1.Pod {
+func BuildPod(instance, slug, namespace, fqdn string, profile *profilev1.Profile, cfg *config.Config) *corev1.Pod {
 	objName := objectName(instance, slug)
 	labels := mergeLabels(workspaceLabels(instance, slug), profile.Spec.PodSpec.Labels)
 
@@ -179,7 +179,7 @@ func BuildPod(instance, slug, namespace, fqdn string, profile *profilev1.Profile
 		Spec: corev1.PodSpec{
 			SecurityContext:    profile.Spec.PodSpec.SecurityContext,
 			InitContainers:     profile.Spec.PodSpec.InitContainers,
-			Containers:         buildContainers(profile, objName, slug),
+			Containers:         buildContainers(profile, objName, slug, cfg.Workspace.NginxImage),
 			Volumes:             buildVolumes(profile, objName),
 			EnableServiceLinks: resolveEnableServiceLinks(profile),
 		},
@@ -201,7 +201,7 @@ func resolveEnableServiceLinks(profile *profilev1.Profile) *bool {
 
 // buildContainers builds the container list: the code-server main container,
 // the nginx sidecar, plus any extra sidecars from the profile.
-func buildContainers(profile *profilev1.Profile, objName, userSlug string) []corev1.Container {
+func buildContainers(profile *profilev1.Profile, objName, userSlug, nginxImage string) []corev1.Container {
 	containers := make([]corev1.Container, 0, 2+len(profile.Spec.PodSpec.Sidecars))
 
 	// Main code-server container.
@@ -232,9 +232,12 @@ func buildContainers(profile *profilev1.Profile, objName, userSlug string) []cor
 	containers = append(containers, main)
 
 	// Nginx TLS termination sidecar.
+	if nginxImage == "" {
+		nginxImage = config.DefaultNginxImage
+	}
 	containers = append(containers, corev1.Container{
 		Name:  "nginx-tls",
-		Image: "nginx:1.31-alpine",
+		Image: nginxImage,
 		Ports: []corev1.ContainerPort{
 			{ContainerPort: 9443, Name: "https", Protocol: corev1.ProtocolTCP},
 		},

@@ -51,7 +51,14 @@ type Config struct {
 
 	// WorkspaceService configures the per-user workspace Service objects.
 	WorkspaceService WorkspaceServiceConfig `yaml:"workspaceService"`
+
+	// Workspace configures the per-user workspace Pod objects.
+	Workspace WorkspaceConfig `yaml:"workspace"`
 }
+
+// DefaultNginxImage is the container image used by the nginx TLS sidecar in
+// workspace pods when workspace.nginxImage is not set.
+const DefaultNginxImage = "nginx:1.31-alpine"
 
 // HTTPConfig configures the CodX HTTP server.
 type HTTPConfig struct {
@@ -262,6 +269,15 @@ type WorkspaceServiceConfig struct {
 	IPFamilyPolicy string `yaml:"ipFamilyPolicy,omitempty"`
 }
 
+// WorkspaceConfig configures the per-user workspace Pod objects.
+type WorkspaceConfig struct {
+	// NginxImage is the container image used by the nginx TLS termination
+	// sidecar in workspace pods. Defaults to DefaultNginxImage.
+	// +optional
+	// +default="nginx:1.31-alpine"
+	NginxImage string `yaml:"nginxImage,omitempty"`
+}
+
 // Load reads configuration from the given YAML data, applies defaults, and
 // validates required fields. Environment variables CODX_OIDC_CLIENT_SECRET and
 // CODX_REDIS_PASSWORD override the corresponding YAML fields.
@@ -350,6 +366,11 @@ func applyDefaults(cfg *Config) {
 	}
 	if cfg.WorkspaceService.IPFamilyPolicy == "" {
 		cfg.WorkspaceService.IPFamilyPolicy = "PreferDualStack"
+	}
+
+	// Workspace defaults.
+	if cfg.Workspace.NginxImage == "" {
+		cfg.Workspace.NginxImage = DefaultNginxImage
 	}
 }
 

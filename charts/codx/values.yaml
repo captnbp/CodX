@@ -705,6 +705,14 @@ workspaceService:
   annotations: {}
   ipFamilies: ["IPv6", "IPv4"]
   ipFamilyPolicy: "PreferDualStack"
+
+## @section Workspace
+## Workspace configures the per-user workspace Pod objects (via the CodX ConfigMap).
+##
+workspace:
+  ## @param workspace.nginxImage Image for the nginx TLS termination sidecar in workspace pods
+  ##
+  nginxImage: nginx:1.31-alpine
 ## Profile custom resources (profiles.codx.io/v1) created by the chart.
 ## Each entry is a map: key -> Profile spec. The key becomes the resource name.
 ## An empty map renders no Profile objects.

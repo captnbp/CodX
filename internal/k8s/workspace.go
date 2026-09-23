@@ -75,7 +75,7 @@ func (m *WorkspaceManager) EnsureWorkspace(ctx context.Context, profile *profile
 	steps = append(steps, WorkspaceStep{Name: "certificate", Message: "Certificate created"})
 
 	// 4. Pod.
-	pod := BuildPod(instance, userSlug, namespace, fqdn, profile)
+	pod := BuildPod(instance, userSlug, namespace, fqdn, profile, m.cfg)
 	if _, err := m.clients.CoreV1.Pods(namespace).Create(ctx, pod, metav1.CreateOptions{}); err != nil {
 		if !apierrors.IsAlreadyExists(err) {
 			return steps, fmt.Errorf("create pod: %w", err)
