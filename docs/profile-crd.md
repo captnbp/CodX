@@ -73,7 +73,7 @@ PodSpec describes the workspace pod and its containers.
 | `labels` | `map[string]string` | No | `-` | Labels adds extra labels to the workspace pod. |
 | `resources` | `object` | No | `-` | Resources sets resource requests and limits for the main container. See Kubernetes [`ResourceRequirements`](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#resourcerequirements-v1-core) (corev1). |
 | `securityContext` | `object` | No | `-` | SecurityContext sets the pod-level security context. See Kubernetes [`PodSecurityContext`](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#podsecuritycontext-v1-core) (corev1). |
-| `sidecars` | `[]object` | No | `-` | Sidecars adds extra sidecar containers to the pod (in addition to the mandatory nginx TLS termination sidecar injected by CodX). See Kubernetes [`Container`](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#container-v1-core) (corev1). |
+| `sidecars` | `[]object` | No | `-` | Sidecars adds extra sidecar containers to the pod (in addition to the mandatory Envoy TLS termination sidecar injected by CodX). See Kubernetes [`Container`](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#container-v1-core) (corev1). |
 | `volumeMounts` | `[]object` | No | `-` | VolumeMounts adds extra volume mounts to the main container. See Kubernetes [`VolumeMount`](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#volumemount-v1-core) (corev1). |
 | `volumes` | `[]object` | No | `-` | Volumes adds extra volumes to the pod. See Kubernetes [`Volume`](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#volume-v1-core) (corev1). |
 

@@ -66,7 +66,15 @@ data:
       ipFamilyPolicy: {{ .Values.workspaceService.ipFamilyPolicy | quote }}
     {{- if .Values.workspace }}
     workspace:
-      {{- if .Values.workspace.nginxImage }}
-      nginxImage: {{ .Values.workspace.nginxImage | quote }}
+      {{- if .Values.workspace.envoyImage }}
+      envoyImage: {{ .Values.workspace.envoyImage | quote }}
       {{- end }}
+      tracing:
+        enabled: {{ .Values.workspace.tracing.enabled }}
+        {{- if .Values.workspace.tracing.otlpEndpoint }}
+        otlpEndpoint: {{ .Values.workspace.tracing.otlpEndpoint | quote }}
+        {{- end }}
+        {{- if .Values.workspace.tracing.serviceName }}
+        serviceName: {{ .Values.workspace.tracing.serviceName | quote }}
+        {{- end }}
     {{- end }}

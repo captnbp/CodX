@@ -56,9 +56,10 @@ type Config struct {
 	Workspace WorkspaceConfig `yaml:"workspace"`
 }
 
-// DefaultNginxImage is the container image used by the nginx TLS sidecar in
-// workspace pods when workspace.nginxImage is not set.
-const DefaultNginxImage = "nginx:1.31-alpine"
+// DefaultEnvoyImage is the container image used by the Envoy TLS termination
+// sidecar in workspace pods when workspace.envoyImage is not set. The
+// distroless variant runs as a non-root user by default.
+const DefaultEnvoyImage = "envoyproxy/envoy:distroless-v1.39-latest"
 
 // HTTPConfig configures the CodX HTTP server.
 type HTTPConfig struct {
@@ -271,11 +272,37 @@ type WorkspaceServiceConfig struct {
 
 // WorkspaceConfig configures the per-user workspace Pod objects.
 type WorkspaceConfig struct {
-	// NginxImage is the container image used by the nginx TLS termination
-	// sidecar in workspace pods. Defaults to DefaultNginxImage.
+	// EnvoyImage is the container image used by the Envoy TLS termination
+	// sidecar in workspace pods. Defaults to DefaultEnvoyImage.
 	// +optional
-	// +default="nginx:1.31-alpine"
-	NginxImage string `yaml:"nginxImage,omitempty"`
+	// +default="envoyproxy/envoy:distroless-v1.39-latest"
+	EnvoyImage string `yaml:"envoyImage,omitempty"`
+
+	// Tracing configures OpenTelemetry tracing in the Envoy sidecar.
+	// +optional
+	Tracing TracingConfig `yaml:"tracing,omitempty"`
+}
+
+// TracingConfig configures OpenTelemetry tracing for the workspace Envoy
+// sidecar (envoy.tracers.opentelemetry, OTLP gRPC exporter).
+type TracingConfig struct {
+	// Enabled enables OpenTelemetry tracing in the Envoy sidecar.
+	// +optional
+	// +default=false
+	Enabled bool `yaml:"enabled"`
+
+	// OTLPEndpoint is the host:port of the OpenTelemetry collector using the
+	// OTLP gRPC protocol (e.g. otel-collector.observability:4317).
+	// Required when enabled is true.
+	// +optional
+	OTLPEndpoint string `yaml:"otlpEndpoint,omitempty"`
+
+	// ServiceName is the OpenTelemetry service name reported for workspace
+	// requests. The Envoy configuration is shared by all workspaces, so this
+	// name is global. Defaults to "codx-workspace".
+	// +optional
+	// +default="codx-workspace"
+	ServiceName string `yaml:"serviceName,omitempty"`
 }
 
 // Load reads configuration from the given YAML data, applies defaults, and
@@ -369,8 +396,11 @@ func applyDefaults(cfg *Config) {
 	}
 
 	// Workspace defaults.
-	if cfg.Workspace.NginxImage == "" {
-		cfg.Workspace.NginxImage = DefaultNginxImage
+	if cfg.Workspace.EnvoyImage == "" {
+		cfg.Workspace.EnvoyImage = DefaultEnvoyImage
+	}
+	if cfg.Workspace.Tracing.ServiceName == "" {
+		cfg.Workspace.Tracing.ServiceName = "codx-workspace"
 	}
 }
 
@@ -429,6 +459,10 @@ func Validate(cfg *Config) error {
 	}
 	if _, err := time.ParseDuration(cfg.CertManager.Validity); err != nil {
 		errs = append(errs, fmt.Sprintf("certManager.validity %q is not a valid duration: %v", cfg.CertManager.Validity, err))
+	}
+
+	if cfg.Workspace.Tracing.Enabled && cfg.Workspace.Tracing.OTLPEndpoint == "" {
+		errs = append(errs, "workspace.tracing.otlpEndpoint is required when workspace.tracing.enabled is true")
 	}
 
 	if len(errs) > 0 {

@@ -77,6 +77,83 @@ certManager:
 	if cfg.Metrics.ListenAddr != "[::]:9443" {
 		t.Errorf("Metrics.ListenAddr default = %q, want [::]:9443", cfg.Metrics.ListenAddr)
 	}
+	if cfg.Workspace.EnvoyImage != DefaultEnvoyImage {
+		t.Errorf("Workspace.EnvoyImage default = %q, want %q", cfg.Workspace.EnvoyImage, DefaultEnvoyImage)
+	}
+	if cfg.Workspace.Tracing.Enabled {
+		t.Error("Workspace.Tracing.Enabled should default to false")
+	}
+	if cfg.Workspace.Tracing.ServiceName != "codx-workspace" {
+		t.Errorf("Workspace.Tracing.ServiceName default = %q, want codx-workspace", cfg.Workspace.Tracing.ServiceName)
+	}
+}
+
+func TestWorkspaceTracing(t *testing.T) {
+	yaml := `
+instanceName: "codx"
+http:
+  tlsCertFile: "/tls/tls.crt"
+  tlsKeyFile: "/tls/tls.key"
+oidc:
+  issuer: "https://keycloak.example.com/realms/myrealm"
+  clientId: "codx"
+  redirectUrl: "https://codx.example.com/auth/callback"
+  adminGroup: "codx-admins"
+redis:
+  host: "valkey:6379"
+certManager:
+  issuerName: "codx-workspace-issuer"
+workspace:
+  envoyImage: "envoyproxy/envoy:distroless-v1.40-latest"
+  tracing:
+    enabled: true
+    otlpEndpoint: "otel-collector.observability:4317"
+    serviceName: "my-codx"
+`
+	cfg, err := Load([]byte(yaml))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Workspace.EnvoyImage != "envoyproxy/envoy:distroless-v1.40-latest" {
+		t.Errorf("Workspace.EnvoyImage = %q, want envoyproxy/envoy:distroless-v1.40-latest", cfg.Workspace.EnvoyImage)
+	}
+	if !cfg.Workspace.Tracing.Enabled {
+		t.Error("Workspace.Tracing.Enabled should be true")
+	}
+	if cfg.Workspace.Tracing.OTLPEndpoint != "otel-collector.observability:4317" {
+		t.Errorf("Workspace.Tracing.OTLPEndpoint = %q, want otel-collector.observability:4317", cfg.Workspace.Tracing.OTLPEndpoint)
+	}
+	if cfg.Workspace.Tracing.ServiceName != "my-codx" {
+		t.Errorf("Workspace.Tracing.ServiceName = %q, want my-codx", cfg.Workspace.Tracing.ServiceName)
+	}
+}
+
+func TestValidationTracingEnabledWithoutEndpoint(t *testing.T) {
+	yaml := `
+instanceName: "codx"
+http:
+  tlsCertFile: "/tls/tls.crt"
+  tlsKeyFile: "/tls/tls.key"
+oidc:
+  issuer: "https://kc.example.com/realm"
+  clientId: "codx"
+  redirectUrl: "https://codx.example.com/auth/callback"
+  adminGroup: "admins"
+redis:
+  host: "valkey:6379"
+certManager:
+  issuerName: "issuer"
+workspace:
+  tracing:
+    enabled: true
+`
+	_, err := Load([]byte(yaml))
+	if err == nil {
+		t.Fatal("expected validation error for tracing enabled without otlpEndpoint")
+	}
+	if !contains(err.Error(), "workspace.tracing.otlpEndpoint") {
+		t.Errorf("error should mention workspace.tracing.otlpEndpoint: %v", err)
+	}
 }
 
 func TestMetricsConfig(t *testing.T) {

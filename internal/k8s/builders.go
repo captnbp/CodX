@@ -163,7 +163,7 @@ func BuildCertificate(instance, slug, namespace, fqdn string, cfg config.CertMan
 	return cert
 }
 
-// BuildPod creates the workspace Pod with the code-server container, nginx
+// BuildPod creates the workspace Pod with the code-server container, Envoy
 // sidecar, and PVC mount.
 func BuildPod(instance, slug, namespace, fqdn string, profile *profilev1.Profile, cfg *config.Config) *corev1.Pod {
 	objName := objectName(instance, slug)
@@ -179,7 +179,7 @@ func BuildPod(instance, slug, namespace, fqdn string, profile *profilev1.Profile
 		Spec: corev1.PodSpec{
 			SecurityContext:    profile.Spec.PodSpec.SecurityContext,
 			InitContainers:     profile.Spec.PodSpec.InitContainers,
-			Containers:         buildContainers(profile, objName, slug, cfg.Workspace.NginxImage),
+			Containers:         buildContainers(profile, objName, slug, cfg),
 			Volumes:             buildVolumes(profile, objName),
 			EnableServiceLinks: resolveEnableServiceLinks(profile),
 		},
@@ -190,7 +190,7 @@ func BuildPod(instance, slug, namespace, fqdn string, profile *profilev1.Profile
 
 // resolveEnableServiceLinks returns the value for PodSpec.EnableServiceLinks
 // from the profile. It defaults to false so the workspace environment stays
-// clean and the nginx-tls sidecar never receives service-linked env vars.
+// clean and the envoy-tls sidecar never receives service-linked env vars.
 func resolveEnableServiceLinks(profile *profilev1.Profile) *bool {
 	if profile.Spec.PodSpec.EnableServiceLinks != nil {
 		return profile.Spec.PodSpec.EnableServiceLinks
@@ -200,8 +200,8 @@ func resolveEnableServiceLinks(profile *profilev1.Profile) *bool {
 }
 
 // buildContainers builds the container list: the code-server main container,
-// the nginx sidecar, plus any extra sidecars from the profile.
-func buildContainers(profile *profilev1.Profile, objName, userSlug, nginxImage string) []corev1.Container {
+// the Envoy sidecar, plus any extra sidecars from the profile.
+func buildContainers(profile *profilev1.Profile, objName, userSlug string, cfg *config.Config) []corev1.Container {
 	containers := make([]corev1.Container, 0, 2+len(profile.Spec.PodSpec.Sidecars))
 
 	// Main code-server container.
@@ -231,23 +231,23 @@ func buildContainers(profile *profilev1.Profile, objName, userSlug, nginxImage s
 
 	containers = append(containers, main)
 
-	// Nginx TLS termination sidecar.
-	if nginxImage == "" {
-		nginxImage = config.DefaultNginxImage
+	// Envoy TLS termination sidecar.
+	envoyImage := cfg.Workspace.EnvoyImage
+	if envoyImage == "" {
+		envoyImage = config.DefaultEnvoyImage
 	}
 	containers = append(containers, corev1.Container{
-		Name:  "nginx-tls",
-		Image: nginxImage,
+		Name:  "envoy-tls",
+		Image: envoyImage,
 		Ports: []corev1.ContainerPort{
 			{ContainerPort: 9443, Name: "https", Protocol: corev1.ProtocolTCP},
 		},
 		VolumeMounts: []corev1.VolumeMount{
 			{Name: "tls", MountPath: "/tls", ReadOnly: true},
-			{Name: "nginx-config", MountPath: "/etc/nginx/nginx.conf", SubPath: "nginx.conf", ReadOnly: true},
-			{Name: "nginx-tmp", MountPath: "/tmp"},
+			{Name: "envoy-config", MountPath: "/etc/envoy/envoy.yaml", SubPath: "envoy.yaml", ReadOnly: true},
+			{Name: "envoy-tmp", MountPath: "/tmp"},
 		},
 		SecurityContext: &corev1.SecurityContext{
-			RunAsUser:                int64Ptr(101),
 			RunAsNonRoot:             boolPtr(true),
 			ReadOnlyRootFilesystem:   boolPtr(true),
 			AllowPrivilegeEscalation: boolPtr(false),
@@ -264,7 +264,7 @@ func buildContainers(profile *profilev1.Profile, objName, userSlug, nginxImage s
 }
 
 // buildVolumes builds the volume list: the PVC volume, the TLS secret volume,
-// the nginx config volume, the nginx tmp volume, plus any extra volumes from
+// the Envoy config volume, the Envoy tmp volume, plus any extra volumes from
 // the profile.
 func buildVolumes(profile *profilev1.Profile, objName string) []corev1.Volume {
 	volumes := make([]corev1.Volume, 0, 4+len(profile.Spec.PodSpec.Volumes))
@@ -289,22 +289,22 @@ func buildVolumes(profile *profilev1.Profile, objName string) []corev1.Volume {
 		},
 	})
 
-	// Nginx config from ConfigMap.
+	// Envoy config from ConfigMap.
 	volumes = append(volumes, corev1.Volume{
-		Name: "nginx-config",
+		Name: "envoy-config",
 		VolumeSource: corev1.VolumeSource{
 			ConfigMap: &corev1.ConfigMapVolumeSource{
 				LocalObjectReference: corev1.LocalObjectReference{
-					Name: "codx-nginx",
+					Name: "codx-envoy",
 				},
 			},
 		},
 	})
 
-	// Writable /tmp for the nginx sidecar (pid + temp paths) so it runs under
-	// a read-only root filesystem.
+	// Writable /tmp for the Envoy sidecar so it runs under a read-only root
+	// filesystem.
 	volumes = append(volumes, corev1.Volume{
-		Name: "nginx-tmp",
+		Name: "envoy-tmp",
 		VolumeSource: corev1.VolumeSource{
 			EmptyDir: &corev1.EmptyDirVolumeSource{},
 		},
@@ -352,5 +352,4 @@ type Clientset struct {
 	Profile     ProfileClient
 }
 
-func int64Ptr(v int64) *int64 { return &v }
-func boolPtr(v bool) *bool    { return &v }
+func boolPtr(v bool) *bool { return &v }

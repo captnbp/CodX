@@ -15,7 +15,7 @@ import (
 )
 
 // WorkspaceProxy is a reverse proxy that forwards requests to a workspace
-// pod's nginx sidecar using mTLS with the CodX client certificate.
+// pod's Envoy sidecar using mTLS with the CodX client certificate.
 type WorkspaceProxy struct {
 	// reverseProxy is the underlying httputil.ReverseProxy.
 	reverseProxy *httputil.ReverseProxy
@@ -37,7 +37,7 @@ type Config struct {
 }
 
 // New creates a WorkspaceProxy for the given workspace service FQDN.
-// The workspace's nginx sidecar listens on :9443.
+// The workspace's Envoy sidecar listens on :9443.
 func New(workspaceFQDN string, cfg Config) (*WorkspaceProxy, error) {
 	target := &url.URL{
 		Scheme: "https",
@@ -58,9 +58,9 @@ func New(workspaceFQDN string, cfg Config) (*WorkspaceProxy, error) {
 		Rewrite: func(rw *httputil.ProxyRequest) {
 			// Set the target URL.
 			rw.SetURL(target)
-			// Preserve the original Host header so nginx sees the expected FQDN.
+			// Preserve the original Host header so Envoy sees the expected FQDN.
 			rw.Out.Host = workspaceFQDN
-			// Add standard X-Forwarded-* headers for the downstream nginx.
+			// Add standard X-Forwarded-* headers for the downstream Envoy.
 			if clientIP := rw.Out.Header.Get("X-Forwarded-For"); clientIP != "" {
 				rw.Out.Header.Set("X-Forwarded-For", clientIP)
 			} else {

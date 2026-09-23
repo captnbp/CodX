@@ -2142,7 +2142,7 @@ spec:
                   sidecars:
                     description: |-
                       Sidecars adds extra sidecar containers to the pod (in addition to the
-                      mandatory nginx TLS termination sidecar injected by CodX).
+                      mandatory Envoy TLS termination sidecar injected by CodX).
                     items:
                       description: A single application container that you want to
                         run within a pod.

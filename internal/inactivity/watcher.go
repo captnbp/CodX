@@ -2,7 +2,7 @@
 // after a configurable period of inactivity.
 //
 // The watcher supports two signal sources (configurable in the ConfigMap):
-//   - "log-tail" (default): CodX tails the nginx sidecar access log lines
+//   - "log-tail" (default): CodX tails the Envoy sidecar access log lines
 //     to detect the last HTTPS activity timestamp.
 //   - "connection-count": CodX periodically checks the number of active
 //     HTTPS connections to the workspace.

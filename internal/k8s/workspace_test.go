@@ -91,8 +91,8 @@ func TestEnsureWorkspaceCreatesAllObjects(t *testing.T) {
 	if pod.Spec.Containers[0].Name != "code-server" {
 		t.Errorf("First container = %q, want code-server", pod.Spec.Containers[0].Name)
 	}
-	if pod.Spec.Containers[1].Name != "nginx-tls" {
-		t.Errorf("Second container = %q, want nginx-tls", pod.Spec.Containers[1].Name)
+	if pod.Spec.Containers[1].Name != "envoy-tls" {
+		t.Errorf("Second container = %q, want envoy-tls", pod.Spec.Containers[1].Name)
 	}
 	if pod.Spec.EnableServiceLinks == nil {
 		t.Error("EnableServiceLinks is nil, want false by default")
@@ -350,20 +350,80 @@ func TestBuildPodEnvUsername(t *testing.T) {
 	}
 }
 
-func TestBuildPodNginxImage(t *testing.T) {
+func TestBuildPodEnvoyImage(t *testing.T) {
 	profile := testProfile("python-dev", "Python Dev", nil)
 
-	// Default image when workspace.nginxImage is not set.
+	// Default image when workspace.envoyImage is not set.
 	pod := BuildPod("codx", "john-doe", "codx-system", "codx-john-doe.codx-system.svc.cluster.local", profile, testConfig())
-	if pod.Spec.Containers[1].Image != config.DefaultNginxImage {
-		t.Errorf("nginx-tls image = %q, want default %q", pod.Spec.Containers[1].Image, config.DefaultNginxImage)
+	if pod.Spec.Containers[1].Image != config.DefaultEnvoyImage {
+		t.Errorf("envoy-tls image = %q, want default %q", pod.Spec.Containers[1].Image, config.DefaultEnvoyImage)
 	}
 
 	// Image from config.
 	cfg := testConfig()
-	cfg.Workspace.NginxImage = "nginx:1.32-alpine"
+	cfg.Workspace.EnvoyImage = "envoyproxy/envoy:distroless-v1.40-latest"
 	pod = BuildPod("codx", "john-doe", "codx-system", "codx-john-doe.codx-system.svc.cluster.local", profile, cfg)
-	if pod.Spec.Containers[1].Image != "nginx:1.32-alpine" {
-		t.Errorf("nginx-tls image = %q, want nginx:1.32-alpine", pod.Spec.Containers[1].Image)
+	if pod.Spec.Containers[1].Image != "envoyproxy/envoy:distroless-v1.40-latest" {
+		t.Errorf("envoy-tls image = %q, want envoyproxy/envoy:distroless-v1.40-latest", pod.Spec.Containers[1].Image)
+	}
+}
+
+func TestBuildPodEnvoySidecar(t *testing.T) {
+	profile := testProfile("python-dev", "Python Dev", nil)
+	pod := BuildPod("codx", "john-doe", "codx-system", "codx-john-doe.codx-system.svc.cluster.local", profile, testConfig())
+
+	// Envoy sidecar volumes: TLS secret, config ConfigMap, writable /tmp.
+	envoy := pod.Spec.Containers[1]
+	mounts := map[string]corev1.VolumeMount{}
+	for _, m := range envoy.VolumeMounts {
+		mounts[m.Name] = m
+	}
+	if m, ok := mounts["envoy-config"]; !ok {
+		t.Error("envoy-config volume mount not found on envoy-tls container")
+	} else {
+		if m.MountPath != "/etc/envoy/envoy.yaml" {
+			t.Errorf("envoy-config mount path = %q, want /etc/envoy/envoy.yaml", m.MountPath)
+		}
+		if m.SubPath != "envoy.yaml" {
+			t.Errorf("envoy-config subPath = %q, want envoy.yaml", m.SubPath)
+		}
+		if !m.ReadOnly {
+			t.Error("envoy-config mount should be read-only")
+		}
+	}
+	if _, ok := mounts["tls"]; !ok {
+		t.Error("tls volume mount not found on envoy-tls container")
+	}
+	if _, ok := mounts["envoy-tmp"]; !ok {
+		t.Error("envoy-tmp volume mount not found on envoy-tls container")
+	}
+
+	// Pod volumes reference the codx-envoy ConfigMap.
+	found := false
+	for _, v := range pod.Spec.Volumes {
+		if v.Name == "envoy-config" {
+			found = true
+			if v.VolumeSource.ConfigMap == nil || v.VolumeSource.ConfigMap.Name != "codx-envoy" {
+				t.Errorf("envoy-config volume ConfigMap = %+v, want codx-envoy", v.VolumeSource.ConfigMap)
+			}
+		}
+	}
+	if !found {
+		t.Error("envoy-config volume not found in pod volumes")
+	}
+
+	// Security context: non-root, read-only root filesystem, no privileges.
+	sc := envoy.SecurityContext
+	if sc == nil {
+		t.Fatal("envoy-tls security context is nil")
+	}
+	if sc.RunAsNonRoot == nil || !*sc.RunAsNonRoot {
+		t.Error("envoy-tls should run as non-root")
+	}
+	if sc.ReadOnlyRootFilesystem == nil || !*sc.ReadOnlyRootFilesystem {
+		t.Error("envoy-tls should have a read-only root filesystem")
+	}
+	if sc.AllowPrivilegeEscalation != nil && *sc.AllowPrivilegeEscalation {
+		t.Error("envoy-tls should not allow privilege escalation")
 	}
 }
