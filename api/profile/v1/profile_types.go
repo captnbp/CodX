@@ -126,6 +126,18 @@ type ProfilePodSpec struct {
 	// +optional
 	// +kubebuilder:default:=false
 	EnableServiceLinks *bool `json:"enableServiceLinks,omitempty"`
+
+	// CodeServerReadinessProbe overrides the readiness probe of the
+	// code-server main container. When unset, a default HTTP GET probe
+	// on /healthz port 8080 is applied.
+	// +optional
+	CodeServerReadinessProbe *corev1.Probe `json:"codeServerReadinessProbe,omitempty"`
+
+	// EnvoyReadinessProbe overrides the readiness probe of the Envoy TLS
+	// sidecar. When unset, a default HTTP GET probe on the Envoy admin
+	// endpoint /ready port 9901 is applied.
+	// +optional
+	EnvoyReadinessProbe *corev1.Probe `json:"envoyReadinessProbe,omitempty"`
 }
 
 // ProfilePVC defines the default settings for the user's home directory PVC.

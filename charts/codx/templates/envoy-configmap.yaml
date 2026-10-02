@@ -14,10 +14,11 @@ metadata:
 data:
   envoy.yaml: |
     admin:
-      access_log_path: /dev/null
+      # Bind to all interfaces so the kubelet can reach /ready from the node
+      # for the readiness probe. Not exposed by the workspace Service.
       address:
         socket_address:
-          address: 127.0.0.1
+          address: 0.0.0.0
           port_value: 9901
 
     static_resources:
@@ -28,28 +29,28 @@ data:
               address: "::"
               port_value: 9443
               ipv4_compat: true
-          transport_socket:
-            name: envoy.transport_sockets.tls
-            typed_config:
-              "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
-              require_client_certificate: true
-              common_tls_context:
-                # TLS 1.3 only with modern ciphers
-                tls_params:
-                  tls_minimum_protocol_version: TLSv1_3
-                  tls_maximum_protocol_version: TLSv1_3
-                # Workspace TLS certificate (mounted from cert-manager secret)
-                tls_certificates:
-                  - certificate_chain:
-                      filename: /tls/tls.crt
-                    private_key:
-                      filename: /tls/tls.key
-                # Client certificate verification (mTLS)
-                validation_context:
-                  trusted_ca:
-                    filename: /tls/ca.crt
           filter_chains:
-            - filters:
+            - transport_socket:
+                name: envoy.transport_sockets.tls
+                typed_config:
+                  "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
+                  require_client_certificate: true
+                  common_tls_context:
+                    # TLS 1.3 only with modern ciphers
+                    tls_params:
+                      tls_minimum_protocol_version: TLSv1_3
+                      tls_maximum_protocol_version: TLSv1_3
+                    # Workspace TLS certificate (mounted from cert-manager secret)
+                    tls_certificates:
+                      - certificate_chain:
+                          filename: /tls/tls.crt
+                        private_key:
+                          filename: /tls/tls.key
+                    # Client certificate verification (mTLS)
+                    validation_context:
+                      trusted_ca:
+                        filename: /tls/ca.crt
+              filters:
                 - name: envoy.filters.network.http_connection_manager
                   typed_config:
                     "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
@@ -76,7 +77,8 @@ data:
                         typed_config:
                           "@type": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog
                           log_format:
-                            text_format: '[%START_TIME%] "%REQ(:METHOD)% %REQ(X-ENVOY-ORIGINAL-PATH?:PATH)% %PROTOCOL%" %RESPONSE_CODE% %BYTES_SENT% "%REQ(REFERER)%" "%REQ(USER-AGENT)%" rt=%DURATION%'
+                            text_format_source:
+                              inline_string: '[%START_TIME%] "%REQ(:METHOD)% %REQ(X-ENVOY-ORIGINAL-PATH?:PATH)% %PROTOCOL%" %RESPONSE_CODE% %BYTES_SENT% "%REQ(REFERER)%" "%REQ(USER-AGENT)%" rt=%DURATION%'
                     route_config:
                       name: workspace
                       virtual_hosts:
@@ -91,6 +93,10 @@ data:
                                 - header:
                                     key: x-real-ip
                                     value: "%DOWNSTREAM_REMOTE_ADDRESS_WITHOUT_PORT%"
+                    http_filters:
+                      - name: envoy.filters.http.router
+                        typed_config:
+                          "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
       clusters:
         - name: code_server
           type: STATIC

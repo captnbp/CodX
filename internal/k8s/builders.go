@@ -223,6 +223,8 @@ func buildContainers(profile *profilev1.Profile, objName, userSlug string, cfg *
 		Name:  "CODX_USERNAME",
 		Value: userSlug,
 	})
+	// Readiness probe: profile override or default /healthz probe.
+	main.ReadinessProbe = codeServerReadinessProbe(profile)
 	// Mount PVC at /home/coder.
 	main.VolumeMounts = append(main.VolumeMounts, corev1.VolumeMount{
 		Name:      "home",
@@ -242,6 +244,7 @@ func buildContainers(profile *profilev1.Profile, objName, userSlug string, cfg *
 		Ports: []corev1.ContainerPort{
 			{ContainerPort: 9443, Name: "https", Protocol: corev1.ProtocolTCP},
 		},
+		ReadinessProbe: envoyReadinessProbe(profile),
 		VolumeMounts: []corev1.VolumeMount{
 			{Name: "tls", MountPath: "/tls", ReadOnly: true},
 			{Name: "envoy-config", MountPath: "/etc/envoy/envoy.yaml", SubPath: "envoy.yaml", ReadOnly: true},
@@ -261,6 +264,44 @@ func buildContainers(profile *profilev1.Profile, objName, userSlug string, cfg *
 	containers = append(containers, profile.Spec.PodSpec.Sidecars...)
 
 	return containers
+}
+
+// codeServerReadinessProbe returns the readiness probe for the code-server
+// container: the profile override when set, otherwise a default HTTP GET
+// probe on /healthz port 8080.
+func codeServerReadinessProbe(profile *profilev1.Profile) *corev1.Probe {
+	if probe := profile.Spec.PodSpec.CodeServerReadinessProbe; probe != nil {
+		return probe.DeepCopy()
+	}
+	return &corev1.Probe{
+		ProbeHandler: corev1.ProbeHandler{
+			HTTPGet: &corev1.HTTPGetAction{
+				Path: "/healthz",
+				Port: intstr.FromInt(8080),
+			},
+		},
+		InitialDelaySeconds: 5,
+		PeriodSeconds:       10,
+	}
+}
+
+// envoyReadinessProbe returns the readiness probe for the Envoy TLS sidecar:
+// the profile override when set, otherwise a default HTTP GET probe on the
+// Envoy admin endpoint /ready port 9901.
+func envoyReadinessProbe(profile *profilev1.Profile) *corev1.Probe {
+	if probe := profile.Spec.PodSpec.EnvoyReadinessProbe; probe != nil {
+		return probe.DeepCopy()
+	}
+	return &corev1.Probe{
+		ProbeHandler: corev1.ProbeHandler{
+			HTTPGet: &corev1.HTTPGetAction{
+				Path: "/ready",
+				Port: intstr.FromInt(9901),
+			},
+		},
+		InitialDelaySeconds: 3,
+		PeriodSeconds:       5,
+	}
 }
 
 // buildVolumes builds the volume list: the PVC volume, the TLS secret volume,

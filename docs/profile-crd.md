@@ -65,9 +65,11 @@ PodSpec describes the workspace pod and its containers.
 |-------|------|----------|---------|-------------|
 | `annotations` | `map[string]string` | No | `-` | Annotations adds extra annotations to the workspace pod. |
 | `args` | `[]string` | No | `-` | Args overrides the container command arguments. |
+| `codeServerReadinessProbe` | `object` | No | `-` | CodeServerReadinessProbe overrides the readiness probe of the code-server main container. When unset, a default HTTP GET probe on /healthz port 8080 is applied. |
 | `command` | `[]string` | No | `-` | Command overrides the container entrypoint. |
 | `enableServiceLinks` | `boolean` | No | `false` | EnableServiceLinks controls whether Kubernetes injects service-linked environment variables (e.g. *_SERVICE_HOST, *_SERVICE_PORT) into the code-server container. Defaults to false to keep the workspace environment clean and avoid leaking cluster service discovery into user workspaces. Set to true to enable the legacy injection behavior. |
 | `env` | `[]object` | No | `-` | Env adds extra environment variables to the main container. See Kubernetes [`EnvVar`](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#envvar-v1-core) (corev1). |
+| `envoyReadinessProbe` | `object` | No | `-` | EnvoyReadinessProbe overrides the readiness probe of the Envoy TLS sidecar. When unset, a default HTTP GET probe on the Envoy admin endpoint /ready port 9901 is applied. |
 | `image` | `string` | Yes | `-` | Image is the container image for the code-server main container. |
 | `initContainers` | `[]object` | No | `-` | InitContainers adds extra init containers to the pod. See Kubernetes [`Container`](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#container-v1-core) (corev1). |
 | `labels` | `map[string]string` | No | `-` | Labels adds extra labels to the workspace pod. |

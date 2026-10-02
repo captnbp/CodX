@@ -749,6 +749,14 @@ tracing:
 ##       - doca:users
 ##     podSpec:
 ##       image: codercom/code-server:latest
+##       # codeServerReadinessProbe:
+##       #   httpGet:
+##       #     path: /healthz
+##       #     port: 8080
+##       # envoyReadinessProbe:
+##       #   httpGet:
+##       #     path: /ready
+##       #     port: 9901
 ##     pvc:
 ##       size: 10Gi
 ##
@@ -761,7 +769,7 @@ profiles:
       - doca:users
       - doca:owners
     podSpec:
-      image: docker.io/captnbp/code-server:4.136.2
+      image: docker.io/captnbp/code-server:4.140.0
       securityContext:
         runAsUser: 1000
         runAsGroup: 1000

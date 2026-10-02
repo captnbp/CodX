@@ -9,6 +9,7 @@ import (
 	"github.com/captnbp/CodX/internal/config"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 func newTestClientset() *Clientset {
@@ -425,5 +426,64 @@ func TestBuildPodEnvoySidecar(t *testing.T) {
 	}
 	if sc.AllowPrivilegeEscalation != nil && *sc.AllowPrivilegeEscalation {
 		t.Error("envoy-tls should not allow privilege escalation")
+	}
+}
+
+func TestBuildPodReadinessProbeDefaults(t *testing.T) {
+	profile := testProfile("python-dev", "Python Dev", nil)
+	pod := BuildPod("codx", "john-doe", "codx-system", "codx-john-doe.codx-system.svc.cluster.local", profile, testConfig())
+
+	codeServer := pod.Spec.Containers[0]
+	if codeServer.ReadinessProbe == nil {
+		t.Fatal("code-server readiness probe not set")
+	}
+	if httpGet := codeServer.ReadinessProbe.HTTPGet; httpGet == nil {
+		t.Fatal("code-server readiness probe is not an HTTP probe")
+	} else {
+		if httpGet.Path != "/healthz" {
+			t.Errorf("code-server probe path = %q, want /healthz", httpGet.Path)
+		}
+		if httpGet.Port.IntValue() != 8080 {
+			t.Errorf("code-server probe port = %d, want 8080", httpGet.Port.IntValue())
+		}
+	}
+
+	envoy := pod.Spec.Containers[1]
+	if envoy.ReadinessProbe == nil {
+		t.Fatal("envoy-tls readiness probe not set")
+	}
+	if httpGet := envoy.ReadinessProbe.HTTPGet; httpGet == nil {
+		t.Fatal("envoy-tls readiness probe is not an HTTP probe")
+	} else {
+		if httpGet.Path != "/ready" {
+			t.Errorf("envoy-tls probe path = %q, want /ready", httpGet.Path)
+		}
+		if httpGet.Port.IntValue() != 9901 {
+			t.Errorf("envoy-tls probe port = %d, want 9901", httpGet.Port.IntValue())
+		}
+	}
+}
+
+func TestBuildPodReadinessProbeOverrides(t *testing.T) {
+	profile := testProfile("python-dev", "Python Dev", nil)
+	profile.Spec.PodSpec.CodeServerReadinessProbe = &corev1.Probe{
+		ProbeHandler: corev1.ProbeHandler{
+			TCPSocket: &corev1.TCPSocketAction{Port: intstr.FromInt(9999)},
+		},
+		PeriodSeconds: 15,
+	}
+	profile.Spec.PodSpec.EnvoyReadinessProbe = &corev1.Probe{
+		ProbeHandler: corev1.ProbeHandler{
+			TCPSocket: &corev1.TCPSocketAction{Port: intstr.FromInt(19999)},
+		},
+		PeriodSeconds: 20,
+	}
+	pod := BuildPod("codx", "john-doe", "codx-system", "codx-john-doe.codx-system.svc.cluster.local", profile, testConfig())
+
+	if p := pod.Spec.Containers[0].ReadinessProbe; p == nil || p.TCPSocket == nil || p.TCPSocket.Port.IntValue() != 9999 || p.PeriodSeconds != 15 {
+		t.Errorf("code-server readiness probe override not applied: %+v", pod.Spec.Containers[0].ReadinessProbe)
+	}
+	if p := pod.Spec.Containers[1].ReadinessProbe; p == nil || p.TCPSocket == nil || p.TCPSocket.Port.IntValue() != 19999 || p.PeriodSeconds != 20 {
+		t.Errorf("envoy-tls readiness probe override not applied: %+v", pod.Spec.Containers[1].ReadinessProbe)
 	}
 }
