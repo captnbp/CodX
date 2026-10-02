@@ -99,6 +99,33 @@ func (m *WorkspaceManager) CountWorkspaces(ctx context.Context) (WorkspaceCounts
 	return counts, nil
 }
 
+// ListWorkspacePods returns all workspace pods managed by this CodX instance
+// (component=workspace, managed-by=<instance>) that are running and have a
+// pod IP assigned. Used by the connection-count inactivity source to reach
+// the Envoy admin interface of each workspace.
+func (m *WorkspaceManager) ListWorkspacePods(ctx context.Context) ([]corev1.Pod, error) {
+	namespace := m.cfg.Namespace
+	pods, err := m.clients.CoreV1.Pods(namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: fmt.Sprintf("%s=%s,%s=%s",
+			LabelComponent, ComponentName,
+			LabelManagedBy, m.cfg.InstanceName,
+		),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list workspace pods: %w", err)
+	}
+
+	running := make([]corev1.Pod, 0, len(pods.Items))
+	for i := range pods.Items {
+		pod := pods.Items[i]
+		if pod.Status.Phase != corev1.PodRunning || pod.Status.PodIP == "" {
+			continue
+		}
+		running = append(running, pod)
+	}
+	return running, nil
+}
+
 // RestartWorkspace deletes the workspace pod so that it gets recreated (the
 // PVC, Service, and Certificate are preserved).
 func (m *WorkspaceManager) RestartWorkspace(ctx context.Context, userSlug string) error {

@@ -79,6 +79,17 @@ func (w *Watcher) Unregister(slug string) {
 	delete(w.stopped, slug)
 }
 
+// Slugs returns the slugs currently registered with the watcher.
+func (w *Watcher) Slugs() []string {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	slugs := make([]string, 0, len(w.delays))
+	for slug := range w.delays {
+		slugs = append(slugs, slug)
+	}
+	return slugs
+}
+
 // Run starts the periodic check loop. It blocks until the context is cancelled.
 func (w *Watcher) Run(ctx context.Context) {
 	ticker := time.NewTicker(w.checkInterval)

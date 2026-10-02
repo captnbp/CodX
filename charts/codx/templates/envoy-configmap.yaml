@@ -15,10 +15,11 @@ data:
   envoy.yaml: |
     admin:
       # Bind to all interfaces so the kubelet can reach /ready from the node
-      # for the readiness probe. Not exposed by the workspace Service.
+      # for the readiness probe. Exposed as the envoy-admin port (9901) of the
+      # workspace Service; access is restricted by the workspace NetworkPolicy.
       address:
         socket_address:
-          address: 0.0.0.0
+          address: "::"
           port_value: 9901
 
     static_resources:

@@ -52,6 +52,15 @@ func TestEnsureWorkspaceCreatesAllObjects(t *testing.T) {
 	if svc.Labels[LabelComponent] != "workspace" {
 		t.Errorf("Service component label = %q, want workspace", svc.Labels[LabelComponent])
 	}
+	if len(svc.Spec.Ports) != 2 {
+		t.Fatalf("Service has %d ports, want 2", len(svc.Spec.Ports))
+	}
+	if svc.Spec.Ports[0].Name != "https" || svc.Spec.Ports[0].Port != 9443 {
+		t.Errorf("Service port 0 = %s:%d, want https:9443", svc.Spec.Ports[0].Name, svc.Spec.Ports[0].Port)
+	}
+	if svc.Spec.Ports[1].Name != "envoy-admin" || svc.Spec.Ports[1].Port != 9901 {
+		t.Errorf("Service port 1 = %s:%d, want envoy-admin:9901", svc.Spec.Ports[1].Name, svc.Spec.Ports[1].Port)
+	}
 
 	// Verify PVC.
 	pvc, err := coreV1.PersistentVolumeClaims("").Get(context.Background(), objName, metav1.GetOptions{})
@@ -366,6 +375,23 @@ func TestBuildPodEnvoyImage(t *testing.T) {
 	pod = BuildPod("codx", "john-doe", "codx-system", "codx-john-doe.codx-system.svc.cluster.local", profile, cfg)
 	if pod.Spec.Containers[1].Image != "envoyproxy/envoy:distroless-v1.40-latest" {
 		t.Errorf("envoy-tls image = %q, want envoyproxy/envoy:distroless-v1.40-latest", pod.Spec.Containers[1].Image)
+	}
+}
+
+func TestBuildPodProfileLabel(t *testing.T) {
+	profile := testProfile("python-dev", "Python Dev", nil)
+	pod := BuildPod("codx", "john-doe", "codx-system", "codx-john-doe.codx-system.svc.cluster.local", profile, testConfig())
+
+	if got := pod.Labels[LabelProfile]; got != "python-dev" {
+		t.Errorf("profile label = %q, want python-dev", got)
+	}
+
+	// The managed profile label must win over profile podSpec labels.
+	profile = testProfile("python-dev", "Python Dev", nil)
+	profile.Spec.PodSpec.Labels = map[string]string{LabelProfile: "override-me"}
+	pod = BuildPod("codx", "john-doe", "codx-system", "codx-john-doe.codx-system.svc.cluster.local", profile, testConfig())
+	if got := pod.Labels[LabelProfile]; got != "python-dev" {
+		t.Errorf("profile label with conflicting podSpec label = %q, want python-dev", got)
 	}
 }
 

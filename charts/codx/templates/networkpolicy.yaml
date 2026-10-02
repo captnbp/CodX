@@ -1,0 +1,219 @@
+{{- /*
+NetworkPolicies for the CodX codx and the workspace pods.
+
+Two policies:
+  - codx:       selects the codx-server Deployment pods.
+  - workspace: selects the per-user workspace pods created at runtime by the
+               codx (labels app.kubernetes.io/component=workspace and
+               app.kubernetes.io/managed-by=<release>).
+*/ -}}
+{{- if .Values.networkPolicy.codx.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "common.names.fullname" . }}-codx
+  namespace: {{ include "common.names.namespace" . | quote }}
+  labels: {{- include "common.labels.standard" . | nindent 4 }}
+    app.kubernetes.io/component: codx-server
+    {{- if .Values.commonLabels }}
+    {{- include "common.tplvalues.render" ( dict "value" .Values.commonLabels "context" $ ) | nindent 4 }}
+    {{- end }}
+  {{- if .Values.commonAnnotations }}
+  annotations: {{- include "common.tplvalues.render" ( dict "value" .Values.commonAnnotations "context" $ ) | nindent 4 }}
+  {{- end }}
+spec:
+  podSelector:
+    matchLabels: {{- include "common.labels.matchLabels" . | nindent 6 }}
+      app.kubernetes.io/component: codx-server
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    {{- if .Values.networkPolicy.codx.ingress.fromIngressController.enabled }}
+    # Allow traffic from the Ingress Controller to the https port
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              {{- range $key, $value := .Values.networkPolicy.codx.ingress.fromIngressController.namespaceSelector }}
+              {{ $key }}: {{ $value | quote }}
+              {{- end }}
+          {{- if .Values.networkPolicy.codx.ingress.fromIngressController.podSelector }}
+          podSelector:
+            matchLabels:
+              {{- range $key, $value := .Values.networkPolicy.codx.ingress.fromIngressController.podSelector }}
+              {{ $key }}: {{ $value | quote }}
+              {{- end }}
+          {{- end }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.containerPorts.https }}
+    {{- end }}
+    {{- if and .Values.metrics.enabled .Values.networkPolicy.codx.ingress.fromMonitoring.enabled }}
+    # Allow traffic from the monitoring namespace to the metrics port
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              {{- range $key, $value := .Values.networkPolicy.codx.ingress.fromMonitoring.namespaceSelector }}
+              {{ $key }}: {{ $value | quote }}
+              {{- end }}
+          {{- if .Values.networkPolicy.codx.ingress.fromMonitoring.podSelector }}
+          podSelector:
+            matchLabels:
+              {{- range $key, $value := .Values.networkPolicy.codx.ingress.fromMonitoring.podSelector }}
+              {{ $key }}: {{ $value | quote }}
+              {{- end }}
+          {{- end }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.metrics.port }}
+    {{- end }}
+    {{- if .Values.networkPolicy.codx.ingress.extraIngress }}
+    {{- include "common.tplvalues.render" ( dict "value" .Values.networkPolicy.codx.ingress.extraIngress "context" $ ) | nindent 4 }}
+    {{- end }}
+  egress:
+    # Allow DNS resolution
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    {{- if .Values.networkPolicy.codx.egress.toKubeAPI.enabled }}
+    # Allow traffic to the Kubernetes API (pods, certificates, profiles)
+    - to:
+        {{- range .Values.networkPolicy.codx.egress.toKubeAPI.cidrBlocks }}
+        - ipBlock:
+            cidr: {{ . }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.networkPolicy.codx.egress.toKubeAPI.port }}
+    {{- end }}
+    {{- if .Values.networkPolicy.codx.egress.toWorkspaces.enabled }}
+    # Allow mTLS traffic from the codx to the workspace Envoy sidecars
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: workspace
+              app.kubernetes.io/managed-by: {{ include "common.names.fullname" . }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.networkPolicy.codx.egress.toWorkspaces.port }}
+        {{- if eq .Values.inactivity.signal "connection-count" }}
+        # Envoy admin interface polled by the connection-count inactivity watcher
+        - protocol: TCP
+          port: 9901
+        {{- end }}
+    {{- end }}
+    {{- if and .Values.valkey.enabled .Values.networkPolicy.codx.egress.toValkey.enabled }}
+    # Allow traffic to the Valkey pods (session store)
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: valkey
+              app.kubernetes.io/instance: {{ .Release.Name }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.networkPolicy.codx.egress.toValkey.port }}
+    {{- end }}
+    {{- if .Values.networkPolicy.codx.egress.toInternet.enabled }}
+    # Allow traffic to the Internet (OIDC issuer, certificate chains, ...)
+    - to:
+        {{- range .Values.networkPolicy.codx.egress.toInternet.cidrBlocks }}
+        - ipBlock:
+            cidr: {{ . }}
+        {{- end }}
+      ports:
+        {{- include "common.tplvalues.render" ( dict "value" .Values.networkPolicy.codx.egress.toInternet.ports "context" $ ) | nindent 8 }}
+    {{- end }}
+    {{- if .Values.networkPolicy.codx.egress.extraEgress }}
+    {{- include "common.tplvalues.render" ( dict "value" .Values.networkPolicy.codx.egress.extraEgress "context" $ ) | nindent 4 }}
+    {{- end }}
+{{- end }}
+{{- if .Values.networkPolicy.workspace.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "common.names.fullname" . }}-workspace
+  namespace: {{ include "common.names.namespace" . | quote }}
+  labels: {{- include "common.labels.standard" . | nindent 4 }}
+    app.kubernetes.io/component: workspace
+    {{- if .Values.commonLabels }}
+    {{- include "common.tplvalues.render" ( dict "value" .Values.commonLabels "context" $ ) | nindent 4 }}
+    {{- end }}
+  {{- if .Values.commonAnnotations }}
+  annotations: {{- include "common.tplvalues.render" ( dict "value" .Values.commonAnnotations "context" $ ) | nindent 4 }}
+  {{- end }}
+spec:
+  # Workspace pods are created at runtime by the codx with these labels.
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: workspace
+      app.kubernetes.io/managed-by: {{ include "common.names.fullname" . }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    {{- if .Values.networkPolicy.workspace.ingress.fromCodX.enabled }}
+    # Allow mTLS traffic from the CodX codx to the Envoy sidecar (9443)
+    - from:
+        - podSelector:
+            matchLabels: {{- include "common.labels.matchLabels" . | nindent 14 }}
+              app.kubernetes.io/component: codx-server
+      ports:
+        - protocol: TCP
+          port: {{ .Values.networkPolicy.workspace.ingress.fromCodX.port }}
+        {{- if eq .Values.inactivity.signal "connection-count" }}
+        # Envoy admin interface polled by the connection-count inactivity watcher
+        - protocol: TCP
+          port: 9901
+        {{- end }}
+    {{- end }}
+    {{- if .Values.networkPolicy.workspace.ingress.fromNode.enabled }}
+    # Allow kubelet readiness probes to the code-server health endpoint and
+    # the Envoy admin endpoint. Tighten fromNode.cidrBlocks to the node CIDRs
+    # if the CNI enforces policy on host traffic.
+    - from:
+        {{- range .Values.networkPolicy.workspace.ingress.fromNode.cidrBlocks }}
+        - ipBlock:
+            cidr: {{ . }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 9901
+    {{- end }}
+    {{- if .Values.networkPolicy.workspace.ingress.extraIngress }}
+    {{- include "common.tplvalues.render" ( dict "value" .Values.networkPolicy.workspace.ingress.extraIngress "context" $ ) | nindent 4 }}
+    {{- end }}
+  egress:
+    # Allow DNS resolution
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    {{- if .Values.networkPolicy.workspace.egress.toInternet.enabled }}
+    # Allow traffic to the Internet (package registries, extensions, docs)
+    - to:
+        {{- range .Values.networkPolicy.workspace.egress.toInternet.cidrBlocks }}
+        - ipBlock:
+            cidr: {{ . }}
+        {{- end }}
+      ports:
+        {{- include "common.tplvalues.render" ( dict "value" .Values.networkPolicy.workspace.egress.toInternet.ports "context" $ ) | nindent 8 }}
+    {{- end }}
+    {{- if .Values.networkPolicy.workspace.egress.extraEgress }}
+    {{- include "common.tplvalues.render" ( dict "value" .Values.networkPolicy.workspace.egress.extraEgress "context" $ ) | nindent 4 }}
+    {{- end }}
+{{- end }}

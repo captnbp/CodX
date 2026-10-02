@@ -115,9 +115,29 @@ func run(configPath string) error {
 	if checkInterval == 0 {
 		checkInterval = 60 * time.Second
 	}
-	activitySource := inactivity.NewLogTailActivity()
+
+	// Select the activity source based on the configured signal.
+	var activitySource inactivity.ActivitySource
+	switch cfg.Inactivity.Signal {
+	case "connection-count":
+		connSource := inactivity.NewConnectionCountActivity(workspacePodLister{wm: wm}, log, nil)
+		activitySource = connSource
+		go connSource.Run(ctx, checkInterval)
+		log.Info("inactivity activity source: envoy connection-count",
+			"adminPort", inactivity.DefaultEnvoyAdminPort,
+			"stat", inactivity.DefaultConnectionStatName,
+		)
+	default:
+		activitySource = inactivity.NewLogTailActivity()
+		log.Info("inactivity activity source: envoy log-tail")
+	}
+
 	watcher := inactivity.NewWatcher(activitySource, wm.StopWorkspace, checkInterval, log)
 	go watcher.Run(ctx)
+
+	// Keep the watcher's registrations in sync with the running workspaces
+	// and their profile's inactivity stop delay.
+	go inactivity.NewRegistrationReconciler(watcher, workspaceDelayLister{wm: wm, profiles: profileStore}, log).Run(ctx, checkInterval)
 
 	// Start the metrics server (optional dedicated /metrics endpoint).
 	var metricsServer *http.Server
@@ -227,4 +247,62 @@ func run(configPath string) error {
 
 	log.Info("CodX server stopped")
 	return nil
+}
+
+// workspacePodLister adapts the k8s WorkspaceManager to the inactivity
+// package's WorkspacePodLister interface.
+type workspacePodLister struct {
+	wm *k8s.WorkspaceManager
+}
+
+// ListWorkspacePods returns the running workspace pods with their slug and IP,
+// as expected by the connection-count inactivity source.
+func (l workspacePodLister) ListWorkspacePods(ctx context.Context) ([]inactivity.WorkspacePod, error) {
+	pods, err := l.wm.ListWorkspacePods(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]inactivity.WorkspacePod, 0, len(pods))
+	for _, pod := range pods {
+		slug := pod.Labels[k8s.LabelInstance]
+		if slug == "" {
+			continue
+		}
+		out = append(out, inactivity.WorkspacePod{Slug: slug, PodIP: pod.Status.PodIP})
+	}
+	return out, nil
+}
+
+// workspaceDelayLister resolves each running workspace's inactivity stop
+// delay from the profile recorded on its pod, as expected by the watcher
+// registration reconciler.
+type workspaceDelayLister struct {
+	wm       *k8s.WorkspaceManager
+	profiles *k8s.ProfileStore
+}
+
+// ListWorkspaceDelays returns the running workspaces mapped to the
+// InactivityStopDelaySeconds of their profile. A zero delay means the
+// workspace is never stopped. Pods without a resolvable profile are skipped.
+func (l workspaceDelayLister) ListWorkspaceDelays(ctx context.Context) (map[string]time.Duration, error) {
+	pods, err := l.wm.ListWorkspacePods(ctx)
+	if err != nil {
+		return nil, err
+	}
+	delays := make(map[string]time.Duration, len(pods))
+	for _, pod := range pods {
+		slug := pod.Labels[k8s.LabelInstance]
+		profileName := pod.Labels[k8s.LabelProfile]
+		if slug == "" || profileName == "" {
+			continue
+		}
+		profile := l.profiles.Get(profileName)
+		if profile == nil {
+			// The profile CR is not (yet) in the cache; retry on the next
+			// reconcile once the profile store reloads.
+			continue
+		}
+		delays[slug] = time.Duration(profile.Spec.InactivityStopDelaySeconds) * time.Second
+	}
+	return delays, nil
 }

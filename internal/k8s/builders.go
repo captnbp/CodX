@@ -22,6 +22,11 @@ const (
 	LabelName      = "app.kubernetes.io/name"
 	LabelComponent = "app.kubernetes.io/component"
 	ComponentName  = "workspace"
+
+	// LabelProfile is set on workspace pods with the name of the Profile CR
+	// the workspace was created from. It lets the inactivity watcher resolve
+	// the profile's InactivityStopDelaySeconds for each running workspace.
+	LabelProfile = "codx.captnbp.io/profile"
 )
 
 // workspaceLabels returns the standard label set for a workspace object.
@@ -59,6 +64,15 @@ func BuildService(instance, slug, namespace string, profile *profilev1.Profile, 
 					Name:       "https",
 					Port:       9443,
 					TargetPort: intstr.FromInt(9443),
+					Protocol:   corev1.ProtocolTCP,
+				},
+				{
+					// Envoy admin interface (stats, readiness), polled by the
+					// connection-count inactivity watcher. Access is governed
+					// by the workspace NetworkPolicy.
+					Name:       "envoy-admin",
+					Port:       9901,
+					TargetPort: intstr.FromInt(9901),
 					Protocol:   corev1.ProtocolTCP,
 				},
 			},
@@ -168,6 +182,9 @@ func BuildCertificate(instance, slug, namespace, fqdn string, cfg config.CertMan
 func BuildPod(instance, slug, namespace, fqdn string, profile *profilev1.Profile, cfg *config.Config) *corev1.Pod {
 	objName := objectName(instance, slug)
 	labels := mergeLabels(workspaceLabels(instance, slug), profile.Spec.PodSpec.Labels)
+	// The managed profile label always wins so the inactivity watcher can
+	// resolve the workspace's stop delay.
+	labels[LabelProfile] = profile.Name
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{

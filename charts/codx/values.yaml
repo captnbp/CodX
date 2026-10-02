@@ -631,15 +631,23 @@ valkey:
       #   labels:
       #     severity: error
 
+## @section Cert Manager
+## CertManager configures how per-user workspace certificates are issued.
+## @param certManager.renewal Certificate renewal period before expiry (Go duration, e.g. 720h).
+## @param certManager.validity Certificate validity duration (Go duration, e.g. 2160h).
+##
 certManager:
   renewal: 720h
   validity: 2160h
 
-# -- CodX HTTP server
+## @section CodX HTTP Server
+## HTTP configures the CodX HTTP server.
+## @param http.listenAddr Address the HTTP server binds to. Supports IPv4 (e.g. 0.0.0.0:8443), IPv6 (e.g. [::]:8443) and dual-stack.
+## @param http.tlsCertFile Path to the TLS certificate for the CodX server (TLS is mandatory).
+## @param http.tlsKeyFile Path to the TLS key for the CodX server (TLS is mandatory).
+##
 http:
-  # Listen address (supports IPv4, IPv6, and dual-stack)
   listenAddr: "[::]:8443"
-  # TLS cert/key paths (mounted from cert-manager)
   tlsCertFile: /tls/tls.crt
   tlsKeyFile: /tls/tls.key
 
@@ -665,7 +673,15 @@ metrics:
     # Extra labels to add to the ServiceMonitor resource, e.g:
     # release: kube-prometheus-stack
 
-# -- OIDC authentication
+## @section OIDC Authentication
+## OIDC configures the OIDC authentication provider.
+## @param oidc.issuer OIDC issuer URL (e.g. https://keycloak.example.com/realms/myrealm).
+## @param oidc.clientId OAuth2 client ID registered with the OIDC provider.
+## @param oidc.clientSecret OAuth2 client secret. Can also be set via the CODX_OIDC_CLIENT_SECRET environment variable.
+## @param oidc.groupClaimName Name of the custom claim in the ID token that contains the user's group memberships.
+## @param oidc.adminGroup OIDC group whose members get admin privileges.
+## @param oidc.usernameClaimName ID token claim used as the username source for slug generation.
+##
 oidc:
   issuer: ""
   clientId: ""
@@ -674,25 +690,37 @@ oidc:
   adminGroup: codx-admins
   usernameClaimName: preferred_username
 
-# -- Redis/Valkey session store
+## @section Redis/Valkey Session Store
+## Redis configures the Redis/Valkey session store.
+## @param redis.host Redis hostname (host:port).
+## @param redis.password Optional Redis password. Can also be set via the CODX_REDIS_PASSWORD environment variable.
+## @param redis.db Redis logical database index.
+## @param redis.tls Enable TLS to Redis. Automatically enabled when caFilePath is set.
+## @param redis.caFilePath Path to a PEM-encoded CA certificate file used to verify the Redis TLS certificate. Typically mounted from a Kubernetes secret.
+##
 redis:
   host: ""
   password: ""
   db: 0
-  # Enable TLS to Redis.
   tls: true
-  # Path to a PEM-encoded CA certificate file for Redis TLS verification.
-  # Typically the path where caSecretName is mounted.
   caFilePath: "/tls/ca.crt"
 
-# -- Username slug configuration
+## @section Username Slug
+## Slug configures how usernames are turned into Kubernetes-safe slugs.
+## @param slug.usernameField OIDC claim used as the username source.
+## @param slug.maxLength Maximum length of the generated slug (Kubernetes label/name limit).
+##
 slug:
   usernameField: preferred_username
   maxLength: 63
 
-# -- Inactivity watcher
+## @section Inactivity Watcher
+## Inactivity configures how workspace inactivity is detected and how often idle workspaces are checked.
+## @param inactivity.signal Method used to detect inactivity. One of: log-tail (tail the Envoy sidecar access log), connection-count (poll the Envoy admin /stats endpoint for active connections; opens port 9901 in the workspace NetworkPolicy).
+## @param inactivity.checkInterval How often the inactivity watcher checks for idle workspaces (Go duration, e.g. 60s). Also drives the connection-count polling rate.
+##
 inactivity:
-  signal: log-tail
+  signal: connection-count
   checkInterval: 60s
 
 ## @section Workspace Service
@@ -764,7 +792,7 @@ profiles:
   default:
     title: Default
     description: Standard code-server workspace
-    inactivityStopDelaySeconds: 1800
+    inactivityStopDelaySeconds: 120
     oidcGroups:
       - doca:users
       - doca:owners
@@ -788,3 +816,180 @@ profiles:
           memory: 256Mi
     pvc:
       size: 20Gi
+## Network policies restricting traffic to the CodX codx and workspace pods.
+## Both policies are disabled by default; enable them once the selectors match
+## your cluster (ingress controller, monitoring, node CIDRs).
+##
+networkPolicy:
+
+  ## Policy for the CodX codx (codx-server Deployment).
+  ##
+  codx:
+    ## @param networkPolicy.codx.enabled Enable the NetworkPolicy for the CodX codx
+    ##
+    enabled: false
+
+    ## Ingress rules for the codx.
+    ##
+    ingress:
+      ## @param networkPolicy.codx.ingress.fromIngressController.enabled Allow traffic from the Ingress Controller
+      ## @param networkPolicy.codx.ingress.fromIngressController.namespaceSelector [object] Namespace selector for the Ingress Controller
+      ## @param networkPolicy.codx.ingress.fromIngressController.podSelector [object] Pod selector for the Ingress Controller
+      ##
+      fromIngressController:
+        enabled: true
+        namespaceSelector:
+          kubernetes.io/metadata.name: traefik
+        # For Traefik:
+        podSelector:
+          app.kubernetes.io/name: traefik
+        # For Ingress-Nginx:
+        # namespaceSelector:
+        #   kubernetes.io/metadata.name: ingress-nginx
+        # podSelector:
+        #   app.kubernetes.io/component: controller
+        #   app.kubernetes.io/instance: ingress-nginx
+        #   app.kubernetes.io/name: ingress-nginx
+
+      ## @param networkPolicy.codx.ingress.fromMonitoring.enabled Allow traffic from the monitoring namespace (requires metrics.enabled)
+      ## @param networkPolicy.codx.ingress.fromMonitoring.namespaceSelector [object] Namespace selector for monitoring
+      ## @param networkPolicy.codx.ingress.fromMonitoring.podSelector [object] Pod selector for monitoring
+      ##
+      fromMonitoring:
+        enabled: true
+        namespaceSelector:
+          kubernetes.io/metadata.name: kube-prometheus-stack
+        podSelector: {}
+        # podSelector:
+        #   prometheus: kube-prometheus-stack-prometheus
+
+      ## @param networkPolicy.codx.ingress.extraIngress [array] Extra ingress rules for the codx
+      ## e.g (allow kubelet probes from the node CIDR if your CNI enforces policy on host traffic):
+      ## extraIngress:
+      ##   - from:
+      ##       - ipBlock:
+      ##           cidr: 10.0.0.0/24
+      ##     ports:
+      ##       - protocol: TCP
+      ##         port: 8443
+      extraIngress: []
+
+    ## Egress rules for the codx.
+    ##
+    egress:
+      ## @param networkPolicy.codx.egress.toKubeAPI.enabled Allow traffic to the Kubernetes API
+      ## @param networkPolicy.codx.egress.toKubeAPI.port Port of the Kubernetes API
+      ## @param networkPolicy.codx.egress.toKubeAPI.cidrBlocks CIDR blocks of the Kubernetes API endpoints
+      ##
+      toKubeAPI:
+        enabled: true
+        port: 443
+        cidrBlocks:
+          - 0.0.0.0/0
+          - ::/0
+
+      ## @param networkPolicy.codx.egress.toWorkspaces.enabled Allow mTLS traffic to the workspace Envoy sidecars
+      ## @param networkPolicy.codx.egress.toWorkspaces.port Port of the workspace Envoy sidecars
+      ## When inactivity.signal is "connection-count", the Envoy admin interface (port 9901)
+      ## is also allowed so the CodX inactivity watcher can poll the connection stats.
+      ##
+      toWorkspaces:
+        enabled: true
+        port: 9443
+
+      ## @param networkPolicy.codx.egress.toValkey.enabled Allow traffic to the Valkey pods (requires valkey.enabled)
+      ## @param networkPolicy.codx.egress.toValkey.port Port of the Valkey pods
+      ##
+      toValkey:
+        enabled: true
+        port: 6379
+
+      ## @param networkPolicy.codx.egress.toInternet.enabled Allow traffic to the Internet (OIDC issuer, ...)
+      ## @param networkPolicy.codx.egress.toInternet.cidrBlocks CIDR blocks for the Internet
+      ## @param networkPolicy.codx.egress.toInternet.ports [array] Internet ports to allow
+      ##
+      toInternet:
+        enabled: true
+        cidrBlocks:
+          - 0.0.0.0/0
+          - ::/0
+        ports:
+          - protocol: TCP
+            port: 443
+
+      ## @param networkPolicy.codx.egress.extraEgress [array] Extra egress rules for the codx
+      ## e.g (OTLP collector):
+      ## extraEgress:
+      ##   - to:
+      ##       - namespaceSelector:
+      ##           matchLabels:
+      ##             kubernetes.io/metadata.name: observability
+      ##     ports:
+      ##       - protocol: TCP
+      ##         port: 4317
+      extraEgress: []
+
+  ## Policy for the workspace pods created at runtime by the codx.
+  ##
+  workspace:
+    ## @param networkPolicy.workspace.enabled Enable the NetworkPolicy for the workspace pods
+    ##
+    enabled: true
+
+    ## Ingress rules for the workspace pods.
+    ##
+    ingress:
+      ## @param networkPolicy.workspace.ingress.fromCodX.enabled Allow mTLS traffic from the CodX codx
+      ## @param networkPolicy.workspace.ingress.fromCodX.port Port of the workspace Envoy sidecar
+      ## When inactivity.signal is "connection-count", the Envoy admin interface (port 9901)
+      ## is also allowed so the CodX inactivity watcher can poll the connection stats.
+      ##
+      fromCodX:
+        enabled: true
+        port: 9443
+
+      ## @param networkPolicy.workspace.ingress.fromNode.enabled Allow kubelet readiness probes (code-server /healthz and Envoy /ready)
+      ## @param networkPolicy.workspace.ingress.fromNode.cidrBlocks CIDR blocks the kubelet probes originate from
+      ##
+      fromNode:
+        enabled: false
+        cidrBlocks:
+          - 0.0.0.0/0
+          - ::/0
+        # Tighten to the node CIDRs when possible, e.g:
+        # cidrBlocks:
+        #   - 10.0.0.201/32
+
+      ## @param networkPolicy.workspace.ingress.extraIngress [array] Extra ingress rules for the workspace pods
+      ##
+      extraIngress: []
+
+    ## Egress rules for the workspace pods.
+    ##
+    egress:
+      ## @param networkPolicy.workspace.egress.toInternet.enabled Allow traffic to the Internet (registries, extensions, docs)
+      ## @param networkPolicy.workspace.egress.toInternet.cidrBlocks CIDR blocks for the Internet
+      ## @param networkPolicy.workspace.egress.toInternet.ports [array] Internet ports to allow
+      ##
+      toInternet:
+        enabled: true
+        cidrBlocks:
+          - 0.0.0.0/0
+          - ::/0
+        ports:
+          - protocol: TCP
+            port: 80
+          - protocol: TCP
+            port: 443
+
+      ## @param networkPolicy.workspace.egress.extraEgress [array] Extra egress rules for the workspace pods
+      ## e.g (OTLP collector when workspace.tracing is enabled):
+      ## extraEgress:
+      ##   - to:
+      ##       - namespaceSelector:
+      ##           matchLabels:
+      ##             kubernetes.io/metadata.name: observability
+      ##     ports:
+      ##       - protocol: TCP
+      ##         port: 4317
+      extraEgress: []
