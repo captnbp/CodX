@@ -6,9 +6,9 @@ import (
 )
 
 // LogTailActivity tracks the last HTTPS activity timestamp per workspace
-// by processing nginx access log lines.
+// by processing Envoy access log lines.
 //
-// In production, CodX tails the nginx sidecar access log (via kubectl logs
+// In production, CodX tails the Envoy sidecar access log (via kubectl logs
 // or a shared log volume). Each line that matches an HTTPS request updates
 // the last activity timestamp for the corresponding workspace slug.
 type LogTailActivity struct {

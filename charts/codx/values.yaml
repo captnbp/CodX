@@ -710,9 +710,31 @@ workspaceService:
 ## Workspace configures the per-user workspace Pod objects (via the CodX ConfigMap).
 ##
 workspace:
-  ## @param workspace.nginxImage Image for the nginx TLS termination sidecar in workspace pods
+  ## @param workspace.envoyImage Image for the Envoy TLS termination sidecar in workspace pods
   ##
-  nginxImage: nginx:1.31-alpine
+  envoyImage: envoyproxy/envoy:distroless-v1.39-latest
+  ## OpenTelemetry tracing for the workspace Envoy sidecar (envoy.tracers.opentelemetry,
+  ## OTLP gRPC exporter). Traces are reported to the collector at otlpEndpoint.
+  ## @param workspace.tracing.enabled Enable OpenTelemetry tracing in the workspace Envoy sidecar
+  ## @param workspace.tracing.otlpEndpoint OpenTelemetry collector endpoint (OTLP gRPC, host:port)
+  ## @param workspace.tracing.serviceName OpenTelemetry service name reported for workspace requests
+  ##
+  tracing:
+    enabled: false
+    otlpEndpoint: ""
+    serviceName: codx-workspace
+
+## @section Tracing
+## Tracing configures OpenTelemetry tracing for the CodX server itself
+## (OTLP/HTTP exporter to the collector at otlpEndpoint).
+## @param tracing.enabled Enable OpenTelemetry tracing for the CodX server
+## @param tracing.otlpEndpoint OpenTelemetry collector endpoint (OTLP/HTTP, host:port, usually port 4318)
+## @param tracing.serviceName OpenTelemetry service name reported for the CodX server
+##
+tracing:
+  enabled: false
+  otlpEndpoint: ""
+  serviceName: codx
 ## Profile custom resources (profiles.codx.io/v1) created by the chart.
 ## Each entry is a map: key -> Profile spec. The key becomes the resource name.
 ## An empty map renders no Profile objects.

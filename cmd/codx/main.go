@@ -17,6 +17,7 @@ import (
 	"github.com/captnbp/CodX/internal/metrics"
 	"github.com/captnbp/CodX/internal/oidc"
 	"github.com/captnbp/CodX/internal/session"
+	"github.com/captnbp/CodX/internal/tracing"
 	"github.com/captnbp/CodX/internal/web"
 	"github.com/go-logr/zerologr"
 	"github.com/rs/zerolog"
@@ -60,6 +61,19 @@ func run(configPath string) error {
 	// Set up signal handling.
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+
+	// Set up OpenTelemetry tracing (optional, controlled by the tracing
+	// section of the configuration).
+	tracingShutdown, err := tracing.Setup(ctx, cfg.Tracing)
+	if err != nil {
+		return fmt.Errorf("init tracing: %w", err)
+	}
+	if cfg.Tracing.Enabled {
+		log.Info("OpenTelemetry tracing enabled",
+			"otlpEndpoint", cfg.Tracing.OTLPEndpoint,
+			"serviceName", cfg.Tracing.ServiceName,
+		)
+	}
 
 	// Set up the OIDC authenticator.
 	auth, err := oidc.New(ctx, cfg.OIDC)
@@ -164,12 +178,13 @@ func run(configPath string) error {
 		}()
 	}
 
-	// Set up the web server.
+	// Set up the web server (handler wrapped with the otelhttp middleware
+	// for server spans and W3C trace context extraction).
 	webServer := web.New(cfg, auth, store, profileStore, wm, nil).WithLogger(log)
 
 	server := &http.Server{
 		Addr:         cfg.HTTP.ListenAddr,
-		Handler:      webServer.Handler(),
+		Handler:      tracing.Handler("codx", webServer.Handler()),
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 0, // SSE needs no write timeout
 		IdleTimeout:  120 * time.Second,
@@ -203,6 +218,11 @@ func run(configPath string) error {
 		if err := metricsServer.Shutdown(shutdownCtx); err != nil {
 			log.Error(err, "metrics server graceful shutdown failed")
 		}
+	}
+
+	// Flush remaining spans to the collector.
+	if err := tracing.Shutdown(tracingShutdown); err != nil {
+		log.Error(err, "tracing shutdown failed")
 	}
 
 	log.Info("CodX server stopped")

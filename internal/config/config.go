@@ -54,11 +54,16 @@ type Config struct {
 
 	// Workspace configures the per-user workspace Pod objects.
 	Workspace WorkspaceConfig `yaml:"workspace"`
+
+	// Tracing configures OpenTelemetry tracing for the CodX server itself.
+	// +optional
+	Tracing TracingConfig `yaml:"tracing,omitempty"`
 }
 
-// DefaultNginxImage is the container image used by the nginx TLS sidecar in
-// workspace pods when workspace.nginxImage is not set.
-const DefaultNginxImage = "nginx:1.31-alpine"
+// DefaultEnvoyImage is the container image used by the Envoy TLS termination
+// sidecar in workspace pods when workspace.envoyImage is not set. The
+// distroless variant runs as a non-root user by default.
+const DefaultEnvoyImage = "envoyproxy/envoy:distroless-v1.39-latest"
 
 // HTTPConfig configures the CodX HTTP server.
 type HTTPConfig struct {
@@ -271,11 +276,42 @@ type WorkspaceServiceConfig struct {
 
 // WorkspaceConfig configures the per-user workspace Pod objects.
 type WorkspaceConfig struct {
-	// NginxImage is the container image used by the nginx TLS termination
-	// sidecar in workspace pods. Defaults to DefaultNginxImage.
+	// EnvoyImage is the container image used by the Envoy TLS termination
+	// sidecar in workspace pods. Defaults to DefaultEnvoyImage.
 	// +optional
-	// +default="nginx:1.31-alpine"
-	NginxImage string `yaml:"nginxImage,omitempty"`
+	// +default="envoyproxy/envoy:distroless-v1.39-latest"
+	EnvoyImage string `yaml:"envoyImage,omitempty"`
+
+	// Tracing configures OpenTelemetry tracing in the Envoy sidecar.
+	// +optional
+	Tracing TracingConfig `yaml:"tracing,omitempty"`
+}
+
+// TracingConfig configures OpenTelemetry tracing with an OTLP exporter.
+//
+// It is used in two places:
+//   - top-level "tracing": the CodX server itself (OTLP/HTTP exporter, the
+//     endpoint usually uses port 4318),
+//   - "workspace.tracing": the workspace Envoy sidecar (envoy.tracers
+//     .opentelemetry, OTLP gRPC exporter, the endpoint usually uses port 4317).
+type TracingConfig struct {
+	// Enabled enables OpenTelemetry tracing.
+	// +optional
+	// +default=false
+	Enabled bool `yaml:"enabled"`
+
+	// OTLPEndpoint is the host:port of the OpenTelemetry collector.
+	// Required when enabled is true.
+	// +optional
+	OTLPEndpoint string `yaml:"otlpEndpoint,omitempty"`
+
+	// ServiceName is the OpenTelemetry service name reported for requests.
+	// Defaults to "codx" for the server and "codx-workspace" for the
+	// workspace Envoy sidecar (the Envoy configuration is shared by all
+	// workspaces, so that name is global).
+	// +optional
+	// +default="codx"
+	ServiceName string `yaml:"serviceName,omitempty"`
 }
 
 // Load reads configuration from the given YAML data, applies defaults, and
@@ -369,8 +405,16 @@ func applyDefaults(cfg *Config) {
 	}
 
 	// Workspace defaults.
-	if cfg.Workspace.NginxImage == "" {
-		cfg.Workspace.NginxImage = DefaultNginxImage
+	if cfg.Workspace.EnvoyImage == "" {
+		cfg.Workspace.EnvoyImage = DefaultEnvoyImage
+	}
+	if cfg.Workspace.Tracing.ServiceName == "" {
+		cfg.Workspace.Tracing.ServiceName = "codx-workspace"
+	}
+
+	// Server tracing defaults.
+	if cfg.Tracing.ServiceName == "" {
+		cfg.Tracing.ServiceName = "codx"
 	}
 }
 
@@ -429,6 +473,14 @@ func Validate(cfg *Config) error {
 	}
 	if _, err := time.ParseDuration(cfg.CertManager.Validity); err != nil {
 		errs = append(errs, fmt.Sprintf("certManager.validity %q is not a valid duration: %v", cfg.CertManager.Validity, err))
+	}
+
+	if cfg.Workspace.Tracing.Enabled && cfg.Workspace.Tracing.OTLPEndpoint == "" {
+		errs = append(errs, "workspace.tracing.otlpEndpoint is required when workspace.tracing.enabled is true")
+	}
+
+	if cfg.Tracing.Enabled && cfg.Tracing.OTLPEndpoint == "" {
+		errs = append(errs, "tracing.otlpEndpoint is required when tracing.enabled is true")
 	}
 
 	if len(errs) > 0 {

@@ -94,7 +94,7 @@ type ProfilePodSpec struct {
 	VolumeMounts []corev1.VolumeMount `json:"volumeMounts,omitempty"`
 
 	// Sidecars adds extra sidecar containers to the pod (in addition to the
-	// mandatory nginx TLS termination sidecar injected by CodX).
+	// mandatory Envoy TLS termination sidecar injected by CodX).
 	// +optional
 	Sidecars []corev1.Container `json:"sidecars,omitempty"`
 

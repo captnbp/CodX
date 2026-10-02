@@ -45,7 +45,7 @@ spec:
     group: {{ .Values.tls.issuerRef.group }}
 
 ---
-# CodX client certificate (mTLS to workspace nginx sidecars).
+# CodX client certificate (mTLS to workspace Envoy sidecars).
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:

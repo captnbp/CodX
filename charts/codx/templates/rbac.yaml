@@ -27,7 +27,7 @@ rules:
   - apiGroups: [""]
     resources: ["persistentvolumeclaims"]
     verbs: ["create", "get", "list", "update", "delete"]
-  # ConfigMaps: get (nginx config)
+  # ConfigMaps: get (envoy config)
   - apiGroups: [""]
     resources: ["configmaps"]
     verbs: ["get", "list"]
