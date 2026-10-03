@@ -13,7 +13,7 @@ metadata:
   {{- end }}
 data:
   config.yaml: |
-    instanceName: {{ include "common.names.fullname" . }}
+    instanceName: {{ .Values.instanceName | default (include "common.names.fullname" .) }}
     namespace: {{ .Release.Namespace }}
     http:
       listenAddr: {{ .Values.http.listenAddr | quote }}

@@ -25,6 +25,9 @@ nameOverride: ""
 ## @param fullnameOverride String to fully override common.names.fullname template
 ##
 fullnameOverride: ""
+## @param instanceName CodX instance name used to build workspace object names (<instance>-<slug> for Services, PVCs, Certificates, Pods) and the app.kubernetes.io/managed-by label. Defaults to the chart fullname when empty.
+##
+instanceName: ""
 ## @param commonLabels Labels to add to all deployed objects
 ##
 commonLabels: {}
