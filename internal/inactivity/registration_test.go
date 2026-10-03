@@ -27,9 +27,9 @@ func (f *fakeDelayLister) set(delays map[string]time.Duration) {
 	f.delays = delays
 }
 
-func newReconciler() (*Watcher, *LogTailActivity, *RegistrationReconciler, *fakeDelayLister, *mockStopFunc) {
+func newReconciler() (*Watcher, *stubActivity, *RegistrationReconciler, *fakeDelayLister, *mockStopFunc) {
 	lister := &fakeDelayLister{}
-	activity := NewLogTailActivity()
+	activity := newStubActivity()
 	stopMock := &mockStopFunc{}
 	w := NewWatcher(activity, stopMock.stop, time.Hour, discardLogger())
 	r := NewRegistrationReconciler(w, lister, discardLogger())

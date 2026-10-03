@@ -68,9 +68,6 @@ certManager:
 	if cfg.Slug.MaxLength != 63 {
 		t.Errorf("Slug.MaxLength default = %d, want 63", cfg.Slug.MaxLength)
 	}
-	if cfg.Inactivity.Signal != "log-tail" {
-		t.Errorf("Inactivity.Signal default = %q, want log-tail", cfg.Inactivity.Signal)
-	}
 	if cfg.Inactivity.CheckInterval != "60s" {
 		t.Errorf("Inactivity.CheckInterval default = %q, want 60s", cfg.Inactivity.CheckInterval)
 	}
@@ -392,33 +389,6 @@ http: {}
 		if !contains(err.Error(), field) {
 			t.Errorf("validation error should mention %q: %v", field, err)
 		}
-	}
-}
-
-func TestValidationInvalidInactivitySignal(t *testing.T) {
-	yaml := `
-instanceName: "codx"
-http:
-  tlsCertFile: "/tls/tls.crt"
-  tlsKeyFile: "/tls/tls.key"
-oidc:
-  issuer: "https://kc.example.com/realm"
-  clientId: "codx"
-  redirectUrl: "https://codx.example.com/auth/callback"
-  adminGroup: "admins"
-redis:
-  host: "valkey:6379"
-certManager:
-  issuerName: "issuer"
-inactivity:
-  signal: "invalid-method"
-`
-	_, err := Load([]byte(yaml))
-	if err == nil {
-		t.Fatal("expected validation error for invalid signal")
-	}
-	if !contains(err.Error(), "inactivity.signal") {
-		t.Errorf("error should mention inactivity.signal: %v", err)
 	}
 }
 

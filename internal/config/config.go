@@ -242,12 +242,6 @@ type SlugConfig struct {
 
 // InactivityConfig configures how workspace inactivity is detected.
 type InactivityConfig struct {
-	// Signal is the method used to detect inactivity: "log-tail" or
-	// "connection-count". Defaults to "log-tail".
-	// +optional
-	// +default="log-tail"
-	Signal string `yaml:"signal"`
-
 	// CheckInterval is how often the inactivity watcher checks for idle
 	// workspaces. Defaults to "60s".
 	// +optional
@@ -389,9 +383,6 @@ func applyDefaults(cfg *Config) {
 		cfg.Slug.MaxLength = 63
 	}
 
-	if cfg.Inactivity.Signal == "" {
-		cfg.Inactivity.Signal = "log-tail"
-	}
 	if cfg.Inactivity.CheckInterval == "" {
 		cfg.Inactivity.CheckInterval = "60s"
 	}
@@ -456,12 +447,6 @@ func Validate(cfg *Config) error {
 
 	if cfg.Metrics.Enabled && cfg.Metrics.ListenAddr == cfg.HTTP.ListenAddr {
 		errs = append(errs, fmt.Sprintf("metrics.listenAddr %q must differ from http.listenAddr when the metrics endpoint is enabled", cfg.Metrics.ListenAddr))
-	}
-
-	switch cfg.Inactivity.Signal {
-	case "log-tail", "connection-count":
-	default:
-		errs = append(errs, fmt.Sprintf("inactivity.signal %q must be \"log-tail\" or \"connection-count\"", cfg.Inactivity.Signal))
 	}
 
 	if _, err := time.ParseDuration(cfg.Inactivity.CheckInterval); err != nil {

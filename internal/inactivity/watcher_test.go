@@ -9,70 +9,36 @@ import (
 	"github.com/go-logr/logr"
 )
 
-func TestLogTailActivityRecordAndQuery(t *testing.T) {
-	a := NewLogTailActivity()
+// stubActivity is a simple in-memory ActivitySource for tests.
+type stubActivity struct {
+	mu      sync.Mutex
+	records map[string]time.Time
+}
 
-	ts1 := time.Now()
-	a.RecordActivity("john-doe", ts1)
+func newStubActivity() *stubActivity {
+	return &stubActivity{records: make(map[string]time.Time)}
+}
 
-	if got := a.LastActivity("john-doe"); !got.Equal(ts1) {
-		t.Errorf("LastActivity = %v, want %v", got, ts1)
+func (a *stubActivity) RecordActivity(slug string, ts time.Time) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	current, ok := a.records[slug]
+	if !ok || ts.After(current) {
+		a.records[slug] = ts
 	}
 }
 
-func TestLogTailActivityOnlyKeepsLatest(t *testing.T) {
-	a := NewLogTailActivity()
-
-	ts1 := time.Now().Add(-2 * time.Hour)
-	ts2 := time.Now()
-
-	a.RecordActivity("john-doe", ts1)
-	a.RecordActivity("john-doe", ts2)
-
-	if got := a.LastActivity("john-doe"); !got.Equal(ts2) {
-		t.Errorf("LastActivity = %v, want %v (latest)", got, ts2)
-	}
-
-	// Older timestamp should not overwrite.
-	a.RecordActivity("john-doe", ts1)
-	if got := a.LastActivity("john-doe"); !got.Equal(ts2) {
-		t.Errorf("LastActivity = %v, want %v (should not be overwritten)", got, ts2)
-	}
-}
-
-func TestLogTailActivityUnknownSlug(t *testing.T) {
-	a := NewLogTailActivity()
-	if got := a.LastActivity("unknown"); !got.IsZero() {
-		t.Errorf("LastActivity for unknown slug = %v, want zero", got)
-	}
-}
-
-func TestLogTailActivityForget(t *testing.T) {
-	a := NewLogTailActivity()
-	a.RecordActivity("john-doe", time.Now())
-	a.Forget("john-doe")
-
-	if got := a.LastActivity("john-doe"); !got.IsZero() {
-		t.Errorf("LastActivity after Forget = %v, want zero", got)
-	}
-}
-
-func TestLogTailActivityTrackedSlugs(t *testing.T) {
-	a := NewLogTailActivity()
-	a.RecordActivity("user-a", time.Now())
-	a.RecordActivity("user-b", time.Now())
-
-	slugs := a.TrackedSlugs()
-	if len(slugs) != 2 {
-		t.Errorf("TrackedSlugs count = %d, want 2", len(slugs))
-	}
+func (a *stubActivity) LastActivity(slug string) time.Time {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.records[slug]
 }
 
 // mockStopFunc tracks which slugs were stopped and in what order.
 type mockStopFunc struct {
-	mu     sync.Mutex
+	mu      sync.Mutex
 	stopped []string
-	err    error
+	err     error
 }
 
 func (m *mockStopFunc) stop(ctx context.Context, slug string) error {
@@ -83,7 +49,7 @@ func (m *mockStopFunc) stop(ctx context.Context, slug string) error {
 }
 
 func TestWatcherStopsInactiveWorkspace(t *testing.T) {
-	activity := NewLogTailActivity()
+	activity := newStubActivity()
 	// Record activity 2 hours ago.
 	activity.RecordActivity("john-doe", time.Now().Add(-2*time.Hour))
 
@@ -104,7 +70,7 @@ func TestWatcherStopsInactiveWorkspace(t *testing.T) {
 }
 
 func TestWatcherDoesNotStopActiveWorkspace(t *testing.T) {
-	activity := NewLogTailActivity()
+	activity := newStubActivity()
 	// Record activity just now.
 	activity.RecordActivity("john-doe", time.Now())
 
@@ -122,7 +88,7 @@ func TestWatcherDoesNotStopActiveWorkspace(t *testing.T) {
 }
 
 func TestWatcherDoesNotStopZeroDelay(t *testing.T) {
-	activity := NewLogTailActivity()
+	activity := newStubActivity()
 	activity.RecordActivity("john-doe", time.Now().Add(-24*time.Hour))
 
 	stopMock := &mockStopFunc{}
@@ -139,7 +105,7 @@ func TestWatcherDoesNotStopZeroDelay(t *testing.T) {
 }
 
 func TestWatcherDoesNotStopNoActivity(t *testing.T) {
-	activity := NewLogTailActivity()
+	activity := newStubActivity()
 	// No activity recorded for this slug.
 
 	stopMock := &mockStopFunc{}
@@ -156,7 +122,7 @@ func TestWatcherDoesNotStopNoActivity(t *testing.T) {
 }
 
 func TestWatcherStopsOnlyOnce(t *testing.T) {
-	activity := NewLogTailActivity()
+	activity := newStubActivity()
 	activity.RecordActivity("john-doe", time.Now().Add(-2*time.Hour))
 
 	stopMock := &mockStopFunc{}
@@ -173,7 +139,7 @@ func TestWatcherStopsOnlyOnce(t *testing.T) {
 }
 
 func TestWatcherUnregisterRemovesWorkspace(t *testing.T) {
-	activity := NewLogTailActivity()
+	activity := newStubActivity()
 	activity.RecordActivity("john-doe", time.Now().Add(-2*time.Hour))
 
 	stopMock := &mockStopFunc{}
@@ -191,7 +157,7 @@ func TestWatcherUnregisterRemovesWorkspace(t *testing.T) {
 }
 
 func TestWatcherResetAllowsRestart(t *testing.T) {
-	activity := NewLogTailActivity()
+	activity := newStubActivity()
 	activity.RecordActivity("john-doe", time.Now().Add(-2*time.Hour))
 
 	stopMock := &mockStopFunc{}
@@ -222,7 +188,7 @@ func TestWatcherResetAllowsRestart(t *testing.T) {
 }
 
 func TestWatcherMultipleWorkspaces(t *testing.T) {
-	activity := NewLogTailActivity()
+	activity := newStubActivity()
 	// john-doe is inactive.
 	activity.RecordActivity("john-doe", time.Now().Add(-2*time.Hour))
 	// jane-smith is active.
@@ -246,7 +212,7 @@ func TestWatcherMultipleWorkspaces(t *testing.T) {
 }
 
 func TestIsStopped(t *testing.T) {
-	activity := NewLogTailActivity()
+	activity := newStubActivity()
 	activity.RecordActivity("john-doe", time.Now().Add(-2*time.Hour))
 
 	stopMock := &mockStopFunc{}

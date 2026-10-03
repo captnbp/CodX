@@ -116,21 +116,14 @@ func run(configPath string) error {
 		checkInterval = 60 * time.Second
 	}
 
-	// Select the activity source based on the configured signal.
-	var activitySource inactivity.ActivitySource
-	switch cfg.Inactivity.Signal {
-	case "connection-count":
-		connSource := inactivity.NewConnectionCountActivity(workspacePodLister{wm: wm}, log, nil)
-		activitySource = connSource
-		go connSource.Run(ctx, checkInterval)
-		log.Info("inactivity activity source: envoy connection-count",
-			"adminPort", inactivity.DefaultEnvoyAdminPort,
-			"stat", inactivity.DefaultConnectionStatName,
-		)
-	default:
-		activitySource = inactivity.NewLogTailActivity()
-		log.Info("inactivity activity source: envoy log-tail")
-	}
+	// The connection-count source polls the Envoy admin /stats endpoint of
+	// every workspace pod for active HTTPS connections.
+	activitySource := inactivity.NewConnectionCountActivity(workspacePodLister{wm: wm}, log, nil)
+	go activitySource.Run(ctx, checkInterval)
+	log.Info("inactivity activity source: envoy connection-count",
+		"adminPort", inactivity.DefaultEnvoyAdminPort,
+		"stat", inactivity.DefaultConnectionStatName,
+	)
 
 	watcher := inactivity.NewWatcher(activitySource, wm.StopWorkspace, checkInterval, log)
 	go watcher.Run(ctx)

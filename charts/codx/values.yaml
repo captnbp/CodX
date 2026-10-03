@@ -716,11 +716,11 @@ slug:
 
 ## @section Inactivity Watcher
 ## Inactivity configures how workspace inactivity is detected and how often idle workspaces are checked.
-## @param inactivity.signal Method used to detect inactivity. One of: log-tail (tail the Envoy sidecar access log), connection-count (poll the Envoy admin /stats endpoint for active connections; opens port 9901 in the workspace NetworkPolicy).
-## @param inactivity.checkInterval How often the inactivity watcher checks for idle workspaces (Go duration, e.g. 60s). Also drives the connection-count polling rate.
+## Workspaces are considered active when their Envoy sidecar reports active HTTPS connections:
+## the CodX watcher polls the Envoy admin /stats endpoint (port 9901) of every workspace pod.
+## @param inactivity.checkInterval How often the watcher polls connections and checks for idle workspaces (Go duration, e.g. 60s).
 ##
 inactivity:
-  signal: connection-count
   checkInterval: 60s
 
 ## @section Workspace Service
@@ -903,8 +903,8 @@ networkPolicy:
 
       ## @param networkPolicy.codx.egress.toWorkspaces.enabled Allow mTLS traffic to the workspace Envoy sidecars
       ## @param networkPolicy.codx.egress.toWorkspaces.port Port of the workspace Envoy sidecars
-      ## When inactivity.signal is "connection-count", the Envoy admin interface (port 9901)
-      ## is also allowed so the CodX inactivity watcher can poll the connection stats.
+      ## The Envoy admin interface (port 9901) is also allowed so the CodX
+      ## inactivity watcher can poll the connection stats.
       ##
       toWorkspaces:
         enabled: true
@@ -954,8 +954,8 @@ networkPolicy:
     ingress:
       ## @param networkPolicy.workspace.ingress.fromCodX.enabled Allow mTLS traffic from the CodX codx
       ## @param networkPolicy.workspace.ingress.fromCodX.port Port of the workspace Envoy sidecar
-      ## When inactivity.signal is "connection-count", the Envoy admin interface (port 9901)
-      ## is also allowed so the CodX inactivity watcher can poll the connection stats.
+      ## The Envoy admin interface (port 9901) is also allowed so the CodX
+      ## inactivity watcher can poll the connection stats.
       ##
       fromCodX:
         enabled: true

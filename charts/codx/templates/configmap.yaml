@@ -55,7 +55,6 @@ data:
       usernameField: {{ .Values.slug.usernameField | quote }}
       maxLength: {{ .Values.slug.maxLength }}
     inactivity:
-      signal: {{ .Values.inactivity.signal | quote }}
       checkInterval: {{ .Values.inactivity.checkInterval | quote }}
     workspaceService:
       {{- if .Values.workspaceService.annotations }}

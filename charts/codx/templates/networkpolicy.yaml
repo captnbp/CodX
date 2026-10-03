@@ -94,7 +94,8 @@ spec:
           port: {{ .Values.networkPolicy.codx.egress.toKubeAPI.port }}
     {{- end }}
     {{- if .Values.networkPolicy.codx.egress.toWorkspaces.enabled }}
-    # Allow mTLS traffic from the codx to the workspace Envoy sidecars
+    # Allow mTLS traffic from the codx to the workspace Envoy sidecars and
+    # the Envoy admin interface polled by the inactivity watcher
     - to:
         - podSelector:
             matchLabels:
@@ -103,11 +104,8 @@ spec:
       ports:
         - protocol: TCP
           port: {{ .Values.networkPolicy.codx.egress.toWorkspaces.port }}
-        {{- if eq .Values.inactivity.signal "connection-count" }}
-        # Envoy admin interface polled by the connection-count inactivity watcher
         - protocol: TCP
           port: 9901
-        {{- end }}
     {{- end }}
     {{- if and .Values.valkey.enabled .Values.networkPolicy.codx.egress.toValkey.enabled }}
     # Allow traffic to the Valkey pods (session store)
@@ -160,7 +158,8 @@ spec:
     - Egress
   ingress:
     {{- if .Values.networkPolicy.workspace.ingress.fromCodX.enabled }}
-    # Allow mTLS traffic from the CodX codx to the Envoy sidecar (9443)
+    # Allow mTLS traffic from the CodX codx to the Envoy sidecar (9443) and
+    # the Envoy admin interface polled by the inactivity watcher (9901)
     - from:
         - podSelector:
             matchLabels: {{- include "common.labels.matchLabels" . | nindent 14 }}
@@ -168,11 +167,8 @@ spec:
       ports:
         - protocol: TCP
           port: {{ .Values.networkPolicy.workspace.ingress.fromCodX.port }}
-        {{- if eq .Values.inactivity.signal "connection-count" }}
-        # Envoy admin interface polled by the connection-count inactivity watcher
         - protocol: TCP
           port: 9901
-        {{- end }}
     {{- end }}
     {{- if .Values.networkPolicy.workspace.ingress.fromNode.enabled }}
     # Allow kubelet readiness probes to the code-server health endpoint and
