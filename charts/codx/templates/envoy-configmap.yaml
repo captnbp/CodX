@@ -21,6 +21,10 @@ data:
         socket_address:
           address: "::"
           port_value: 9901
+          ipv4_compat: true
+      allow_paths:
+        - exact: /ready
+        - prefix: /stats
 
     static_resources:
       listeners:
@@ -78,8 +82,23 @@ data:
                         typed_config:
                           "@type": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog
                           log_format:
-                            text_format_source:
-                              inline_string: '[%START_TIME%] "%REQ(:METHOD)% %REQ(X-ENVOY-ORIGINAL-PATH?:PATH)% %PROTOCOL%" %RESPONSE_CODE% %BYTES_SENT% "%REQ(REFERER)%" "%REQ(USER-AGENT)%" rt=%DURATION%'
+                            json_format:
+                              timestamp: "%START_TIME%"
+                              method: "%REQ(:METHOD)%"
+                              path: "%REQ(X-ENVOY-ORIGINAL-PATH?:PATH)%"
+                              protocol: "%PROTOCOL%"
+                              response_code: "%RESPONSE_CODE%"
+                              response_flags: "%RESPONSE_FLAGS%"
+                              bytes_received: "%BYTES_RECEIVED%"
+                              bytes_sent: "%BYTES_SENT%"
+                              duration: "%DURATION%"
+                              upstream_service_time: "%RESP(X-ENVOY-UPSTREAM-SERVICE-TIME)%"
+                              x_forwarded_for: "%REQ(X-FORWARDED-FOR)%"
+                              user_agent: "%REQ(USER-AGENT)%"
+                              request_id: "%REQ(X-REQUEST-ID)%"
+                              authority: "%REQ(:AUTHORITY)%"
+                              upstream_host: "%UPSTREAM_HOST%"
+                              upstream_cluster: "%UPSTREAM_CLUSTER%"
                     route_config:
                       name: workspace
                       virtual_hosts:
@@ -109,7 +128,7 @@ data:
                   - endpoint:
                       address:
                         socket_address:
-                          address: 127.0.0.1
+                          address: "::1"
                           port_value: 8080
 {{- if and .Values.workspace.tracing.enabled .Values.workspace.tracing.otlpEndpoint }}
         - name: otel_collector

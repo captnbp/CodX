@@ -793,9 +793,7 @@ profiles:
     title: Default
     description: Standard code-server workspace
     inactivityStopDelaySeconds: 120
-    oidcGroups:
-      - doca:users
-      - doca:owners
+    oidcGroups: []
     podSpec:
       image: docker.io/captnbp/code-server:4.140.0
       securityContext:
@@ -814,6 +812,21 @@ profiles:
         requests:
           cpu: 250m
           memory: 256Mi
+      args:
+        - --bind-addr
+        - '[::1]:8080'
+        - --auth
+        - none
+        - /home/coder
+      command:
+        - /usr/bin/code-server
+      codeServerReadinessProbe:
+        exec:
+          command:
+            - sh
+            - -c
+            - |
+              curl -f http://localhost:8080/healthz || exit 1
     pvc:
       size: 20Gi
 ## Network policies restricting traffic to the CodX codx and workspace pods.
