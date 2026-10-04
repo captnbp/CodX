@@ -2,6 +2,8 @@ package inactivity
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -237,4 +239,90 @@ func TestIsStopped(t *testing.T) {
 
 func discardLogger() logr.Logger {
 	return logr.Discard()
+}
+
+// captureSink is a logr.LogSink that records entries for test assertions.
+type captureSink struct {
+	mu      sync.Mutex
+	entries []map[string]any
+}
+
+func (s *captureSink) Init(info logr.RuntimeInfo) {}
+func (s *captureSink) Enabled(level int) bool     { return true }
+
+func (s *captureSink) Info(level int, msg string, kv ...any) {
+	entry := map[string]any{"msg": msg}
+	for i := 0; i+1 < len(kv); i += 2 {
+		entry[fmt.Sprint(kv[i])] = kv[i+1]
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.entries = append(s.entries, entry)
+}
+
+func (s *captureSink) Error(err error, msg string, kv ...any) {
+	s.Info(0, msg, kv...)
+}
+
+func (s *captureSink) WithValues(kv ...any) logr.LogSink { return s }
+func (s *captureSink) WithName(name string) logr.LogSink { return s }
+
+// find returns the first entry with the given message, or nil.
+func (s *captureSink) find(msg string) map[string]any {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, e := range s.entries {
+		if e["msg"] == msg {
+			return e
+		}
+	}
+	return nil
+}
+
+func TestWatcherAuditsInactivityStop(t *testing.T) {
+	activity := newStubActivity()
+	activity.RecordActivity("john-doe", time.Now().Add(-2*time.Hour))
+
+	stopMock := &mockStopFunc{}
+	sink := &captureSink{}
+	w := NewWatcher(activity, stopMock.stop, 50*time.Millisecond, discardLogger()).WithAuditLogger(logr.New(sink))
+	w.Register("john-doe", 1*time.Hour)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	w.Run(ctx)
+
+	if len(stopMock.stopped) != 1 {
+		t.Fatalf("expected 1 stop, got %d", len(stopMock.stopped))
+	}
+
+	entry := sink.find("workspace_stop")
+	if entry == nil {
+		t.Fatal("no audit entry for workspace_stop")
+	}
+	if entry["slug"] != "john-doe" || entry["reason"] != "inactivity" {
+		t.Errorf("workspace_stop audit = %v, want slug john-doe / reason inactivity", entry)
+	}
+}
+
+func TestWatcherAuditsInactivityStopFailure(t *testing.T) {
+	activity := newStubActivity()
+	activity.RecordActivity("john-doe", time.Now().Add(-2*time.Hour))
+
+	stopMock := &mockStopFunc{err: errors.New("pod delete failed")}
+	sink := &captureSink{}
+	w := NewWatcher(activity, stopMock.stop, 50*time.Millisecond, discardLogger()).WithAuditLogger(logr.New(sink))
+	w.Register("john-doe", 1*time.Hour)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	w.Run(ctx)
+
+	entry := sink.find("workspace_stop_failed")
+	if entry == nil {
+		t.Fatal("no audit entry for workspace_stop_failed")
+	}
+	if entry["slug"] != "john-doe" || entry["reason"] != "inactivity" {
+		t.Errorf("workspace_stop_failed audit = %v, want slug john-doe / reason inactivity", entry)
+	}
 }

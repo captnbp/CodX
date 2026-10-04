@@ -125,7 +125,7 @@ func run(configPath string) error {
 		"stat", inactivity.DefaultConnectionStatName,
 	)
 
-	watcher := inactivity.NewWatcher(activitySource, wm.StopWorkspace, checkInterval, log)
+	watcher := inactivity.NewWatcher(activitySource, wm.StopWorkspace, checkInterval, log).WithAuditLogger(log)
 	go watcher.Run(ctx)
 
 	// Keep the watcher's registrations in sync with the running workspaces

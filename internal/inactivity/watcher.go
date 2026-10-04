@@ -27,11 +27,12 @@ type StopFunc func(ctx context.Context, slug string) error
 
 // Watcher monitors workspace activity and stops idle pods.
 type Watcher struct {
-	mu           sync.Mutex
-	source       ActivitySource
-	stopFunc     StopFunc
+	mu            sync.Mutex
+	source        ActivitySource
+	stopFunc      StopFunc
 	checkInterval time.Duration
-	log          logr.Logger
+	log           logr.Logger
+	audit         logr.Logger
 
 	// delays maps slug to the inactivity stop delay for that workspace.
 	delays map[string]time.Duration
@@ -51,10 +52,19 @@ func NewWatcher(source ActivitySource, stopFunc StopFunc, checkInterval time.Dur
 		stopFunc:      stopFunc,
 		checkInterval: checkInterval,
 		log:           log,
+		audit:         logr.Discard(),
 		delays:        make(map[string]time.Duration),
 		lastCheck:     make(map[string]time.Time),
 		stopped:       make(map[string]bool),
 	}
+}
+
+// WithAuditLogger sets the logger used for audit events (automatic stop of
+// inactive workspaces). The logger is named "audit" to match the audit
+// events emitted by the web server.
+func (w *Watcher) WithAuditLogger(log logr.Logger) *Watcher {
+	w.audit = log.WithName("audit")
+	return w
 }
 
 // Register adds a workspace to the watcher with the given inactivity delay.
@@ -134,8 +144,10 @@ func (w *Watcher) checkAll(ctx context.Context) {
 			w.log.Info("stopping inactive workspace", "slug", slug, "idle", idleDuration, "delay", delay)
 			if err := w.stopFunc(ctx, slug); err != nil {
 				w.log.Error(err, "failed to stop inactive workspace", "slug", slug)
+				w.audit.Info("workspace_stop_failed", "slug", slug, "reason", "inactivity", "idle", idleDuration, "delay", delay, "error", err)
 				continue
 			}
+			w.audit.Info("workspace_stop", "slug", slug, "reason", "inactivity", "idle", idleDuration, "delay", delay)
 			w.mu.Lock()
 			w.stopped[slug] = true
 			w.mu.Unlock()

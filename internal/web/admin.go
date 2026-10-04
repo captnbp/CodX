@@ -18,6 +18,7 @@ func (s *Server) requireAdmin(w http.ResponseWriter, r *http.Request) bool {
 		return false
 	}
 	if !sess.IsAdmin {
+		s.audit.Info("admin_access_denied", "user", sess.Username, "path", r.URL.Path, "remote", clientIP(r))
 		http.Error(w, "forbidden: admin role required", http.StatusForbidden)
 		return false
 	}
@@ -37,12 +38,14 @@ func (s *Server) handleRestartWorkspace(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if err := s.workspaces.RestartWorkspace(r.Context(), sess.Slug); err != nil {
+		s.audit.Info("workspace_restart_failed", "user", sess.Username, "slug", sess.Slug, "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{
 			"error": fmt.Sprintf("failed to restart workspace: %v", err),
 		})
 		return
 	}
 
+	s.audit.Info("workspace_restart", "user", sess.Username, "slug", sess.Slug)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "restarting"})
 }
 
@@ -188,6 +191,7 @@ func (s *Server) handleAdminUserAction(w http.ResponseWriter, r *http.Request) {
 	}
 	slug := parts[0]
 	action := parts[1]
+	adminUser := SessionFromContext(r.Context()).Username
 
 	switch action {
 	case "stop":
@@ -196,11 +200,13 @@ func (s *Server) handleAdminUserAction(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := s.workspaces.StopWorkspace(r.Context(), slug); err != nil {
+			s.audit.Info("workspace_stop_failed", "user", adminUser, "target", slug, "error", err)
 			writeJSON(w, http.StatusInternalServerError, map[string]string{
 				"error": fmt.Sprintf("failed to stop workspace: %v", err),
 			})
 			return
 		}
+		s.audit.Info("workspace_stop", "user", adminUser, "target", slug)
 		writeJSON(w, http.StatusOK, map[string]string{"status": "stopped"})
 
 	case "delete":
@@ -209,6 +215,7 @@ func (s *Server) handleAdminUserAction(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := s.workspaces.DeleteWorkspace(r.Context(), slug); err != nil {
+			s.audit.Info("workspace_delete_failed", "user", adminUser, "target", slug, "error", err)
 			writeJSON(w, http.StatusInternalServerError, map[string]string{
 				"error": fmt.Sprintf("failed to delete workspace: %v", err),
 			})
@@ -216,6 +223,7 @@ func (s *Server) handleAdminUserAction(w http.ResponseWriter, r *http.Request) {
 		}
 		// Also delete the user's session if it exists.
 		_ = s.store.Delete(r.Context(), "session-"+slug)
+		s.audit.Info("workspace_delete", "user", adminUser, "target", slug)
 		writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 
 	case "extend":
@@ -229,11 +237,13 @@ func (s *Server) handleAdminUserAction(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := s.workspaces.ExtendPVC(r.Context(), slug, newSize); err != nil {
+			s.audit.Info("pvc_extend_failed", "user", adminUser, "target", slug, "size", newSize, "error", err)
 			writeJSON(w, http.StatusInternalServerError, map[string]string{
 				"error": fmt.Sprintf("failed to extend PVC: %v", err),
 			})
 			return
 		}
+		s.audit.Info("pvc_extend", "user", adminUser, "target", slug, "size", newSize)
 		writeJSON(w, http.StatusOK, map[string]string{"status": "extended", "newSize": newSize})
 
 	default:

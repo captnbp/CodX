@@ -11,12 +11,12 @@ import (
 	"net/http"
 	"time"
 
+	profilev1 "github.com/captnbp/CodX/api/profile/v1"
 	"github.com/captnbp/CodX/internal/config"
 	"github.com/captnbp/CodX/internal/k8s"
 	"github.com/captnbp/CodX/internal/oidc"
 	"github.com/captnbp/CodX/internal/proxy"
 	"github.com/captnbp/CodX/internal/session"
-	profilev1 "github.com/captnbp/CodX/api/profile/v1"
 	"github.com/go-logr/logr"
 )
 
@@ -32,6 +32,7 @@ type Server struct {
 	workspaces   *k8s.WorkspaceManager
 	proxyFactory ProxyFactory
 	log          logr.Logger
+	audit        logr.Logger
 }
 
 // ProxyFactory creates a WorkspaceProxy for a given workspace FQDN.
@@ -58,13 +59,24 @@ func New(
 		workspaces:   workspaces,
 		proxyFactory: proxyFactory,
 		log:          logr.Discard(),
+		audit:        logr.Discard(),
 	}
 }
 
 // WithLogger sets the structured logger used by the server for request and
-// profile resolution logging.
+// profile resolution logging. The audit logger follows it under the name
+// "audit"; use WithAuditLogger to send audit events to a dedicated sink.
 func (s *Server) WithLogger(log logr.Logger) *Server {
 	s.log = log.WithName("web")
+	s.audit = log.WithName("audit")
+	return s
+}
+
+// WithAuditLogger overrides the audit logger, e.g. to write security-relevant
+// events (login, logout, workspace lifecycle, admin actions, denied access)
+// to a dedicated output.
+func (s *Server) WithAuditLogger(log logr.Logger) *Server {
+	s.audit = log.WithName("audit")
 	return s
 }
 
@@ -369,27 +381,39 @@ func (s *Server) handleCallback(w http.ResponseWriter, r *http.Request) {
 
 	state := r.URL.Query().Get("state")
 	if state == "" || state != stateCookie.Value {
+		s.audit.Info("login_failed", "reason", "invalid state", "remote", clientIP(r))
 		http.Error(w, "invalid state", http.StatusBadRequest)
 		return
 	}
 
 	code := r.URL.Query().Get("code")
 	if code == "" {
+		s.audit.Info("login_failed", "reason", "missing code", "remote", clientIP(r))
 		http.Error(w, "missing code", http.StatusBadRequest)
 		return
 	}
 
 	sess, err := s.auth.Exchange(r.Context(), code)
 	if err != nil {
+		s.audit.Info("login_failed", "reason", "token exchange", "error", err, "remote", clientIP(r))
 		http.Error(w, fmt.Sprintf("authentication failed: %v", err), http.StatusUnauthorized)
 		return
 	}
 
 	// Save the session.
 	if err := s.store.Save(r.Context(), sess); err != nil {
+		s.audit.Info("session_save_failed", "user", sess.Username, "error", err, "remote", clientIP(r))
 		http.Error(w, "session save failed", http.StatusInternalServerError)
 		return
 	}
+
+	s.audit.Info("login",
+		"user", sess.Username,
+		"slug", sess.Slug,
+		"groups", sess.Groups,
+		"admin", sess.IsAdmin,
+		"remote", clientIP(r),
+	)
 
 	// Set the session cookie.
 	setSessionCookie(w, sess.ID, s.cfg.InstanceName)
@@ -406,10 +430,16 @@ func (s *Server) handleCallback(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
+	var user string
 	if cookie, err := r.Cookie(SessionCookieName); err == nil {
+		// Best-effort lookup so the audit log records who logged out.
+		if sess, err := s.store.Get(r.Context(), cookie.Value); err == nil {
+			user = sess.Username
+		}
 		_ = s.store.Delete(r.Context(), cookie.Value)
 	}
 	clearSessionCookie(w, s.cfg.InstanceName)
+	s.audit.Info("logout", "user", user, "remote", clientIP(r))
 	http.Redirect(w, r, "/auth/login", http.StatusSeeOther)
 }
 
@@ -473,11 +503,13 @@ func (s *Server) handleStartWorkspace(w http.ResponseWriter, r *http.Request) {
 	// Verify the profile exists and is allowed for the user.
 	profile := s.profiles.Get(profileName)
 	if profile == nil {
+		s.audit.Info("workspace_start_denied", "user", sess.Username, "profile", profileName, "reason", "profile not found", "remote", clientIP(r))
 		http.Error(w, "profile not found", http.StatusNotFound)
 		return
 	}
 
 	if !isProfileAllowed(profile, sess.Groups) {
+		s.audit.Info("workspace_start_denied", "user", sess.Username, "profile", profileName, "reason", "profile not allowed", "remote", clientIP(r))
 		http.Error(w, "profile not allowed", http.StatusForbidden)
 		return
 	}
@@ -512,6 +544,7 @@ func (s *Server) handleStartWorkspace(w http.ResponseWriter, r *http.Request) {
 	sendStep("Creating workspace objects...")
 	steps, err := s.workspaces.EnsureWorkspace(r.Context(), profile, sess.Slug)
 	if err != nil {
+		s.audit.Info("workspace_start_failed", "user", sess.Username, "slug", sess.Slug, "profile", profileName, "error", err)
 		sendError(fmt.Sprintf("Failed to create workspace: %v", err))
 		return
 	}
@@ -523,6 +556,7 @@ func (s *Server) handleStartWorkspace(w http.ResponseWriter, r *http.Request) {
 	// Wait for the certificate to be ready.
 	sendStep("Waiting for TLS certificate...")
 	if err := s.workspaces.WaitForCertificate(r.Context(), sess.Slug, 5*time.Second); err != nil {
+		s.audit.Info("workspace_start_failed", "user", sess.Username, "slug", sess.Slug, "profile", profileName, "error", err)
 		sendError(fmt.Sprintf("Certificate not ready: %v", err))
 		return
 	}
@@ -531,10 +565,13 @@ func (s *Server) handleStartWorkspace(w http.ResponseWriter, r *http.Request) {
 	// Wait for the pod to be ready.
 	sendStep("Waiting for workspace pod to be ready...")
 	if err := s.workspaces.WaitForPodReady(r.Context(), sess.Slug, 5*time.Second); err != nil {
+		s.audit.Info("workspace_start_failed", "user", sess.Username, "slug", sess.Slug, "profile", profileName, "error", err)
 		sendError(fmt.Sprintf("Pod not ready: %v", err))
 		return
 	}
 	sendStep("Workspace pod is ready.")
+
+	s.audit.Info("workspace_start", "user", sess.Username, "slug", sess.Slug, "profile", profileName)
 
 	workspaceURL := fmt.Sprintf("/user/%s/", sess.Slug)
 	sendStep("Workspace is ready!")
@@ -554,12 +591,14 @@ func (s *Server) handleStopWorkspace(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.workspaces.StopWorkspace(r.Context(), sess.Slug); err != nil {
+		s.audit.Info("workspace_stop_failed", "user", sess.Username, "slug", sess.Slug, "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{
 			"error": fmt.Sprintf("failed to stop workspace: %v", err),
 		})
 		return
 	}
 
+	s.audit.Info("workspace_stop", "user", sess.Username, "slug", sess.Slug)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "stopped"})
 }
 
@@ -606,6 +645,7 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 
 	// Only allow the user to access their own workspace.
 	if pathSlug != sess.Slug {
+		s.audit.Info("proxy_access_denied", "user", sess.Username, "target", pathSlug, "remote", clientIP(r))
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
@@ -687,4 +727,17 @@ func indexByte(s string, b byte) int {
 		}
 	}
 	return -1
+}
+
+// clientIP returns the client address for the audit log: the first
+// X-Forwarded-For entry when set (CodX runs behind an ingress), otherwise the
+// request RemoteAddr.
+func clientIP(r *http.Request) string {
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		if i := indexByte(xff, ','); i >= 0 {
+			return xff[:i]
+		}
+		return xff
+	}
+	return r.RemoteAddr
 }
