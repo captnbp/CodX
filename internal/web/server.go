@@ -192,9 +192,9 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 </nav>
 <div class="container">
   <div class="row g-4">
-    <div class="col-lg-8">
+    <div class="col-lg-4">
       <h2 class="mb-3">Available Workspaces</h2>
-      <div class="row row-cols-1 row-cols-md-2 g-3">`, html.EscapeString(sess.Username), adminNavLink(sess.IsAdmin))
+      <div class="row row-cols-1 g-3">`, html.EscapeString(sess.Username), adminNavLink(sess.IsAdmin))
 
 	for _, p := range profiles {
 		fmt.Fprintf(w, `<div class="col">
@@ -211,7 +211,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 
 	fmt.Fprintf(w, `</div>
     </div>
-    <div class="col-lg-4">
+    <div class="col-lg-8">
       <h2 class="mb-3">Workspace</h2>
       <div id="workspace-state" class="mb-3"><span class="badge text-bg-secondary">Checking workspace...</span></div>
       <div id="workspace-resources" class="mb-3"></div>
