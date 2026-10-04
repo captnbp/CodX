@@ -139,7 +139,7 @@ func (a *ConnectionCountActivity) Poll(ctx context.Context) {
 			a.log.V(1).Error(err, "failed to query envoy stats", "slug", pod.Slug)
 			continue
 		}
-		if count > 0 {
+		if count > 10 {
 			a.RecordActivity(pod.Slug, time.Now())
 		}
 	}
