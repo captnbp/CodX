@@ -430,6 +430,7 @@ type Clientset struct {
 	CoreV1      CoreV1Client
 	CertManager CertManagerClient
 	Profile     ProfileClient
+	Nodes       NodeInterface
 }
 
 func boolPtr(v bool) *bool { return &v }

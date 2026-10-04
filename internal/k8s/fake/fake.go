@@ -29,6 +29,7 @@ type CoreV1Client struct {
 
 	// PodLogs maps pod name to its log content, returned by Logs.
 	PodLogs map[string]string
+
 }
 
 // NewCoreV1Client creates a new in-memory CoreV1Client.
@@ -61,6 +62,34 @@ func (c *CoreV1Client) ConfigMaps(namespace string) k8s.ConfigMapInterface {
 
 func (c *CoreV1Client) Secrets(namespace string) k8s.SecretInterface {
 	return &secretInterface{client: c}
+}
+
+// NodeClient is an in-memory k8s.NodeInterface. NodeStats maps node name to
+// its kubelet stats summary JSON, returned by StatsSummary.
+type NodeClient struct {
+	NodeStats map[string]string
+}
+
+// NewNodeClient creates a new empty NodeClient.
+func NewNodeClient() *NodeClient {
+	return &NodeClient{NodeStats: make(map[string]string)}
+}
+
+func (c *NodeClient) StatsSummary(ctx context.Context, name string) (io.ReadCloser, error) {
+	summary, ok := c.NodeStats[name]
+	if !ok {
+		return nil, apierrors.NewNotFound(schema.GroupResource{Resource: "nodes"}, name)
+	}
+	return io.NopCloser(strings.NewReader(summary)), nil
+}
+
+// NewClientset returns a k8s.Clientset with all in-memory fakes wired.
+func NewClientset() *k8s.Clientset {
+	return &k8s.Clientset{
+		CoreV1:      NewCoreV1Client(),
+		CertManager: NewCertManagerClient(),
+		Nodes:       NewNodeClient(),
+	}
 }
 
 type serviceInterface struct{ client *CoreV1Client }

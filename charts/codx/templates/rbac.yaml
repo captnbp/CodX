@@ -19,6 +19,10 @@ rules:
   - apiGroups: [""]
     resources: ["pods/log"]
     verbs: ["get", "list"]
+  # Node stats summary (kubelet proxy) for workspace resource usage
+  - apiGroups: [""]
+    resources: ["nodes/proxy"]
+    verbs: ["get"]
   # Services: create, get, list, delete
   - apiGroups: [""]
     resources: ["services"]

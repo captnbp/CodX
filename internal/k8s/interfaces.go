@@ -20,6 +20,14 @@ type CoreV1Client interface {
 	Secrets(namespace string) SecretInterface
 }
 
+// NodeInterface wraps node proxy operations.
+type NodeInterface interface {
+	// StatsSummary returns the kubelet stats summary of a node
+	// (per-container CPU/memory, per-pod network). The caller must close
+	// the returned ReadCloser.
+	StatsSummary(ctx context.Context, name string) (io.ReadCloser, error)
+}
+
 // ServiceInterface wraps corev1 Service operations.
 type ServiceInterface interface {
 	Get(ctx context.Context, name string, opts metav1.GetOptions) (*corev1.Service, error)

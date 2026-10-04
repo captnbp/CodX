@@ -214,6 +214,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
     <div class="col-lg-4">
       <h2 class="mb-3">Workspace</h2>
       <div id="workspace-state" class="mb-3"><span class="badge text-bg-secondary">Checking workspace...</span></div>
+      <div id="workspace-resources" class="mb-3"></div>
       <div class="d-grid gap-2">
         <a id="go-workspace" class="btn btn-primary d-none" href="#">Go to my workspace</a>
         <button id="restart-workspace" class="btn btn-warning d-none" onclick="restartWorkspace()">Restart my workspace</button>
@@ -256,6 +257,7 @@ function refreshWorkspaceState() {
             if (data.running) {
                 workspaceAgeSeconds = data.ageSeconds || 0;
                 renderWorkspaceState();
+                renderWorkspaceResources(data.usage);
                 go.href = "/user/" + encodeURIComponent(data.slug) + "/";
                 go.classList.remove("d-none");
                 restart.classList.remove("d-none");
@@ -264,6 +266,7 @@ function refreshWorkspaceState() {
             } else {
                 workspaceAgeSeconds = null;
                 renderWorkspaceState();
+                document.getElementById("workspace-resources").innerHTML = "";
                 go.classList.add("d-none");
                 restart.classList.add("d-none");
                 stop.classList.add("d-none");
@@ -278,6 +281,51 @@ function refreshWorkspaceState() {
 setInterval(function() {
     if (workspaceAgeSeconds !== null) { workspaceAgeSeconds++; renderWorkspaceState(); }
 }, 1000);
+function formatBytes(b) {
+    if (b < 1024) { return b + " B"; }
+    var units = ["KiB", "MiB", "GiB", "TiB"];
+    var u = -1;
+    do { b = b / 1024; u++; } while (b >= 1024 && u < units.length - 1);
+    return b.toFixed(1) + " " + units[u];
+}
+function formatCores(c) {
+    if (c === 0) { return "0"; }
+    if (c < 1) { return Math.round(c * 1000) + "m"; }
+    return c.toFixed(2);
+}
+function resourceBar(label, used, limit, request, fmt) {
+    var pct = 0;
+    var limitText = "no limit";
+    if (limit > 0) {
+        pct = Math.min(100, Math.round(used / limit * 100));
+        limitText = fmt(limit);
+    }
+    var color = pct > 90 ? "bg-danger" : (pct > 75 ? "bg-warning" : "bg-success");
+    var html = '<div class="mb-2"><div class="d-flex justify-content-between"><span>' + label + '</span><span class="text-muted">' + fmt(used) + ' / ' + limitText + '</span></div>';
+    html += '<div class="progress" style="height: 6px;"><div class="progress-bar ' + color + '" style="width: ' + pct + '%%"></div></div>';
+    if (request > 0) {
+        html += '<div class="text-muted" style="font-size: 0.75rem;">request: ' + fmt(request) + '</div>';
+    }
+    html += '</div>';
+    return html;
+}
+function renderWorkspaceResources(u) {
+    var res = document.getElementById("workspace-resources");
+    if (!u) {
+        res.innerHTML = '<div class="text-muted" style="font-size: 0.8rem;">Resources unavailable</div>';
+        return;
+    }
+    var html = resourceBar("CPU", u.cpu.usedCores, u.cpu.limitCores, u.cpu.requestCores, formatCores);
+    html += resourceBar("RAM", u.memory.usedBytes, u.memory.limitBytes, u.memory.requestBytes, formatBytes);
+    html += '<div class="text-muted" style="font-size: 0.8rem;">';
+    html += 'Storage: ' + formatBytes(u.storage.usedBytes) + ' &middot; ';
+    html += 'Network: &darr; ' + formatBytes(u.network.rxBytes) + ' &uarr; ' + formatBytes(u.network.txBytes);
+    html += '</div>';
+    res.innerHTML = html;
+}
+setInterval(function() {
+    refreshWorkspaceState();
+}, 10000);
 document.addEventListener("DOMContentLoaded", refreshWorkspaceState);
 function startWorkspace(profileName) {
     var evtSource = new EventSource("/api/workspace/start?profile=" + encodeURIComponent(profileName));
@@ -733,13 +781,42 @@ func (s *Server) handleWorkspaceStatus(w http.ResponseWriter, r *http.Request) {
 
 	// Report whether the workspace pod exists and is running and for how
 	// long, so the UI can adapt the workspace actions and show the uptime.
+	// When running, also report the resource usage of the code-server
+	// container (from the kubelet stats summary) when available.
 	age, running := s.workspaces.GetWorkspacePodAge(r.Context(), sess.Slug)
-	writeJSON(w, http.StatusOK, map[string]any{
+	resp := map[string]any{
 		"username":   sess.Username,
 		"slug":       sess.Slug,
 		"running":    running,
 		"ageSeconds": int64(age.Seconds()),
-	})
+	}
+	if running {
+		usage, _, err := s.workspaces.GetWorkspaceUsage(r.Context(), sess.Slug)
+		if err == nil && usage != nil {
+			resp["usage"] = map[string]any{
+				"cpu": map[string]any{
+					"usedCores":    usage.CPUUsedCores,
+					"requestCores": usage.CPURequestCores,
+					"limitCores":   usage.CPULimitCores,
+				},
+				"memory": map[string]any{
+					"usedBytes":    usage.MemoryUsedBytes,
+					"requestBytes": usage.MemoryRequestBytes,
+					"limitBytes":   usage.MemoryLimitBytes,
+				},
+				"storage": map[string]any{
+					"usedBytes": usage.StorageUsedBytes,
+				},
+				"network": map[string]any{
+					"rxBytes": usage.NetworkRxBytes,
+					"txBytes": usage.NetworkTxBytes,
+				},
+			}
+		} else if err != nil {
+			s.log.V(1).Error(err, "failed to get workspace usage", "user", sess.Username, "slug", sess.Slug)
+		}
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // handleWorkspaceLogs returns the last log lines of the user's code-server

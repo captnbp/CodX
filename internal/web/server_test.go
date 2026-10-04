@@ -72,10 +72,7 @@ func testServerWithClientset(t *testing.T) (*Server, *session.MemoryStore, *k8s.
 	})
 
 	// Create a workspace manager with fake clients.
-	cs := &k8s.Clientset{
-		CoreV1:      fake.NewCoreV1Client(),
-		CertManager: fake.NewCertManagerClient(),
-	}
+	cs := fake.NewClientset()
 	wm := k8s.NewWorkspaceManager(cs, cfg)
 
 	// Use a mock proxy factory that doesn't need TLS files.

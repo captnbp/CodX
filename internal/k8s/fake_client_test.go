@@ -19,6 +19,7 @@ import (
 // fakeCoreV1Client implements CoreV1Client for testing.
 type fakeCoreV1Client struct {
 	mu         sync.Mutex
+	nodeStats  map[string]string
 	services   map[string]*corev1.Service
 	pvcs       map[string]*corev1.PersistentVolumeClaim
 	pods       map[string]*corev1.Pod
@@ -28,6 +29,7 @@ type fakeCoreV1Client struct {
 
 func newFakeCoreV1Client() *fakeCoreV1Client {
 	return &fakeCoreV1Client{
+		nodeStats:  make(map[string]string),
 		services:   make(map[string]*corev1.Service),
 		pvcs:       make(map[string]*corev1.PersistentVolumeClaim),
 		pods:       make(map[string]*corev1.Pod),
@@ -54,6 +56,22 @@ func (c *fakeCoreV1Client) ConfigMaps(namespace string) ConfigMapInterface {
 
 func (c *fakeCoreV1Client) Secrets(namespace string) SecretInterface {
 	return &fakeSecretInterface{client: c}
+}
+
+func (c *fakeCoreV1Client) Nodes() NodeInterface {
+	return &fakeNodeInterface{stats: c.nodeStats}
+}
+
+type fakeNodeInterface struct {
+	stats map[string]string
+}
+
+func (f *fakeNodeInterface) StatsSummary(ctx context.Context, name string) (io.ReadCloser, error) {
+	summary, ok := f.stats[name]
+	if !ok {
+		return io.NopCloser(strings.NewReader(`{"pods":[]}`)), nil
+	}
+	return io.NopCloser(strings.NewReader(summary)), nil
 }
 
 type fakeServiceInterface struct {

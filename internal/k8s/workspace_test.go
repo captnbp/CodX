@@ -16,6 +16,7 @@ func newTestClientset() *Clientset {
 	return &Clientset{
 		CoreV1:      newFakeCoreV1Client(),
 		CertManager: newFakeCertManagerClient(),
+		Nodes:       newFakeCoreV1Client().Nodes(),
 	}
 }
 

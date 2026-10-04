@@ -51,10 +51,16 @@ func NewInClusterClientset() (*Clientset, error) {
 		return nil, fmt.Errorf("build dynamic clientset: %w", err)
 	}
 
+	nodeRest, err := rest.RESTClientFor(config)
+	if err != nil {
+		return nil, fmt.Errorf("build node rest client: %w", err)
+	}
+
 	return &Clientset{
 		CoreV1:      &realCoreV1{inner: coreClient.CoreV1()},
 		CertManager: &realCertManager{inner: cmClient.CertmanagerV1()},
 		Profile:     &realProfileClient{client: dynClient},
+		Nodes:       &realNodeInterface{rest: nodeRest},
 	}, nil
 }
 
@@ -75,6 +81,16 @@ func (c *realCoreV1) PersistentVolumeClaims(namespace string) PVCInterface {
 
 func (c *realCoreV1) Pods(namespace string) PodInterface {
 	return &realPodInterface{inner: c.inner.Pods(namespace)}
+}
+
+// realNodeInterface fetches the kubelet stats summary through the API server
+// node proxy (GET /api/v1/nodes/<name>/proxy/stats/summary).
+type realNodeInterface struct {
+	rest rest.Interface
+}
+
+func (n *realNodeInterface) StatsSummary(ctx context.Context, name string) (io.ReadCloser, error) {
+	return n.rest.Get().AbsPath("/api/v1/nodes", name, "proxy/stats/summary").Stream(ctx)
 }
 
 // realPodInterface adapts the typed pod interface to PodInterface. The typed

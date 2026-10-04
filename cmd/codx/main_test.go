@@ -39,7 +39,7 @@ func testProfileCR(name string, delaySeconds int32) *profilev1.Profile {
 }
 
 func TestWorkspacePodLister(t *testing.T) {
-	cs := &k8s.Clientset{CoreV1: fake.NewCoreV1Client()}
+	cs := fake.NewClientset()
 	cfg := &config.Config{InstanceName: "codx", Namespace: "codx-system"}
 	mgr := k8s.NewWorkspaceManager(cs, cfg)
 
@@ -69,7 +69,7 @@ func TestWorkspacePodLister(t *testing.T) {
 }
 
 func TestWorkspaceDelayLister(t *testing.T) {
-	cs := &k8s.Clientset{CoreV1: fake.NewCoreV1Client()}
+	cs := fake.NewClientset()
 	cfg := &config.Config{InstanceName: "codx", Namespace: "codx-system"}
 	mgr := k8s.NewWorkspaceManager(cs, cfg)
 
