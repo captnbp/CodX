@@ -199,6 +199,8 @@ func BuildPod(instance, slug, namespace, fqdn string, profile *profilev1.Profile
 			Containers:         buildContainers(profile, objName, slug, cfg),
 			Volumes:            buildVolumes(profile, objName),
 			ImagePullSecrets:   resolveImagePullSecrets(profile, cfg),
+			Affinity:           profile.Spec.PodSpec.Affinity,
+			Tolerations:        profile.Spec.PodSpec.Tolerations,
 			EnableServiceLinks: resolveEnableServiceLinks(profile),
 		},
 	}

@@ -782,6 +782,19 @@ tracing:
 ##       image: codercom/code-server:latest
 ##       # imagePullSecrets:
 ##       #   - name: my-registry-pull-secret
+##       # affinity:
+##       #   nodeAffinity:
+##       #     requiredDuringSchedulingIgnoredDuringExecution:
+##       #       nodeSelectorTerms:
+##       #         - matchExpressions:
+##       #             - key: codx.io/pool
+##       #               operator: In
+##       #               values: [workspaces]
+##       # tolerations:
+##       #   - key: workload
+##       #     operator: Equal
+##       #     value: workspaces
+##       #     effect: NoSchedule
 ##       # codeServerReadinessProbe:
 ##       #   httpGet:
 ##       #     path: /healthz

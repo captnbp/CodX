@@ -111,6 +111,16 @@ type ProfilePodSpec struct {
 	// +optional
 	SecurityContext *corev1.PodSecurityContext `json:"securityContext,omitempty"`
 
+	// Affinity sets the scheduling constraints (node and pod affinity) of
+	// the workspace pod.
+	// +optional
+	Affinity *corev1.Affinity `json:"affinity,omitempty"`
+
+	// Tolerations sets the tolerations of the workspace pod, allowing it to
+	// be scheduled on nodes with matching taints.
+	// +optional
+	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
+
 	// Labels adds extra labels to the workspace pod.
 	// +optional
 	Labels map[string]string `json:"labels,omitempty"`

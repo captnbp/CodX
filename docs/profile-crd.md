@@ -63,6 +63,7 @@ PodSpec describes the workspace pod and its containers.
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
+| `affinity` | `object` | No | `-` | Affinity sets the scheduling constraints (node and pod affinity) of the workspace pod. |
 | `annotations` | `map[string]string` | No | `-` | Annotations adds extra annotations to the workspace pod. |
 | `args` | `[]string` | No | `-` | Args overrides the container command arguments. |
 | `codeServerReadinessProbe` | `object` | No | `-` | CodeServerReadinessProbe overrides the readiness probe of the code-server main container. When unset, a default HTTP GET probe on /healthz port 8080 is applied. |
@@ -77,6 +78,7 @@ PodSpec describes the workspace pod and its containers.
 | `resources` | `object` | No | `-` | Resources sets resource requests and limits for the main container. See Kubernetes [`ResourceRequirements`](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#resourcerequirements-v1-core) (corev1). |
 | `securityContext` | `object` | No | `-` | SecurityContext sets the pod-level security context. See Kubernetes [`PodSecurityContext`](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#podsecuritycontext-v1-core) (corev1). |
 | `sidecars` | `[]object` | No | `-` | Sidecars adds extra sidecar containers to the pod (in addition to the mandatory Envoy TLS termination sidecar injected by CodX). See Kubernetes [`Container`](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#container-v1-core) (corev1). |
+| `tolerations` | `[]object` | No | `-` | Tolerations sets the tolerations of the workspace pod, allowing it to be scheduled on nodes with matching taints. |
 | `volumeMounts` | `[]object` | No | `-` | VolumeMounts adds extra volume mounts to the main container. See Kubernetes [`VolumeMount`](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#volumemount-v1-core) (corev1). |
 | `volumes` | `[]object` | No | `-` | Volumes adds extra volumes to the pod. See Kubernetes [`Volume`](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#volume-v1-core) (corev1). |
 

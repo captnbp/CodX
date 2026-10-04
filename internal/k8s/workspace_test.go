@@ -420,6 +420,46 @@ func TestBuildPodImagePullSecrets(t *testing.T) {
 	}
 }
 
+func TestBuildPodAffinityAndTolerations(t *testing.T) {
+	profile := testProfile("python-dev", "Python Dev", nil)
+	pod := BuildPod("codx", "john-doe", "codx-system", "codx-john-doe.codx-system.svc.cluster.local", profile, testConfig())
+	if pod.Spec.Affinity != nil {
+		t.Errorf("Affinity = %+v, want nil by default", pod.Spec.Affinity)
+	}
+	if len(pod.Spec.Tolerations) != 0 {
+		t.Errorf("Tolerations = %v, want none by default", pod.Spec.Tolerations)
+	}
+
+	profile.Spec.PodSpec.Affinity = &corev1.Affinity{
+		NodeAffinity: &corev1.NodeAffinity{
+			RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+				NodeSelectorTerms: []corev1.NodeSelectorTerm{{
+					MatchExpressions: []corev1.NodeSelectorRequirement{{
+						Key:      "codx.io/pool",
+						Operator: corev1.NodeSelectorOpIn,
+						Values:   []string{"workspaces"},
+					}},
+				}},
+			},
+		},
+	}
+	profile.Spec.PodSpec.Tolerations = []corev1.Toleration{
+		{Key: "workload", Operator: corev1.TolerationOpEqual, Value: "workspaces", Effect: corev1.TaintEffectNoSchedule},
+	}
+	pod = BuildPod("codx", "john-doe", "codx-system", "codx-john-doe.codx-system.svc.cluster.local", profile, testConfig())
+
+	if pod.Spec.Affinity == nil || pod.Spec.Affinity.NodeAffinity == nil {
+		t.Fatal("Affinity not propagated to the pod")
+	}
+	terms := pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms
+	if len(terms) != 1 || terms[0].MatchExpressions[0].Key != "codx.io/pool" {
+		t.Errorf("Affinity node selector = %+v, want codx.io/pool in [workspaces]", terms)
+	}
+	if len(pod.Spec.Tolerations) != 1 || pod.Spec.Tolerations[0].Key != "workload" {
+		t.Errorf("Tolerations = %v, want one toleration on workload", pod.Spec.Tolerations)
+	}
+}
+
 func TestBuildPodEnvoySidecar(t *testing.T) {
 	profile := testProfile("python-dev", "Python Dev", nil)
 	pod := BuildPod("codx", "john-doe", "codx-system", "codx-john-doe.codx-system.svc.cluster.local", profile, testConfig())

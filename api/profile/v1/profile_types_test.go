@@ -22,10 +22,10 @@ func TestProfileRoundTrip(t *testing.T) {
 			Namespace: "codx-system",
 		},
 		Spec: ProfileSpec{
-			Title:                       "Python Developer",
-			Description:                 "A workspace with Python 3.12 and common tools.",
-			OIDCGroups:                  []string{"developers", "students"},
-			InactivityStopDelaySeconds:  3600,
+			Title:                      "Python Developer",
+			Description:                "A workspace with Python 3.12 and common tools.",
+			OIDCGroups:                 []string{"developers", "students"},
+			InactivityStopDelaySeconds: 3600,
 			PodSpec: ProfilePodSpec{
 				Image:   "ghcr.io/codx/python:3.12",
 				Command: []string{"/usr/bin/code-server"},
@@ -46,6 +46,22 @@ func TestProfileRoundTrip(t *testing.T) {
 					RunAsNonRoot: boolPtr(true),
 					RunAsUser:    int64Ptr(1000),
 				},
+				Affinity: &corev1.Affinity{
+					NodeAffinity: &corev1.NodeAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+							NodeSelectorTerms: []corev1.NodeSelectorTerm{{
+								MatchExpressions: []corev1.NodeSelectorRequirement{{
+									Key:      "node.kubernetes.io/instance-type",
+									Operator: corev1.NodeSelectorOpIn,
+									Values:   []string{"gpu"},
+								}},
+							}},
+						},
+					},
+				},
+				Tolerations: []corev1.Toleration{
+					{Key: "workload", Operator: corev1.TolerationOpEqual, Value: "batch", Effect: corev1.TaintEffectNoSchedule},
+				},
 				Labels:      map[string]string{"tier": "dev"},
 				Annotations: map[string]string{"codx.io/default": "true"},
 				Resources: corev1.ResourceRequirements{
@@ -60,9 +76,9 @@ func TestProfileRoundTrip(t *testing.T) {
 				},
 			},
 			PVC: ProfilePVC{
-				Size:            "20Gi",
+				Size:             "20Gi",
 				StorageClassName: &storageClass,
-				Labels:          map[string]string{"codx.io/pvc": "home"},
+				Labels:           map[string]string{"codx.io/pvc": "home"},
 			},
 		},
 	}
@@ -88,7 +104,7 @@ func TestProfileRoundTrip(t *testing.T) {
 func TestProfileEmptyOIDCGroupsMeansAllUsers(t *testing.T) {
 	p := &Profile{
 		Spec: ProfileSpec{
-			Title:  "Default",
+			Title:   "Default",
 			PodSpec: ProfilePodSpec{Image: "ghcr.io/codx/base:latest"},
 		},
 	}
@@ -103,8 +119,8 @@ func TestDeepCopy(t *testing.T) {
 			Title:      "Test",
 			OIDCGroups: []string{"a", "b"},
 			PodSpec: ProfilePodSpec{
-				Image:   "img",
-				Labels:  map[string]string{"k": "v"},
+				Image:  "img",
+				Labels: map[string]string{"k": "v"},
 				Sidecars: []corev1.Container{
 					{Name: "helper", Image: "helper:1.0"},
 				},
@@ -146,5 +162,5 @@ func TestProfileListDeepCopy(t *testing.T) {
 	}
 }
 
-func boolPtr(b bool) *bool       { return &b }
-func int64Ptr(i int64) *int64     { return &i }
+func boolPtr(b bool) *bool    { return &b }
+func int64Ptr(i int64) *int64 { return &i }
