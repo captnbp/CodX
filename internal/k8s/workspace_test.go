@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
+	"github.com/captnbp/CodX/internal/config"
 	cmv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	cmmeta "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
-	"github.com/captnbp/CodX/internal/config"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -392,6 +392,31 @@ func TestBuildPodProfileLabel(t *testing.T) {
 	pod = BuildPod("codx", "john-doe", "codx-system", "codx-john-doe.codx-system.svc.cluster.local", profile, testConfig())
 	if got := pod.Labels[LabelProfile]; got != "python-dev" {
 		t.Errorf("profile label with conflicting podSpec label = %q, want python-dev", got)
+	}
+}
+
+func TestBuildPodImagePullSecrets(t *testing.T) {
+	profile := testProfile("python-dev", "Python Dev", nil)
+	cfg := testConfig()
+	pod := BuildPod("codx", "john-doe", "codx-system", "codx-john-doe.codx-system.svc.cluster.local", profile, cfg)
+	if len(pod.Spec.ImagePullSecrets) != 0 {
+		t.Errorf("ImagePullSecrets = %v, want none by default", pod.Spec.ImagePullSecrets)
+	}
+
+	// No profile pull secrets: fall back to the configured global ones.
+	cfg.Workspace.ImagePullSecrets = []string{"global-registry-pull"}
+	pod = BuildPod("codx", "john-doe", "codx-system", "codx-john-doe.codx-system.svc.cluster.local", profile, cfg)
+	if len(pod.Spec.ImagePullSecrets) != 1 || pod.Spec.ImagePullSecrets[0].Name != "global-registry-pull" {
+		t.Errorf("ImagePullSecrets = %v, want [global-registry-pull]", pod.Spec.ImagePullSecrets)
+	}
+
+	// Profile pull secrets win over the global fallback.
+	profile.Spec.PodSpec.ImagePullSecrets = []corev1.LocalObjectReference{
+		{Name: "private-registry-pull"},
+	}
+	pod = BuildPod("codx", "john-doe", "codx-system", "codx-john-doe.codx-system.svc.cluster.local", profile, cfg)
+	if len(pod.Spec.ImagePullSecrets) != 1 || pod.Spec.ImagePullSecrets[0].Name != "private-registry-pull" {
+		t.Errorf("ImagePullSecrets = %v, want [private-registry-pull]", pod.Spec.ImagePullSecrets)
 	}
 }
 

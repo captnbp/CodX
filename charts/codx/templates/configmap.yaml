@@ -65,6 +65,14 @@ data:
       ipFamilyPolicy: {{ .Values.workspaceService.ipFamilyPolicy | quote }}
     {{- if .Values.workspace }}
     workspace:
+      {{- if .Values.global.imagePullSecrets }}
+      # Fallback image pull secrets for workspace pods; overridden by
+      # podSpec.imagePullSecrets in the Profile.
+      imagePullSecrets:
+        {{- range .Values.global.imagePullSecrets }}
+        - {{ . }}
+        {{- end }}
+      {{- end }}
       {{- if .Values.workspace.envoyImage }}
       envoyImage: {{ .Values.workspace.envoyImage | quote }}
       {{- end }}

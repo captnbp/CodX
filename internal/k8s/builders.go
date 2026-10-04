@@ -197,12 +197,27 @@ func BuildPod(instance, slug, namespace, fqdn string, profile *profilev1.Profile
 			SecurityContext:    profile.Spec.PodSpec.SecurityContext,
 			InitContainers:     profile.Spec.PodSpec.InitContainers,
 			Containers:         buildContainers(profile, objName, slug, cfg),
-			Volumes:             buildVolumes(profile, objName),
+			Volumes:            buildVolumes(profile, objName),
+			ImagePullSecrets:   resolveImagePullSecrets(profile, cfg),
 			EnableServiceLinks: resolveEnableServiceLinks(profile),
 		},
 	}
 
 	return pod
+}
+
+// resolveImagePullSecrets returns the image pull secrets of a workspace pod:
+// the profile's own secrets when set, otherwise the fallback list from the
+// CodX configuration (fed by global.imagePullSecrets in the Helm chart).
+func resolveImagePullSecrets(profile *profilev1.Profile, cfg *config.Config) []corev1.LocalObjectReference {
+	if len(profile.Spec.PodSpec.ImagePullSecrets) > 0 {
+		return profile.Spec.PodSpec.ImagePullSecrets
+	}
+	refs := make([]corev1.LocalObjectReference, 0, len(cfg.Workspace.ImagePullSecrets))
+	for _, name := range cfg.Workspace.ImagePullSecrets {
+		refs = append(refs, corev1.LocalObjectReference{Name: name})
+	}
+	return refs
 }
 
 // resolveEnableServiceLinks returns the value for PodSpec.EnableServiceLinks

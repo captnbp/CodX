@@ -33,6 +33,9 @@ func TestProfileRoundTrip(t *testing.T) {
 				Env: []corev1.EnvVar{
 					{Name: "PYTHONUNBUFFERED", Value: "1"},
 				},
+				ImagePullSecrets: []corev1.LocalObjectReference{
+					{Name: "private-registry-pull"},
+				},
 				Volumes: []corev1.Volume{
 					{Name: "tmp", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
 				},

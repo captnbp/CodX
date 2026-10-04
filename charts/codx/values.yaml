@@ -5,7 +5,7 @@
 ## Current available global Docker image parameters: imageRegistry, imagePullSecrets and storageClass
 
 ## @param global.imageRegistry Global Docker image registry
-## @param global.imagePullSecrets Global Docker registry secret names as an array
+## @param global.imagePullSecrets Global Docker registry secret names as an array. Also used as the fallback image pull secrets of workspace pods whose Profile does not set podSpec.imagePullSecrets.
 ## @param global.storageClass Global StorageClass for Persistent Volume(s)
 ##
 global:
@@ -780,6 +780,8 @@ tracing:
 ##       - doca:users
 ##     podSpec:
 ##       image: codercom/code-server:latest
+##       # imagePullSecrets:
+##       #   - name: my-registry-pull-secret
 ##       # codeServerReadinessProbe:
 ##       #   httpGet:
 ##       #     path: /healthz

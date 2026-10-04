@@ -102,6 +102,11 @@ type ProfilePodSpec struct {
 	// +optional
 	InitContainers []corev1.Container `json:"initContainers,omitempty"`
 
+	// ImagePullSecrets sets the image pull secrets of the workspace pod, to
+	// pull images (code-server, sidecars) from private registries.
+	// +optional
+	ImagePullSecrets []corev1.LocalObjectReference `json:"imagePullSecrets,omitempty"`
+
 	// SecurityContext sets the pod-level security context.
 	// +optional
 	SecurityContext *corev1.PodSecurityContext `json:"securityContext,omitempty"`

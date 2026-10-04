@@ -276,6 +276,12 @@ type WorkspaceConfig struct {
 	// +default="envoyproxy/envoy:distroless-v1.39-latest"
 	EnvoyImage string `yaml:"envoyImage,omitempty"`
 
+	// ImagePullSecrets is the fallback list of image pull secret names
+	// applied to workspace pods when the profile does not specify its own
+	// (the Helm chart feeds it from global.imagePullSecrets).
+	// +optional
+	ImagePullSecrets []string `yaml:"imagePullSecrets,omitempty"`
+
 	// Tracing configures OpenTelemetry tracing in the Envoy sidecar.
 	// +optional
 	Tracing TracingConfig `yaml:"tracing,omitempty"`

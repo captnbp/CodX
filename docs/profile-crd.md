@@ -71,6 +71,7 @@ PodSpec describes the workspace pod and its containers.
 | `env` | `[]object` | No | `-` | Env adds extra environment variables to the main container. See Kubernetes [`EnvVar`](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#envvar-v1-core) (corev1). |
 | `envoyReadinessProbe` | `object` | No | `-` | EnvoyReadinessProbe overrides the readiness probe of the Envoy TLS sidecar. When unset, a default HTTP GET probe on the Envoy admin endpoint /ready port 9901 is applied. |
 | `image` | `string` | Yes | `-` | Image is the container image for the code-server main container. |
+| `imagePullSecrets` | `[]object` | No | `-` | ImagePullSecrets sets the image pull secrets of the workspace pod, to pull images (code-server, sidecars) from private registries. |
 | `initContainers` | `[]object` | No | `-` | InitContainers adds extra init containers to the pod. See Kubernetes [`Container`](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#container-v1-core) (corev1). |
 | `labels` | `map[string]string` | No | `-` | Labels adds extra labels to the workspace pod. |
 | `resources` | `object` | No | `-` | Resources sets resource requests and limits for the main container. See Kubernetes [`ResourceRequirements`](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#resourcerequirements-v1-core) (corev1). |
