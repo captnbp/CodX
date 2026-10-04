@@ -225,23 +225,45 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
   </div>
 </div>
 <script>
+var workspaceAgeSeconds = null;
+function formatDuration(s) {
+    var d = Math.floor(s / 86400);
+    var h = Math.floor((s %% 86400) / 3600);
+    var m = Math.floor((s %% 3600) / 60);
+    var sec = s %% 60;
+    var parts = [];
+    if (d) { parts.push(d + "d"); }
+    if (d || h) { parts.push(h + "h"); }
+    if (d || h || m) { parts.push(m + "m"); }
+    parts.push(sec + "s");
+    return parts.join(" ");
+}
+function renderWorkspaceState() {
+    var state = document.getElementById("workspace-state");
+    if (workspaceAgeSeconds !== null) {
+        state.innerHTML = '<span class="badge text-bg-success">Running</span> <span class="text-muted">for ' + formatDuration(workspaceAgeSeconds) + '</span>';
+    } else {
+        state.innerHTML = '<span class="badge text-bg-secondary">Not running</span>';
+    }
+}
 function refreshWorkspaceState() {
     fetch("/api/workspace/status")
         .then(function(r) { return r.json(); })
         .then(function(data) {
-            var state = document.getElementById("workspace-state");
             var go = document.getElementById("go-workspace");
             var restart = document.getElementById("restart-workspace");
             var stop = document.getElementById("stop-workspace");
             if (data.running) {
-                state.innerHTML = '<span class="badge text-bg-success">Running</span>';
+                workspaceAgeSeconds = data.ageSeconds || 0;
+                renderWorkspaceState();
                 go.href = "/user/" + encodeURIComponent(data.slug) + "/";
                 go.classList.remove("d-none");
                 restart.classList.remove("d-none");
                 stop.classList.remove("d-none");
                 document.getElementById("logs-workspace").classList.remove("d-none");
             } else {
-                state.innerHTML = '<span class="badge text-bg-secondary">Not running</span>';
+                workspaceAgeSeconds = null;
+                renderWorkspaceState();
                 go.classList.add("d-none");
                 restart.classList.add("d-none");
                 stop.classList.add("d-none");
@@ -249,9 +271,13 @@ function refreshWorkspaceState() {
             }
         })
         .catch(function(err) {
+            workspaceAgeSeconds = null;
             document.getElementById("workspace-state").innerHTML = '<span class="badge text-bg-danger">Status error</span>';
         });
 }
+setInterval(function() {
+    if (workspaceAgeSeconds !== null) { workspaceAgeSeconds++; renderWorkspaceState(); }
+}, 1000);
 document.addEventListener("DOMContentLoaded", refreshWorkspaceState);
 function startWorkspace(profileName) {
     var evtSource = new EventSource("/api/workspace/start?profile=" + encodeURIComponent(profileName));
@@ -705,13 +731,14 @@ func (s *Server) handleWorkspaceStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Report whether the workspace pod exists and is running, so the UI
-	// can adapt the workspace actions.
-	running := s.workspaces.IsWorkspaceRunning(r.Context(), sess.Slug)
+	// Report whether the workspace pod exists and is running and for how
+	// long, so the UI can adapt the workspace actions and show the uptime.
+	age, running := s.workspaces.GetWorkspacePodAge(r.Context(), sess.Slug)
 	writeJSON(w, http.StatusOK, map[string]any{
-		"username": sess.Username,
-		"slug":     sess.Slug,
-		"running":  running,
+		"username":   sess.Username,
+		"slug":       sess.Slug,
+		"running":    running,
+		"ageSeconds": int64(age.Seconds()),
 	})
 }
 

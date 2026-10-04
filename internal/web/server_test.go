@@ -278,17 +278,21 @@ func TestWorkspaceStatusAPI(t *testing.T) {
 	if result["running"] != false {
 		t.Errorf("running = %v, want false (no pod)", result["running"])
 	}
+	if result["ageSeconds"] != float64(0) {
+		t.Errorf("ageSeconds = %v, want 0 (no pod)", result["ageSeconds"])
+	}
 }
 
 func TestWorkspaceStatusRunning(t *testing.T) {
 	srv, store, _, cs := testServerWithClientset(t)
 	handler := srv.Handler()
 
-	// Pre-create a running workspace pod for john-doe.
+	// Pre-create a running workspace pod for john-doe, started 30 minutes ago.
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "codx-john-doe",
-			Namespace: "codx-system",
+			Name:              "codx-john-doe",
+			Namespace:         "codx-system",
+			CreationTimestamp: metav1.Time{Time: time.Now().Add(-30 * time.Minute)},
 			Labels: map[string]string{
 				"app.kubernetes.io/instance":   "john-doe",
 				"app.kubernetes.io/managed-by": "codx",
@@ -314,6 +318,13 @@ func TestWorkspaceStatusRunning(t *testing.T) {
 	}
 	if result["running"] != true {
 		t.Errorf("running = %v, want true", result["running"])
+	}
+	age, ok := result["ageSeconds"].(float64)
+	if !ok {
+		t.Fatalf("ageSeconds missing or not a number: %v", result["ageSeconds"])
+	}
+	if age < 29*60 || age > 31*60 {
+		t.Errorf("ageSeconds = %v, want about 1800 (30 minutes)", age)
 	}
 }
 

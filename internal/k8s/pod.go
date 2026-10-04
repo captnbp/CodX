@@ -128,6 +128,25 @@ func (m *WorkspaceManager) ListWorkspacePods(ctx context.Context) ([]corev1.Pod,
 	return running, nil
 }
 
+// GetWorkspacePodAge returns the age of the workspace pod (based on its
+// start time, falling back to its creation timestamp) and whether it exists
+// and is running.
+func (m *WorkspaceManager) GetWorkspacePodAge(ctx context.Context, userSlug string) (time.Duration, bool) {
+	namespace := m.cfg.Namespace
+	objName := objectName(m.cfg.InstanceName, userSlug)
+
+	pod, err := m.clients.CoreV1.Pods(namespace).Get(ctx, objName, metav1.GetOptions{})
+	if err != nil || pod.Status.Phase != corev1.PodRunning {
+		return 0, false
+	}
+
+	start := pod.CreationTimestamp.Time
+	if pod.Status.StartTime != nil {
+		start = pod.Status.StartTime.Time
+	}
+	return time.Since(start), true
+}
+
 // GetWorkspaceLogs returns the logs of one container of the workspace pod,
 // optionally following new lines as they are emitted (follow=true).
 // The caller must close the returned ReadCloser.
