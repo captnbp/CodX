@@ -3124,6 +3124,13 @@ spec:
                       type: string
                     description: Labels adds extra labels to the workspace pod.
                     type: object
+                  nodeSelector:
+                    additionalProperties:
+                      type: string
+                    description: |-
+                      NodeSelector sets the labels a node must have for the workspace pod
+                      to be scheduled on it. It is a simple alternative to affinity.
+                    type: object
                   resources:
                     description: Resources sets resource requests and limits for the
                       main container.

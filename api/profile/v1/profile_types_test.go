@@ -59,6 +59,7 @@ func TestProfileRoundTrip(t *testing.T) {
 						},
 					},
 				},
+				NodeSelector: map[string]string{"codx.io/pool": "workspaces"},
 				Tolerations: []corev1.Toleration{
 					{Key: "workload", Operator: corev1.TolerationOpEqual, Value: "batch", Effect: corev1.TaintEffectNoSchedule},
 				},

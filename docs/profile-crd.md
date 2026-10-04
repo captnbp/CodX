@@ -75,6 +75,7 @@ PodSpec describes the workspace pod and its containers.
 | `imagePullSecrets` | `[]object` | No | `-` | ImagePullSecrets sets the image pull secrets of the workspace pod, to pull images (code-server, sidecars) from private registries. |
 | `initContainers` | `[]object` | No | `-` | InitContainers adds extra init containers to the pod. See Kubernetes [`Container`](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#container-v1-core) (corev1). |
 | `labels` | `map[string]string` | No | `-` | Labels adds extra labels to the workspace pod. |
+| `nodeSelector` | `map[string]string` | No | `-` | NodeSelector sets the labels a node must have for the workspace pod to be scheduled on it. It is a simple alternative to affinity. |
 | `resources` | `object` | No | `-` | Resources sets resource requests and limits for the main container. See Kubernetes [`ResourceRequirements`](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#resourcerequirements-v1-core) (corev1). |
 | `securityContext` | `object` | No | `-` | SecurityContext sets the pod-level security context. See Kubernetes [`PodSecurityContext`](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#podsecuritycontext-v1-core) (corev1). |
 | `sidecars` | `[]object` | No | `-` | Sidecars adds extra sidecar containers to the pod (in addition to the mandatory Envoy TLS termination sidecar injected by CodX). See Kubernetes [`Container`](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#container-v1-core) (corev1). |

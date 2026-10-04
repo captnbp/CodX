@@ -426,10 +426,14 @@ func TestBuildPodAffinityAndTolerations(t *testing.T) {
 	if pod.Spec.Affinity != nil {
 		t.Errorf("Affinity = %+v, want nil by default", pod.Spec.Affinity)
 	}
+	if len(pod.Spec.NodeSelector) != 0 {
+		t.Errorf("NodeSelector = %v, want none by default", pod.Spec.NodeSelector)
+	}
 	if len(pod.Spec.Tolerations) != 0 {
 		t.Errorf("Tolerations = %v, want none by default", pod.Spec.Tolerations)
 	}
 
+	profile.Spec.PodSpec.NodeSelector = map[string]string{"codx.io/pool": "workspaces"}
 	profile.Spec.PodSpec.Affinity = &corev1.Affinity{
 		NodeAffinity: &corev1.NodeAffinity{
 			RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
@@ -448,6 +452,9 @@ func TestBuildPodAffinityAndTolerations(t *testing.T) {
 	}
 	pod = BuildPod("codx", "john-doe", "codx-system", "codx-john-doe.codx-system.svc.cluster.local", profile, testConfig())
 
+	if pod.Spec.NodeSelector["codx.io/pool"] != "workspaces" {
+		t.Errorf("NodeSelector = %v, want codx.io/pool=workspaces", pod.Spec.NodeSelector)
+	}
 	if pod.Spec.Affinity == nil || pod.Spec.Affinity.NodeAffinity == nil {
 		t.Fatal("Affinity not propagated to the pod")
 	}

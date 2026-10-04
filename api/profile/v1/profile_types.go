@@ -116,6 +116,11 @@ type ProfilePodSpec struct {
 	// +optional
 	Affinity *corev1.Affinity `json:"affinity,omitempty"`
 
+	// NodeSelector sets the labels a node must have for the workspace pod
+	// to be scheduled on it. It is a simple alternative to affinity.
+	// +optional
+	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
+
 	// Tolerations sets the tolerations of the workspace pod, allowing it to
 	// be scheduled on nodes with matching taints.
 	// +optional

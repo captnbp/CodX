@@ -782,6 +782,8 @@ tracing:
 ##       image: codercom/code-server:latest
 ##       # imagePullSecrets:
 ##       #   - name: my-registry-pull-secret
+##       # nodeSelector:
+##       #   codx.io/pool: workspaces
 ##       # affinity:
 ##       #   nodeAffinity:
 ##       #     requiredDuringSchedulingIgnoredDuringExecution:
