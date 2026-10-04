@@ -51,16 +51,15 @@ func NewInClusterClientset() (*Clientset, error) {
 		return nil, fmt.Errorf("build dynamic clientset: %w", err)
 	}
 
-	nodeRest, err := rest.RESTClientFor(config)
-	if err != nil {
-		return nil, fmt.Errorf("build node rest client: %w", err)
-	}
-
 	return &Clientset{
 		CoreV1:      &realCoreV1{inner: coreClient.CoreV1()},
 		CertManager: &realCertManager{inner: cmClient.CertmanagerV1()},
 		Profile:     &realProfileClient{client: dynClient},
-		Nodes:       &realNodeInterface{rest: nodeRest},
+		// The node stats summary is fetched with raw requests through the
+		// API server node proxy; reuse the corev1 REST client of the typed
+		// clientset (it already carries auth, TLS, and the negotiated
+		// serializer).
+		Nodes: &realNodeInterface{rest: coreClient.CoreV1().RESTClient()},
 	}, nil
 }
 
