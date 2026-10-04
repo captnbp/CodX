@@ -13,10 +13,13 @@ import (
 )
 
 func newTestClientset() *Clientset {
+	core := newFakeCoreV1Client()
 	return &Clientset{
-		CoreV1:      newFakeCoreV1Client(),
+		CoreV1:      core,
 		CertManager: newFakeCertManagerClient(),
-		Nodes:       newFakeCoreV1Client().Nodes(),
+		// Share the same fake so node stats set on cs.CoreV1 are visible
+		// through the Nodes interface.
+		Nodes: core.Nodes(),
 	}
 }
 

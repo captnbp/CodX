@@ -29,7 +29,6 @@ type CoreV1Client struct {
 
 	// PodLogs maps pod name to its log content, returned by Logs.
 	PodLogs map[string]string
-
 }
 
 // NewCoreV1Client creates a new in-memory CoreV1Client.

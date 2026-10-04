@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -29,7 +28,7 @@ type WorkspaceUsage struct {
 	// Memory request and limit of the code-server container, in bytes.
 	// Zero when not set in the profile.
 	MemoryRequestBytes int64
-	MemoryLimitBytes    int64
+	MemoryLimitBytes   int64
 
 	// Ephemeral storage used by the code-server container (rootfs and
 	// logs), in bytes.
@@ -51,7 +50,7 @@ type podStats struct {
 		Name      string `json:"name"`
 		Namespace string `json:"namespace"`
 	} `json:"podRef"`
-	Network    *networkStats     `json:"network"`
+	Network    *networkStats    `json:"network"`
 	Containers []containerStats `json:"containers"`
 }
 
@@ -61,11 +60,11 @@ type networkStats struct {
 }
 
 type containerStats struct {
-	Name    string     `json:"name"`
-	CPU     *cpuStats  `json:"cpu"`
-	Memory  *memStats  `json:"memory"`
-	Rootfs  *fsStats   `json:"rootfs"`
-	Logs    *fsStats   `json:"logs"`
+	Name   string    `json:"name"`
+	CPU    *cpuStats `json:"cpu"`
+	Memory *memStats `json:"memory"`
+	Rootfs *fsStats  `json:"rootfs"`
+	Logs   *fsStats  `json:"logs"`
 }
 
 type cpuStats struct {

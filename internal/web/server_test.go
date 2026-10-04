@@ -15,6 +15,7 @@ import (
 	"github.com/captnbp/CodX/internal/k8s/fake"
 	"github.com/captnbp/CodX/internal/session"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -409,6 +410,99 @@ func TestWorkspaceLogsWrongMethod(t *testing.T) {
 
 	if rr.Code != http.StatusMethodNotAllowed {
 		t.Errorf("logs POST: got %d, want %d", rr.Code, http.StatusMethodNotAllowed)
+	}
+}
+
+func TestWorkspaceStatusUsage(t *testing.T) {
+	srv, store, _, cs := testServerWithClientset(t)
+	handler := srv.Handler()
+
+	// Running pod on node worker-1 with requests and limits.
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "codx-john-doe",
+			Namespace:         "codx-system",
+			CreationTimestamp: metav1.Time{Time: time.Now().Add(-30 * time.Minute)},
+		},
+		Spec: corev1.PodSpec{
+			NodeName: "worker-1",
+			Containers: []corev1.Container{{
+				Name: "code-server",
+				Resources: corev1.ResourceRequirements{
+					Requests: corev1.ResourceList{
+						corev1.ResourceCPU:    resource.MustParse("250m"),
+						corev1.ResourceMemory: resource.MustParse("256Mi"),
+					},
+					Limits: corev1.ResourceList{
+						corev1.ResourceCPU:    resource.MustParse("2"),
+						corev1.ResourceMemory: resource.MustParse("4Gi"),
+					},
+				},
+			}},
+		},
+		Status: corev1.PodStatus{Phase: corev1.PodRunning},
+	}
+	if _, err := cs.CoreV1.Pods("codx-system").Create(context.Background(), pod, metav1.CreateOptions{}); err != nil {
+		t.Fatalf("create pod: %v", err)
+	}
+	cs.Nodes.(*fake.NodeClient).NodeStats["worker-1"] = `{"pods":[
+		{
+			"podRef": {"name": "codx-john-doe", "namespace": "codx-system"},
+			"network": {"rxBytes": 1024, "txBytes": 512},
+			"containers": [
+				{"name": "code-server", "cpu": {"usageNanoCores": 250000000}, "memory": {"workingSetBytes": 536870912}, "rootfs": {"usedBytes": 1048576}, "logs": {"usedBytes": 1024}}
+			]
+		}
+	]}`
+
+	cookie := createSessionCookie(t, store, "john.doe", "john-doe", []string{"developers"}, false)
+	rr := doRequest(t, handler, "GET", "/api/workspace/status", cookie)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want %d", rr.Code, http.StatusOK)
+	}
+
+	var result struct {
+		Running bool `json:"running"`
+		Usage   *struct {
+			CPU struct {
+				UsedCores    float64 `json:"usedCores"`
+				RequestCores float64 `json:"requestCores"`
+				LimitCores   float64 `json:"limitCores"`
+			} `json:"cpu"`
+			Memory struct {
+				UsedBytes    int64 `json:"usedBytes"`
+				RequestBytes int64 `json:"requestBytes"`
+				LimitBytes   int64 `json:"limitBytes"`
+			} `json:"memory"`
+			Storage struct {
+				UsedBytes int64 `json:"usedBytes"`
+			} `json:"storage"`
+			Network struct {
+				RxBytes int64 `json:"rxBytes"`
+				TxBytes int64 `json:"txBytes"`
+			} `json:"network"`
+		} `json:"usage"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &result); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if !result.Running || result.Usage == nil {
+		t.Fatalf("running = %v, usage = %v, want running with usage", result.Running, result.Usage)
+	}
+	if result.Usage.CPU.UsedCores < 0.249 || result.Usage.CPU.UsedCores > 0.251 {
+		t.Errorf("cpu.usedCores = %v, want 0.25", result.Usage.CPU.UsedCores)
+	}
+	if result.Usage.CPU.RequestCores != 0.25 || result.Usage.CPU.LimitCores != 2 {
+		t.Errorf("cpu request/limit = %v/%v, want 0.25/2", result.Usage.CPU.RequestCores, result.Usage.CPU.LimitCores)
+	}
+	if result.Usage.Memory.UsedBytes != 536870912 || result.Usage.Memory.LimitBytes != 4294967296 {
+		t.Errorf("memory used/limit = %v/%v, want 536870912/4294967296", result.Usage.Memory.UsedBytes, result.Usage.Memory.LimitBytes)
+	}
+	if result.Usage.Storage.UsedBytes != 1049600 {
+		t.Errorf("storage.usedBytes = %v, want 1049600", result.Usage.Storage.UsedBytes)
+	}
+	if result.Usage.Network.RxBytes != 1024 || result.Usage.Network.TxBytes != 512 {
+		t.Errorf("network = %v/%v, want 1024/512", result.Usage.Network.RxBytes, result.Usage.Network.TxBytes)
 	}
 }
 
