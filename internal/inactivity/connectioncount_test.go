@@ -74,7 +74,7 @@ func newTestActivity(t *testing.T, srvURL, slug string) (*ConnectionCountActivit
 }
 
 func TestConnectionCountRecordsActivityWhenConnectionsActive(t *testing.T) {
-	srv := envoyStatsServer(t, 3)
+	srv := envoyStatsServer(t, 11)
 	a, _ := newTestActivity(t, srv.URL, "john-doe")
 
 	a.Poll(context.Background())
@@ -99,8 +99,19 @@ func TestConnectionCountNoActivityWhenNoConnections(t *testing.T) {
 	}
 }
 
+func TestConnectionCountNoActivityAtThreshold(t *testing.T) {
+	srv := envoyStatsServer(t, DefaultMinActiveConnections)
+	a, _ := newTestActivity(t, srv.URL, "john-doe")
+
+	a.Poll(context.Background())
+
+	if ts := a.LastActivity("john-doe"); !ts.IsZero() {
+		t.Errorf("LastActivity = %v, want zero for %d active connections", ts, DefaultMinActiveConnections)
+	}
+}
+
 func TestConnectionCountUnreachablePodDoesNotBlockOthers(t *testing.T) {
-	srv := envoyStatsServer(t, 1)
+	srv := envoyStatsServer(t, 11)
 	ip, port := testEndpoint(t, srv.URL)
 	lister := &fakePodLister{pods: []WorkspacePod{
 		{Slug: "gone", PodIP: "127.0.0.2"}, // loopback too, but the admin port is closed
@@ -119,7 +130,7 @@ func TestConnectionCountUnreachablePodDoesNotBlockOthers(t *testing.T) {
 }
 
 func TestConnectionCountForgetsRemovedPods(t *testing.T) {
-	srv := envoyStatsServer(t, 2)
+	srv := envoyStatsServer(t, 11)
 	a, lister := newTestActivity(t, srv.URL, "john-doe")
 
 	a.Poll(context.Background())
@@ -137,7 +148,7 @@ func TestConnectionCountForgetsRemovedPods(t *testing.T) {
 }
 
 func TestConnectionCountListErrorKeepsRecords(t *testing.T) {
-	srv := envoyStatsServer(t, 1)
+	srv := envoyStatsServer(t, 11)
 	a, lister := newTestActivity(t, srv.URL, "john-doe")
 
 	a.Poll(context.Background())
@@ -155,7 +166,7 @@ func TestConnectionCountListErrorKeepsRecords(t *testing.T) {
 
 func TestConnectionCountCustomStatName(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, `{"stats":[{"name":"listener.0.0.0.0_9443.downstream_cx_active","value":1,"type":"GAUGE"}]}`)
+		fmt.Fprintf(w, `{"stats":[{"name":"listener.0.0.0.0_9443.downstream_cx_active","value":11,"type":"GAUGE"}]}`)
 	}))
 	t.Cleanup(srv.Close)
 

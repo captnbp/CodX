@@ -28,6 +28,10 @@ const (
 	// DefaultConnectionTimeout is the per-pod timeout when polling the
 	// Envoy admin interface.
 	DefaultConnectionTimeout = 5 * time.Second
+
+	// DefaultMinActiveConnections is the minimum number of active
+	// downstream connections for a workspace to be considered active.
+	DefaultMinActiveConnections = 10
 )
 
 // WorkspacePod identifies a running workspace pod that can be reached on its
@@ -74,8 +78,9 @@ func (o *ConnectionCountOptions) withDefaults() *ConnectionCountOptions {
 
 // ConnectionCountActivity implements ActivitySource by polling the Envoy admin
 // /stats endpoint of every workspace pod. When the watched stat (the number of
-// active downstream HTTPS connections) is greater than zero, the current time
-// is recorded as the workspace's last activity.
+// active downstream HTTPS connections) is strictly greater than
+// DefaultMinActiveConnections, the current time is recorded as the workspace's
+// last activity.
 //
 // The poll loop must be started explicitly with Run; without it the source
 // never records activity.
@@ -139,7 +144,7 @@ func (a *ConnectionCountActivity) Poll(ctx context.Context) {
 			a.log.V(1).Error(err, "failed to query envoy stats", "slug", pod.Slug)
 			continue
 		}
-		if count > 10 {
+		if count > DefaultMinActiveConnections {
 			a.RecordActivity(pod.Slug, time.Now())
 		}
 	}
