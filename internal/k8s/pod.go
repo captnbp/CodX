@@ -3,8 +3,10 @@ package k8s
 import (
 	"context"
 	"fmt"
+	"io"
 	"time"
 
+	"github.com/captnbp/CodX/internal/slug"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -124,6 +126,19 @@ func (m *WorkspaceManager) ListWorkspacePods(ctx context.Context) ([]corev1.Pod,
 		running = append(running, pod)
 	}
 	return running, nil
+}
+
+// GetWorkspaceLogs returns the logs of one container of the workspace pod,
+// optionally following new lines as they are emitted (follow=true).
+// The caller must close the returned ReadCloser.
+func (m *WorkspaceManager) GetWorkspaceLogs(ctx context.Context, userSlug, container string, tailLines int64, follow bool) (io.ReadCloser, error) {
+	namespace := m.cfg.Namespace
+	objName := slug.ObjectName(m.cfg.InstanceName, userSlug, m.maxNameLen)
+	return m.clients.CoreV1.Pods(namespace).Logs(ctx, objName, corev1.PodLogOptions{
+		Container: container,
+		TailLines: &tailLines,
+		Follow:    follow,
+	})
 }
 
 // RestartWorkspace deletes the workspace pod so that it gets recreated (the

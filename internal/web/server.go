@@ -4,11 +4,14 @@
 package web
 
 import (
+	"bufio"
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
 	"html"
+	"io"
 	"net/http"
+	"strconv"
 	"time"
 
 	profilev1 "github.com/captnbp/CodX/api/profile/v1"
@@ -93,6 +96,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/workspace/stop", s.handleStopWorkspace)
 	mux.HandleFunc("/api/workspace/restart", s.handleRestartWorkspace)
 	mux.HandleFunc("/api/workspace/status", s.handleWorkspaceStatus)
+	mux.HandleFunc("/api/workspace/logs", s.handleWorkspaceLogs)
 	mux.HandleFunc("/api/admin/users", s.handleAdminListUsers)
 	mux.HandleFunc("/api/admin/users/", s.handleAdminUserAction)
 	mux.HandleFunc("/admin", s.handleAdminUI)
@@ -209,14 +213,46 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
     </div>
     <div class="col-lg-4">
       <h2 class="mb-3">Workspace</h2>
+      <div id="workspace-state" class="mb-3"><span class="badge text-bg-secondary">Checking workspace...</span></div>
       <div class="d-grid gap-2">
-        <button class="btn btn-danger" onclick="stopWorkspace()">Stop my workspace</button>
+        <a id="go-workspace" class="btn btn-primary d-none" href="#">Go to my workspace</a>
+        <button id="restart-workspace" class="btn btn-warning d-none" onclick="restartWorkspace()">Restart my workspace</button>
+        <button id="logs-workspace" class="btn btn-outline-secondary d-none" onclick="loadWorkspaceLogs()">View logs</button>
+        <button id="stop-workspace" class="btn btn-danger d-none" onclick="stopWorkspace()">Stop my workspace</button>
       </div>
       <div id="status" class="mt-3"></div>
     </div>
   </div>
 </div>
 <script>
+function refreshWorkspaceState() {
+    fetch("/api/workspace/status")
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var state = document.getElementById("workspace-state");
+            var go = document.getElementById("go-workspace");
+            var restart = document.getElementById("restart-workspace");
+            var stop = document.getElementById("stop-workspace");
+            if (data.running) {
+                state.innerHTML = '<span class="badge text-bg-success">Running</span>';
+                go.href = "/user/" + encodeURIComponent(data.slug) + "/";
+                go.classList.remove("d-none");
+                restart.classList.remove("d-none");
+                stop.classList.remove("d-none");
+                document.getElementById("logs-workspace").classList.remove("d-none");
+            } else {
+                state.innerHTML = '<span class="badge text-bg-secondary">Not running</span>';
+                go.classList.add("d-none");
+                restart.classList.add("d-none");
+                stop.classList.add("d-none");
+                document.getElementById("logs-workspace").classList.add("d-none");
+            }
+        })
+        .catch(function(err) {
+            document.getElementById("workspace-state").innerHTML = '<span class="badge text-bg-danger">Status error</span>';
+        });
+}
+document.addEventListener("DOMContentLoaded", refreshWorkspaceState);
 function startWorkspace(profileName) {
     var evtSource = new EventSource("/api/workspace/start?profile=" + encodeURIComponent(profileName));
     var statusDiv = document.getElementById("status");
@@ -226,6 +262,7 @@ function startWorkspace(profileName) {
     });
     evtSource.addEventListener("ready", function(e) {
         statusDiv.innerHTML += '<div class="alert alert-success">Workspace ready! Redirecting...</div>';
+        refreshWorkspaceState();
         setTimeout(function() { window.location.href = e.data; }, 500);
         evtSource.close();
     });
@@ -242,6 +279,60 @@ function stopWorkspace() {
         .then(function(data) {
             if (data.status === "stopped") {
                 statusDiv.innerHTML += '<div class="alert alert-success">Workspace stopped.</div>';
+                refreshWorkspaceState();
+            } else {
+                statusDiv.innerHTML += '<div class="alert alert-danger">Error: ' + (data.error || "unknown error") + '</div>';
+            }
+        })
+        .catch(function(err) {
+            statusDiv.innerHTML += '<div class="alert alert-danger">Error: ' + err + '</div>';
+        });
+}
+var logsEvtSource = null;
+var logsPre = null;
+function loadWorkspaceLogs() {
+    var btn = document.getElementById("logs-workspace");
+    var statusDiv = document.getElementById("status");
+    if (logsEvtSource) {
+        logsEvtSource.close();
+        logsEvtSource = null;
+        btn.textContent = "View logs";
+        return;
+    }
+    statusDiv.innerHTML = "";
+    logsPre = document.createElement("pre");
+    logsPre.className = "bg-dark text-light p-3 rounded";
+    logsPre.setAttribute("style", "max-height: 400px; overflow-y: scroll; font-size: 0.8rem;");
+    statusDiv.appendChild(logsPre);
+    logsEvtSource = new EventSource("/api/workspace/logs?follow=true&tail=200");
+    btn.textContent = "Stop logs";
+    var closeLogs = function() {
+        if (logsEvtSource) { logsEvtSource.close(); }
+        logsEvtSource = null;
+        btn.textContent = "View logs";
+    };
+    logsEvtSource.addEventListener("log", function(e) {
+        logsPre.textContent += e.data + "\n";
+        logsPre.scrollTop = logsPre.scrollHeight;
+    });
+    logsEvtSource.addEventListener("end", function(e) {
+        logsPre.textContent += "--- " + (e.data || "stream closed") + " ---\n";
+        closeLogs();
+    });
+    logsEvtSource.addEventListener("error", function(e) {
+        if (e.data) { logsPre.textContent += "Error: " + e.data + "\n"; }
+        closeLogs();
+    });
+}
+function restartWorkspace() {
+    var statusDiv = document.getElementById("status");
+    statusDiv.innerHTML = '<div class="alert alert-info">Restarting workspace...</div>';
+    fetch("/api/workspace/restart", { method: "POST" })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.status === "restarting") {
+                statusDiv.innerHTML += '<div class="alert alert-success">Workspace restarting.</div>';
+                refreshWorkspaceState();
             } else {
                 statusDiv.innerHTML += '<div class="alert alert-danger">Error: ' + (data.error || "unknown error") + '</div>';
             }
@@ -614,12 +705,99 @@ func (s *Server) handleWorkspaceStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if the workspace pod exists.
-	// This is a simplified status check; in Phase 5 we'll expand it.
+	// Report whether the workspace pod exists and is running, so the UI
+	// can adapt the workspace actions.
+	running := s.workspaces.IsWorkspaceRunning(r.Context(), sess.Slug)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"username": sess.Username,
 		"slug":     sess.Slug,
+		"running":  running,
 	})
+}
+
+// handleWorkspaceLogs returns the last log lines of the user's code-server
+// container. The tail query parameter sets how many lines to return
+// (default 200, max 1000). With follow=true the response is an SSE stream
+// that keeps sending new log lines until the stream ends (e.g. the pod is
+// stopped) or the client disconnects.
+func (s *Server) handleWorkspaceLogs(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	sess := SessionFromContext(r.Context())
+	if sess == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	tail := int64(200)
+	if raw := r.URL.Query().Get("tail"); raw != "" {
+		if v, err := strconv.ParseInt(raw, 10, 64); err == nil {
+			tail = v
+		}
+	}
+	if tail < 1 {
+		tail = 1
+	}
+	if tail > 1000 {
+		tail = 1000
+	}
+	follow := r.URL.Query().Get("follow") == "true"
+
+	if !s.workspaces.IsWorkspaceRunning(r.Context(), sess.Slug) {
+		http.Error(w, "workspace not running", http.StatusConflict)
+		return
+	}
+
+	logs, err := s.workspaces.GetWorkspaceLogs(r.Context(), sess.Slug, k8s.CodeServerContainerName, tail, follow)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("failed to get workspace logs: %v", err), http.StatusInternalServerError)
+		return
+	}
+	defer logs.Close()
+
+	if !follow {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		if _, err := io.Copy(w, logs); err != nil {
+			s.log.Error(err, "failed to stream workspace logs", "user", sess.Username, "slug", sess.Slug)
+		}
+		return
+	}
+
+	// Live SSE stream: one "log" event per line, until the pod log stream
+	// ends (pod stopped) or the client disconnects.
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming not supported", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	sendEvent := func(event, data string) {
+		fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event, data)
+		flusher.Flush()
+	}
+
+	scanner := bufio.NewScanner(logs)
+	// Log lines can be long (stack traces, URLs); allow up to 1 MiB.
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+
+	for scanner.Scan() {
+		if r.Context().Err() != nil {
+			return
+		}
+		sendEvent("log", scanner.Text())
+	}
+	if err := scanner.Err(); err != nil {
+		s.log.Error(err, "workspace log stream failed", "user", sess.Username, "slug", sess.Slug)
+		sendEvent("error", fmt.Sprintf("log stream failed: %v", err))
+		return
+	}
+	sendEvent("end", "log stream closed")
 }
 
 func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {

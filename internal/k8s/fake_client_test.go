@@ -2,6 +2,8 @@ package k8s
 
 import (
 	"context"
+	"io"
+	"strings"
 	"sync"
 
 	profilev1 "github.com/captnbp/CodX/api/profile/v1"
@@ -171,6 +173,10 @@ func (f *fakePodInterface) Delete(ctx context.Context, name string, opts metav1.
 	}
 	delete(f.client.pods, name)
 	return nil
+}
+
+func (f *fakePodInterface) Logs(ctx context.Context, name string, opts corev1.PodLogOptions) (io.ReadCloser, error) {
+	return io.NopCloser(strings.NewReader("fake pod logs")), nil
 }
 
 func (f *fakePodInterface) List(ctx context.Context, opts metav1.ListOptions) (*corev1.PodList, error) {

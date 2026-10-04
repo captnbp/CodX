@@ -4,6 +4,8 @@ package fake
 
 import (
 	"context"
+	"io"
+	"strings"
 	"sync"
 
 	profilev1 "github.com/captnbp/CodX/api/profile/v1"
@@ -24,6 +26,9 @@ type CoreV1Client struct {
 	PodMap       map[string]*corev1.Pod
 	ConfigMapMap map[string]*corev1.ConfigMap
 	SecretMap    map[string]*corev1.Secret
+
+	// PodLogs maps pod name to its log content, returned by Logs.
+	PodLogs map[string]string
 }
 
 // NewCoreV1Client creates a new in-memory CoreV1Client.
@@ -34,6 +39,7 @@ func NewCoreV1Client() *CoreV1Client {
 		PodMap:       make(map[string]*corev1.Pod),
 		ConfigMapMap: make(map[string]*corev1.ConfigMap),
 		SecretMap:    make(map[string]*corev1.Secret),
+		PodLogs:      make(map[string]string),
 	}
 }
 
@@ -158,6 +164,15 @@ func (f *podInterface) Create(ctx context.Context, pod *corev1.Pod, opts metav1.
 	}
 	f.client.PodMap[pod.Name] = pod.DeepCopy()
 	return pod.DeepCopy(), nil
+}
+
+func (f *podInterface) Logs(ctx context.Context, name string, opts corev1.PodLogOptions) (io.ReadCloser, error) {
+	f.client.mu.Lock()
+	defer f.client.mu.Unlock()
+	if _, exists := f.client.PodMap[name]; !exists {
+		return nil, apierrors.NewNotFound(schema.GroupResource{Resource: "pods"}, name)
+	}
+	return io.NopCloser(strings.NewReader(f.client.PodLogs[name])), nil
 }
 
 func (f *podInterface) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {

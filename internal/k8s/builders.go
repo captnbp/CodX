@@ -27,6 +27,10 @@ const (
 	// the workspace was created from. It lets the inactivity watcher resolve
 	// the profile's InactivityStopDelaySeconds for each running workspace.
 	LabelProfile = "codx.captnbp.io/profile"
+
+	// CodeServerContainerName is the name of the code-server main container
+	// in workspace pods.
+	CodeServerContainerName = "code-server"
 )
 
 // workspaceLabels returns the standard label set for a workspace object.
@@ -241,7 +245,7 @@ func buildContainers(profile *profilev1.Profile, objName, userSlug string, cfg *
 
 	// Main code-server container.
 	main := corev1.Container{
-		Name:         "code-server",
+		Name:         CodeServerContainerName,
 		Image:        profile.Spec.PodSpec.Image,
 		Resources:    profile.Spec.PodSpec.Resources,
 		VolumeMounts: profile.Spec.PodSpec.VolumeMounts,

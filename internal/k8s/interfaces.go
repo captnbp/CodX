@@ -2,6 +2,7 @@ package k8s
 
 import (
 	"context"
+	"io"
 
 	profilev1 "github.com/captnbp/CodX/api/profile/v1"
 	cmv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
@@ -41,6 +42,9 @@ type PodInterface interface {
 	Create(ctx context.Context, pod *corev1.Pod, opts metav1.CreateOptions) (*corev1.Pod, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
 	List(ctx context.Context, opts metav1.ListOptions) (*corev1.PodList, error)
+	// Logs returns a ReadCloser streaming the logs of one container of a
+	// pod. The caller must close it.
+	Logs(ctx context.Context, name string, opts corev1.PodLogOptions) (io.ReadCloser, error)
 }
 
 // ConfigMapInterface wraps corev1 ConfigMap operations.

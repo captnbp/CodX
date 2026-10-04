@@ -19,7 +19,7 @@ func testConfig() *config.Config {
 		},
 		Slug: config.SlugConfig{MaxLength: 63},
 		WorkspaceService: config.WorkspaceServiceConfig{
-			IPFamilies:      []string{"IPv6", "IPv4"},
+			IPFamilies:     []string{"IPv6", "IPv4"},
 			IPFamilyPolicy: "PreferDualStack",
 		},
 	}

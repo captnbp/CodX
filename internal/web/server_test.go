@@ -14,20 +14,29 @@ import (
 	"github.com/captnbp/CodX/internal/k8s"
 	"github.com/captnbp/CodX/internal/k8s/fake"
 	"github.com/captnbp/CodX/internal/session"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // testServer builds a web.Server with in-memory fakes for testing.
 func testServer(t *testing.T) (*Server, *session.MemoryStore, *k8s.ProfileStore) {
 	t.Helper()
+	srv, store, profiles, _ := testServerWithClientset(t)
+	return srv, store, profiles
+}
+
+// testServerWithClientset is testServer, also returning the fake Kubernetes
+// clientset so tests can pre-create objects.
+func testServerWithClientset(t *testing.T) (*Server, *session.MemoryStore, *k8s.ProfileStore, *k8s.Clientset) {
+	t.Helper()
 
 	cfg := &config.Config{
 		InstanceName: "codx",
 		Namespace:    "codx-system",
 		HTTP: config.HTTPConfig{
-			ListenAddr:   ":0",
-			TLSCertFile:  "/tls/tls.crt",
-			TLSKeyFile:   "/tls/tls.key",
+			ListenAddr:  ":0",
+			TLSCertFile: "/tls/tls.crt",
+			TLSKeyFile:  "/tls/tls.key",
 		},
 		Slug: config.SlugConfig{MaxLength: 63},
 		CertManager: config.CertManagerConfig{
@@ -81,7 +90,7 @@ func testServer(t *testing.T) (*Server, *session.MemoryStore, *k8s.ProfileStore)
 	// only needed for login/callback which we test separately.
 	srv := New(cfg, nil, store, profiles, wm, proxyFactory)
 
-	return srv, store, profiles
+	return srv, store, profiles, cs
 }
 
 // createSessionCookie creates a test session in the store and returns the
@@ -265,6 +274,157 @@ func TestWorkspaceStatusAPI(t *testing.T) {
 	}
 	if result["slug"] != "john-doe" {
 		t.Errorf("slug = %v, want john-doe", result["slug"])
+	}
+	if result["running"] != false {
+		t.Errorf("running = %v, want false (no pod)", result["running"])
+	}
+}
+
+func TestWorkspaceStatusRunning(t *testing.T) {
+	srv, store, _, cs := testServerWithClientset(t)
+	handler := srv.Handler()
+
+	// Pre-create a running workspace pod for john-doe.
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "codx-john-doe",
+			Namespace: "codx-system",
+			Labels: map[string]string{
+				"app.kubernetes.io/instance":   "john-doe",
+				"app.kubernetes.io/managed-by": "codx",
+				"app.kubernetes.io/component":  "workspace",
+			},
+		},
+		Status: corev1.PodStatus{Phase: corev1.PodRunning},
+	}
+	if _, err := cs.CoreV1.Pods("codx-system").Create(context.Background(), pod, metav1.CreateOptions{}); err != nil {
+		t.Fatalf("create pod: %v", err)
+	}
+
+	cookie := createSessionCookie(t, store, "john.doe", "john-doe", []string{"developers"}, false)
+	rr := doRequest(t, handler, "GET", "/api/workspace/status", cookie)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want %d", rr.Code, http.StatusOK)
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &result); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if result["running"] != true {
+		t.Errorf("running = %v, want true", result["running"])
+	}
+}
+
+func TestWorkspaceLogs(t *testing.T) {
+	srv, store, _, cs := testServerWithClientset(t)
+	handler := srv.Handler()
+
+	// Pre-create a running pod with logs.
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "codx-john-doe", Namespace: "codx-system"},
+		Status:     corev1.PodStatus{Phase: corev1.PodRunning},
+	}
+	if _, err := cs.CoreV1.Pods("codx-system").Create(context.Background(), pod, metav1.CreateOptions{}); err != nil {
+		t.Fatalf("create pod: %v", err)
+	}
+	cs.CoreV1.(*fake.CoreV1Client).PodLogs["codx-john-doe"] = "line1\ncode-server started\n"
+
+	cookie := createSessionCookie(t, store, "john.doe", "john-doe", []string{"developers"}, false)
+	rr := doRequest(t, handler, "GET", "/api/workspace/logs?tail=50", cookie)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("logs: got %d, want %d", rr.Code, http.StatusOK)
+	}
+	if rr.Header().Get("Content-Type") != "text/plain; charset=utf-8" {
+		t.Errorf("logs content-type = %q, want text/plain", rr.Header().Get("Content-Type"))
+	}
+	if !strings.Contains(rr.Body.String(), "code-server started") {
+		t.Errorf("logs body = %q, want the pod logs", rr.Body.String())
+	}
+}
+
+func TestWorkspaceLogsNotRunning(t *testing.T) {
+	srv, store, _ := testServer(t)
+	handler := srv.Handler()
+
+	cookie := createSessionCookie(t, store, "john.doe", "john-doe", []string{"developers"}, false)
+	rr := doRequest(t, handler, "GET", "/api/workspace/logs", cookie)
+
+	if rr.Code != http.StatusConflict {
+		t.Errorf("logs without pod: got %d, want %d", rr.Code, http.StatusConflict)
+	}
+}
+
+func TestWorkspaceLogsFollow(t *testing.T) {
+	srv, store, _, cs := testServerWithClientset(t)
+	handler := srv.Handler()
+
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "codx-john-doe", Namespace: "codx-system"},
+		Status:     corev1.PodStatus{Phase: corev1.PodRunning},
+	}
+	if _, err := cs.CoreV1.Pods("codx-system").Create(context.Background(), pod, metav1.CreateOptions{}); err != nil {
+		t.Fatalf("create pod: %v", err)
+	}
+	cs.CoreV1.(*fake.CoreV1Client).PodLogs["codx-john-doe"] = "line1\ncode-server started\nline3\n"
+
+	cookie := createSessionCookie(t, store, "john.doe", "john-doe", []string{"developers"}, false)
+	rr := doRequest(t, handler, "GET", "/api/workspace/logs?follow=true&tail=50", cookie)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("logs follow: got %d, want %d", rr.Code, http.StatusOK)
+	}
+	if ct := rr.Header().Get("Content-Type"); ct != "text/event-stream" {
+		t.Errorf("logs follow content-type = %q, want text/event-stream", ct)
+	}
+	body := rr.Body.String()
+	for _, want := range []string{
+		"event: log\ndata: line1",
+		"event: log\ndata: code-server started",
+		"event: log\ndata: line3",
+		"event: end",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("SSE body missing %q, body:\n%s", want, body)
+		}
+	}
+}
+
+func TestWorkspaceLogsWrongMethod(t *testing.T) {
+	srv, store, _ := testServer(t)
+	handler := srv.Handler()
+
+	cookie := createSessionCookie(t, store, "john.doe", "john-doe", []string{"developers"}, false)
+	rr := doRequest(t, handler, "POST", "/api/workspace/logs", cookie)
+
+	if rr.Code != http.StatusMethodNotAllowed {
+		t.Errorf("logs POST: got %d, want %d", rr.Code, http.StatusMethodNotAllowed)
+	}
+}
+
+func TestIndexWorkspaceButtons(t *testing.T) {
+	srv, store, _ := testServer(t)
+	handler := srv.Handler()
+
+	cookie := createSessionCookie(t, store, "john.doe", "john-doe", []string{"developers"}, false)
+	rr := doRequest(t, handler, "GET", "/", cookie)
+
+	body := rr.Body.String()
+	for _, want := range []string{
+		`id="workspace-state"`,
+		`id="go-workspace"`,
+		`id="restart-workspace"`,
+		`id="logs-workspace"`,
+		`id="stop-workspace"`,
+		"/api/workspace/status",
+		"/api/workspace/logs",
+		"/api/workspace/restart",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("index page missing %q", want)
+		}
 	}
 }
 

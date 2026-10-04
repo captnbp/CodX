@@ -3,11 +3,12 @@ package k8s
 import (
 	"context"
 	"fmt"
+	"io"
 
 	profilev1 "github.com/captnbp/CodX/api/profile/v1"
-	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
 	cmv1versioned "github.com/cert-manager/cert-manager/pkg/client/clientset/versioned"
 	cmv1typed "github.com/cert-manager/cert-manager/pkg/client/clientset/versioned/typed/certmanager/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -15,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
+	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
 )
 
@@ -72,7 +74,33 @@ func (c *realCoreV1) PersistentVolumeClaims(namespace string) PVCInterface {
 }
 
 func (c *realCoreV1) Pods(namespace string) PodInterface {
-	return c.inner.Pods(namespace)
+	return &realPodInterface{inner: c.inner.Pods(namespace)}
+}
+
+// realPodInterface adapts the typed pod interface to PodInterface. The typed
+// interface is a superset except for Logs, which is adapted from GetLogs.
+type realPodInterface struct {
+	inner corev1client.PodInterface
+}
+
+func (p *realPodInterface) Get(ctx context.Context, name string, opts metav1.GetOptions) (*corev1.Pod, error) {
+	return p.inner.Get(ctx, name, opts)
+}
+
+func (p *realPodInterface) Create(ctx context.Context, pod *corev1.Pod, opts metav1.CreateOptions) (*corev1.Pod, error) {
+	return p.inner.Create(ctx, pod, opts)
+}
+
+func (p *realPodInterface) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
+	return p.inner.Delete(ctx, name, opts)
+}
+
+func (p *realPodInterface) List(ctx context.Context, opts metav1.ListOptions) (*corev1.PodList, error) {
+	return p.inner.List(ctx, opts)
+}
+
+func (p *realPodInterface) Logs(ctx context.Context, name string, opts corev1.PodLogOptions) (io.ReadCloser, error) {
+	return p.inner.GetLogs(name, &opts).Stream(ctx)
 }
 
 func (c *realCoreV1) ConfigMaps(namespace string) ConfigMapInterface {

@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-logr/logr"
 	profilev1 "github.com/captnbp/CodX/api/profile/v1"
+	"github.com/go-logr/logr"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
