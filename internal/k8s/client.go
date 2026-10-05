@@ -2,6 +2,7 @@ package k8s
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 
@@ -9,6 +10,7 @@ import (
 	cmv1versioned "github.com/cert-manager/cert-manager/pkg/client/clientset/versioned"
 	cmv1typed "github.com/cert-manager/cert-manager/pkg/client/clientset/versioned/typed/certmanager/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -55,11 +57,11 @@ func NewInClusterClientset() (*Clientset, error) {
 		CoreV1:      &realCoreV1{inner: coreClient.CoreV1()},
 		CertManager: &realCertManager{inner: cmClient.CertmanagerV1()},
 		Profile:     &realProfileClient{client: dynClient},
-		// The node stats summary is fetched with raw requests through the
-		// API server node proxy; reuse the corev1 REST client of the typed
-		// clientset (it already carries auth, TLS, and the negotiated
-		// serializer).
-		Nodes: &realNodeInterface{rest: coreClient.CoreV1().RESTClient()},
+		// Pod metrics are fetched with raw requests against the
+		// metrics.k8s.io API (served by metrics-server); reuse the corev1
+		// REST client of the typed clientset (it already carries auth,
+		// TLS, and the negotiated serializer).
+		MetricsV1: &realMetricsV1{rest: coreClient.CoreV1().RESTClient()},
 	}, nil
 }
 
@@ -82,14 +84,57 @@ func (c *realCoreV1) Pods(namespace string) PodInterface {
 	return &realPodInterface{inner: c.inner.Pods(namespace)}
 }
 
-// realNodeInterface fetches the kubelet stats summary through the API server
-// node proxy (GET /api/v1/nodes/<name>/proxy/stats/summary).
-type realNodeInterface struct {
+// realMetricsV1 reads pod metrics from the metrics.k8s.io API served by
+// metrics-server through the API server
+// (GET /apis/metrics.k8s.io/v1beta1/namespaces/<ns>/pods/<name>).
+type realMetricsV1 struct {
 	rest rest.Interface
 }
 
-func (n *realNodeInterface) StatsSummary(ctx context.Context, name string) (io.ReadCloser, error) {
-	return n.rest.Get().AbsPath("/api/v1/nodes", name, "proxy/stats/summary").Stream(ctx)
+func (m *realMetricsV1) PodMetrics(namespace string) PodMetricsInterface {
+	return &realPodMetricsInterface{rest: m.rest, namespace: namespace}
+}
+
+// podMetricsJSON mirrors the subset of the metrics.k8s.io PodMetrics object
+// used by CodX. Quantities are JSON strings ("250m", "536870912").
+type podMetricsJSON struct {
+	Containers []struct {
+		Name  string `json:"name"`
+		Usage struct {
+			CPU    resource.Quantity `json:"cpu"`
+			Memory resource.Quantity `json:"memory"`
+		} `json:"usage"`
+	} `json:"containers"`
+}
+
+type realPodMetricsInterface struct {
+	rest      rest.Interface
+	namespace string
+}
+
+func (p *realPodMetricsInterface) Get(ctx context.Context, name string, opts metav1.GetOptions) (*PodMetrics, error) {
+	raw, err := p.rest.Get().
+		AbsPath("/apis/metrics.k8s.io/v1beta1/namespaces", p.namespace, "pods", name).
+		Do(ctx).Raw()
+	if err != nil {
+		return nil, err
+	}
+
+	var doc podMetricsJSON
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		return nil, fmt.Errorf("decode pod metrics %s/%s: %w", p.namespace, name, err)
+	}
+
+	out := &PodMetrics{Containers: make([]ContainerMetrics, 0, len(doc.Containers))}
+	for i := range doc.Containers {
+		c := doc.Containers[i]
+		out.Containers = append(out.Containers, ContainerMetrics{
+			Name:                  c.Name,
+			CPUUsedCores:          float64(c.Usage.CPU.MilliValue()) / 1000,
+			MemoryWorkingSetBytes: c.Usage.Memory.Value(),
+		})
+	}
+	return out, nil
 }
 
 // realPodInterface adapts the typed pod interface to PodInterface. The typed

@@ -20,12 +20,36 @@ type CoreV1Client interface {
 	Secrets(namespace string) SecretInterface
 }
 
-// NodeInterface wraps node proxy operations.
-type NodeInterface interface {
-	// StatsSummary returns the kubelet stats summary of a node
-	// (per-container CPU/memory, per-pod network). The caller must close
-	// the returned ReadCloser.
-	StatsSummary(ctx context.Context, name string) (io.ReadCloser, error)
+// ContainerMetrics holds the current resource usage of a single container,
+// as reported by metrics-server (metrics.k8s.io).
+type ContainerMetrics struct {
+	// Name of the container within its pod.
+	Name string
+
+	// CPU usage, in cores.
+	CPUUsedCores float64
+
+	// Memory working set, in bytes.
+	MemoryWorkingSetBytes int64
+}
+
+// PodMetrics holds the current resource usage of the containers of one pod,
+// as reported by metrics-server (metrics.k8s.io).
+type PodMetrics struct {
+	Containers []ContainerMetrics
+}
+
+// MetricsV1Client is the subset of the metrics.k8s.io API (served by
+// metrics-server) used by CodX.
+type MetricsV1Client interface {
+	PodMetrics(namespace string) PodMetricsInterface
+}
+
+// PodMetricsInterface wraps metrics.k8s.io pod metrics operations.
+type PodMetricsInterface interface {
+	// Get returns the current CPU and memory usage of the containers of a
+	// pod.
+	Get(ctx context.Context, name string, opts metav1.GetOptions) (*PodMetrics, error)
 }
 
 // ServiceInterface wraps corev1 Service operations.

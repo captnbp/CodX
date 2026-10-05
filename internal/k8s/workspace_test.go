@@ -17,9 +17,9 @@ func newTestClientset() *Clientset {
 	return &Clientset{
 		CoreV1:      core,
 		CertManager: newFakeCertManagerClient(),
-		// Share the same fake so node stats set on cs.CoreV1 are visible
-		// through the Nodes interface.
-		Nodes: core.Nodes(),
+		// Share the same fake so pod metrics set on cs.CoreV1 are visible
+		// through the MetricsV1 interface.
+		MetricsV1: core.MetricsV1(),
 	}
 }
 

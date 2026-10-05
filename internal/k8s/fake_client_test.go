@@ -19,7 +19,7 @@ import (
 // fakeCoreV1Client implements CoreV1Client for testing.
 type fakeCoreV1Client struct {
 	mu         sync.Mutex
-	nodeStats  map[string]string
+	podMetrics map[string]*PodMetrics
 	services   map[string]*corev1.Service
 	pvcs       map[string]*corev1.PersistentVolumeClaim
 	pods       map[string]*corev1.Pod
@@ -29,7 +29,7 @@ type fakeCoreV1Client struct {
 
 func newFakeCoreV1Client() *fakeCoreV1Client {
 	return &fakeCoreV1Client{
-		nodeStats:  make(map[string]string),
+		podMetrics: make(map[string]*PodMetrics),
 		services:   make(map[string]*corev1.Service),
 		pvcs:       make(map[string]*corev1.PersistentVolumeClaim),
 		pods:       make(map[string]*corev1.Pod),
@@ -58,20 +58,29 @@ func (c *fakeCoreV1Client) Secrets(namespace string) SecretInterface {
 	return &fakeSecretInterface{client: c}
 }
 
-func (c *fakeCoreV1Client) Nodes() NodeInterface {
-	return &fakeNodeInterface{stats: c.nodeStats}
+func (c *fakeCoreV1Client) MetricsV1() MetricsV1Client {
+	return &fakeMetricsV1Client{metrics: c.podMetrics}
 }
 
-type fakeNodeInterface struct {
-	stats map[string]string
+type fakeMetricsV1Client struct {
+	metrics map[string]*PodMetrics
 }
 
-func (f *fakeNodeInterface) StatsSummary(ctx context.Context, name string) (io.ReadCloser, error) {
-	summary, ok := f.stats[name]
+func (c *fakeMetricsV1Client) PodMetrics(namespace string) PodMetricsInterface {
+	return &fakePodMetricsInterface{metrics: c.metrics, namespace: namespace}
+}
+
+type fakePodMetricsInterface struct {
+	metrics   map[string]*PodMetrics
+	namespace string
+}
+
+func (f *fakePodMetricsInterface) Get(ctx context.Context, name string, opts metav1.GetOptions) (*PodMetrics, error) {
+	metrics, ok := f.metrics[f.namespace+"/"+name]
 	if !ok {
-		return io.NopCloser(strings.NewReader(`{"pods":[]}`)), nil
+		return nil, apierrors.NewNotFound(schema.GroupResource{Group: "metrics.k8s.io", Resource: "pods"}, name)
 	}
-	return io.NopCloser(strings.NewReader(summary)), nil
+	return metrics, nil
 }
 
 type fakeServiceInterface struct {

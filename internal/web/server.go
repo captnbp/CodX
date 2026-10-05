@@ -317,10 +317,6 @@ function renderWorkspaceResources(u) {
     }
     var html = resourceBar("CPU", u.cpu.usedCores, u.cpu.limitCores, u.cpu.requestCores, formatCores);
     html += resourceBar("RAM", u.memory.usedBytes, u.memory.limitBytes, u.memory.requestBytes, formatBytes);
-    html += '<div class="text-muted" style="font-size: 0.8rem;">';
-    html += 'Storage: ' + formatBytes(u.storage.usedBytes) + ' &middot; ';
-    html += 'Network: &darr; ' + formatBytes(u.network.rxBytes) + ' &uarr; ' + formatBytes(u.network.txBytes);
-    html += '</div>';
     res.innerHTML = html;
 }
 setInterval(function() {
@@ -782,7 +778,7 @@ func (s *Server) handleWorkspaceStatus(w http.ResponseWriter, r *http.Request) {
 	// Report whether the workspace pod exists and is running and for how
 	// long, so the UI can adapt the workspace actions and show the uptime.
 	// When running, also report the resource usage of the code-server
-	// container (from the kubelet stats summary) when available.
+	// container (from metrics-server) when available.
 	age, running := s.workspaces.GetWorkspacePodAge(r.Context(), sess.Slug)
 	resp := map[string]any{
 		"username":   sess.Username,
@@ -803,13 +799,6 @@ func (s *Server) handleWorkspaceStatus(w http.ResponseWriter, r *http.Request) {
 					"usedBytes":    usage.MemoryUsedBytes,
 					"requestBytes": usage.MemoryRequestBytes,
 					"limitBytes":   usage.MemoryLimitBytes,
-				},
-				"storage": map[string]any{
-					"usedBytes": usage.StorageUsedBytes,
-				},
-				"network": map[string]any{
-					"rxBytes": usage.NetworkRxBytes,
-					"txBytes": usage.NetworkTxBytes,
 				},
 			}
 		} else if err != nil {

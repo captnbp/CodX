@@ -445,15 +445,11 @@ func TestWorkspaceStatusUsage(t *testing.T) {
 	if _, err := cs.CoreV1.Pods("codx-system").Create(context.Background(), pod, metav1.CreateOptions{}); err != nil {
 		t.Fatalf("create pod: %v", err)
 	}
-	cs.Nodes.(*fake.NodeClient).NodeStats["worker-1"] = `{"pods":[
-		{
-			"podRef": {"name": "codx-john-doe", "namespace": "codx-system"},
-			"network": {"rxBytes": 1024, "txBytes": 512},
-			"containers": [
-				{"name": "code-server", "cpu": {"usageNanoCores": 250000000}, "memory": {"workingSetBytes": 536870912}, "rootfs": {"usedBytes": 1048576}, "logs": {"usedBytes": 1024}}
-			]
-		}
-	]}`
+	cs.MetricsV1.(*fake.MetricsV1Client).PodMetricsMap["codx-system/codx-john-doe"] = &k8s.PodMetrics{
+		Containers: []k8s.ContainerMetrics{
+			{Name: "code-server", CPUUsedCores: 0.25, MemoryWorkingSetBytes: 536870912},
+		},
+	}
 
 	cookie := createSessionCookie(t, store, "john.doe", "john-doe", []string{"developers"}, false)
 	rr := doRequest(t, handler, "GET", "/api/workspace/status", cookie)
@@ -474,13 +470,6 @@ func TestWorkspaceStatusUsage(t *testing.T) {
 				RequestBytes int64 `json:"requestBytes"`
 				LimitBytes   int64 `json:"limitBytes"`
 			} `json:"memory"`
-			Storage struct {
-				UsedBytes int64 `json:"usedBytes"`
-			} `json:"storage"`
-			Network struct {
-				RxBytes int64 `json:"rxBytes"`
-				TxBytes int64 `json:"txBytes"`
-			} `json:"network"`
 		} `json:"usage"`
 	}
 	if err := json.Unmarshal(rr.Body.Bytes(), &result); err != nil {
@@ -497,12 +486,6 @@ func TestWorkspaceStatusUsage(t *testing.T) {
 	}
 	if result.Usage.Memory.UsedBytes != 536870912 || result.Usage.Memory.LimitBytes != 4294967296 {
 		t.Errorf("memory used/limit = %v/%v, want 536870912/4294967296", result.Usage.Memory.UsedBytes, result.Usage.Memory.LimitBytes)
-	}
-	if result.Usage.Storage.UsedBytes != 1049600 {
-		t.Errorf("storage.usedBytes = %v, want 1049600", result.Usage.Storage.UsedBytes)
-	}
-	if result.Usage.Network.RxBytes != 1024 || result.Usage.Network.TxBytes != 512 {
-		t.Errorf("network = %v/%v, want 1024/512", result.Usage.Network.RxBytes, result.Usage.Network.TxBytes)
 	}
 }
 

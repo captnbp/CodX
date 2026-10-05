@@ -43,6 +43,10 @@ rules:
   - apiGroups: ["cert-manager.io"]
     resources: ["certificates"]
     verbs: ["create", "get", "list", "delete"]
+  # metrics-server pod metrics: get (workspace CPU/RAM usage reporting)
+  - apiGroups: ["metrics.k8s.io"]
+    resources: ["pods"]
+    verbs: ["get"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -61,48 +65,6 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: {{ include "common.names.fullname" . }}
-subjects:
-  - kind: ServiceAccount
-    name: {{ include "common.names.fullname" . }}
-    namespace: {{ include "common.names.namespace" . }}
----
-# ClusterRole granting read access to the kubelet stats summary of nodes
-# (cluster-scoped subresource, cannot live in a namespaced Role). Used by the
-# workspace resource usage reporting (CPU/RAM relative to requests and limits,
-# storage, network).
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: {{ include "common.names.fullname" . }}-node-stats
-  labels: {{- include "common.labels.standard" . | nindent 4 }}
-    app.kubernetes.io/component: codx
-    {{- if .Values.commonLabels }}
-    {{- include "common.tplvalues.render" ( dict "value" .Values.commonLabels "context" $ ) | nindent 4 }}
-    {{- end }}
-  {{- if .Values.commonAnnotations }}
-  annotations: {{- include "common.tplvalues.render" ( dict "value" .Values.commonAnnotations "context" $ ) | nindent 4 }}
-  {{- end }}
-rules:
-  - apiGroups: [""]
-    resources: ["nodes/proxy"]
-    verbs: ["get"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: {{ include "common.names.fullname" . }}-node-stats
-  labels: {{- include "common.labels.standard" . | nindent 4 }}
-    app.kubernetes.io/component: codx
-    {{- if .Values.commonLabels }}
-    {{- include "common.tplvalues.render" ( dict "value" .Values.commonLabels "context" $ ) | nindent 4 }}
-    {{- end }}
-  {{- if .Values.commonAnnotations }}
-  annotations: {{- include "common.tplvalues.render" ( dict "value" .Values.commonAnnotations "context" $ ) | nindent 4 }}
-  {{- end }}
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: {{ include "common.names.fullname" . }}-node-stats
 subjects:
   - kind: ServiceAccount
     name: {{ include "common.names.fullname" . }}

@@ -63,23 +63,33 @@ func (c *CoreV1Client) Secrets(namespace string) k8s.SecretInterface {
 	return &secretInterface{client: c}
 }
 
-// NodeClient is an in-memory k8s.NodeInterface. NodeStats maps node name to
-// its kubelet stats summary JSON, returned by StatsSummary.
-type NodeClient struct {
-	NodeStats map[string]string
+// MetricsV1Client is an in-memory implementation of k8s.MetricsV1Client.
+// PodMetricsMap maps "namespace/pod" to its container metrics, returned by
+// Get.
+type MetricsV1Client struct {
+	PodMetricsMap map[string]*k8s.PodMetrics
 }
 
-// NewNodeClient creates a new empty NodeClient.
-func NewNodeClient() *NodeClient {
-	return &NodeClient{NodeStats: make(map[string]string)}
+// NewMetricsV1Client creates a new empty MetricsV1Client.
+func NewMetricsV1Client() *MetricsV1Client {
+	return &MetricsV1Client{PodMetricsMap: make(map[string]*k8s.PodMetrics)}
 }
 
-func (c *NodeClient) StatsSummary(ctx context.Context, name string) (io.ReadCloser, error) {
-	summary, ok := c.NodeStats[name]
+type metricsPodMetricsInterface struct {
+	client    *MetricsV1Client
+	namespace string
+}
+
+func (c *MetricsV1Client) PodMetrics(namespace string) k8s.PodMetricsInterface {
+	return &metricsPodMetricsInterface{client: c, namespace: namespace}
+}
+
+func (p *metricsPodMetricsInterface) Get(ctx context.Context, name string, opts metav1.GetOptions) (*k8s.PodMetrics, error) {
+	metrics, ok := p.client.PodMetricsMap[p.namespace+"/"+name]
 	if !ok {
-		return nil, apierrors.NewNotFound(schema.GroupResource{Resource: "nodes"}, name)
+		return nil, apierrors.NewNotFound(schema.GroupResource{Group: "metrics.k8s.io", Resource: "pods"}, name)
 	}
-	return io.NopCloser(strings.NewReader(summary)), nil
+	return metrics, nil
 }
 
 // NewClientset returns a k8s.Clientset with all in-memory fakes wired.
@@ -87,7 +97,7 @@ func NewClientset() *k8s.Clientset {
 	return &k8s.Clientset{
 		CoreV1:      NewCoreV1Client(),
 		CertManager: NewCertManagerClient(),
-		Nodes:       NewNodeClient(),
+		MetricsV1:   NewMetricsV1Client(),
 	}
 }
 

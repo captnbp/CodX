@@ -10,32 +10,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const testStatsSummary = `{"pods":[
-  {
-    "podRef": {"name": "codx-john-doe", "namespace": "codx-system"},
-    "network": {"rxBytes": 1048576, "txBytes": 524288},
-    "containers": [
-      {
-        "name": "code-server",
-        "cpu": {"usageNanoCores": 250000000},
-        "memory": {"workingSetBytes": 536870912},
-        "rootfs": {"usedBytes": 10485760},
-        "logs": {"usedBytes": 1048576}
-      },
-      {
-        "name": "envoy-tls",
-        "cpu": {"usageNanoCores": 10000000},
-        "memory": {"workingSetBytes": 33554432}
-      }
-    ]
-  },
-  {
-    "podRef": {"name": "codx-other", "namespace": "codx-system"},
-    "network": {"rxBytes": 999, "txBytes": 999},
-    "containers": []
-  }
-]}`
-
 func TestGetWorkspaceUsage(t *testing.T) {
 	cs := newTestClientset()
 	cfg := testConfig()
@@ -51,7 +25,7 @@ func TestGetWorkspaceUsage(t *testing.T) {
 		t.Errorf("GetWorkspaceUsage without pod = (%v, %v), want (nil, false)", usage, running)
 	}
 
-	// Running pod on node worker-1 with requests and limits.
+	// Running pod with requests and limits.
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:              "codx-john-doe",
@@ -81,7 +55,12 @@ func TestGetWorkspaceUsage(t *testing.T) {
 	if _, err := cs.CoreV1.Pods(cfg.Namespace).Create(ctx, pod, metav1.CreateOptions{}); err != nil {
 		t.Fatalf("create pod: %v", err)
 	}
-	cs.CoreV1.(*fakeCoreV1Client).nodeStats["worker-1"] = testStatsSummary
+	cs.CoreV1.(*fakeCoreV1Client).podMetrics[cfg.Namespace+"/codx-john-doe"] = &PodMetrics{
+		Containers: []ContainerMetrics{
+			{Name: CodeServerContainerName, CPUUsedCores: 0.25, MemoryWorkingSetBytes: 536870912},
+			{Name: "envoy-tls", CPUUsedCores: 0.01, MemoryWorkingSetBytes: 33554432},
+		},
+	}
 
 	usage, running, err = mgr.GetWorkspaceUsage(ctx, "john-doe")
 	if err != nil {
@@ -91,8 +70,9 @@ func TestGetWorkspaceUsage(t *testing.T) {
 		t.Fatalf("GetWorkspaceUsage = (nil, %v), want a usage report", running)
 	}
 
-	// CPU: 0.25 cores used, 0.25 requested, 2 limited.
-	if usage.CPUUsedCores < 0.249 || usage.CPUUsedCores > 0.251 {
+	// CPU: 0.25 cores used, 0.25 requested, 2 limited. The envoy-tls
+	// container usage must not be counted.
+	if usage.CPUUsedCores != 0.25 {
 		t.Errorf("CPUUsedCores = %v, want 0.25", usage.CPUUsedCores)
 	}
 	if usage.CPURequestCores != 0.25 {
@@ -112,26 +92,16 @@ func TestGetWorkspaceUsage(t *testing.T) {
 	if usage.MemoryLimitBytes != 4294967296 {
 		t.Errorf("MemoryLimitBytes = %v, want 4294967296", usage.MemoryLimitBytes)
 	}
-
-	// Storage: rootfs 10MiB + logs 1MiB.
-	if usage.StorageUsedBytes != 11534336 {
-		t.Errorf("StorageUsedBytes = %v, want 11534336", usage.StorageUsedBytes)
-	}
-
-	// Network: pod-level counters (envoy traffic included).
-	if usage.NetworkRxBytes != 1048576 || usage.NetworkTxBytes != 524288 {
-		t.Errorf("Network = rx %v / tx %v, want 1048576 / 524288", usage.NetworkRxBytes, usage.NetworkTxBytes)
-	}
 }
 
-func TestGetWorkspaceUsageWithoutNodeStats(t *testing.T) {
+func TestGetWorkspaceUsageWithoutMetrics(t *testing.T) {
 	cs := newTestClientset()
 	cfg := testConfig()
 	mgr := NewWorkspaceManager(cs, cfg)
 	ctx := context.Background()
 
-	// Running pod with no node name (not scheduled yet): requests and limits
-	// are still reported, live usage stays zero.
+	// Running pod that metrics-server has not scraped yet: requests and
+	// limits are still reported, live usage stays zero.
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{Name: "codx-jane", Namespace: cfg.Namespace},
 		Spec: corev1.PodSpec{
@@ -159,6 +129,6 @@ func TestGetWorkspaceUsageWithoutNodeStats(t *testing.T) {
 		t.Errorf("CPURequestCores = %v, want 0.5", usage.CPURequestCores)
 	}
 	if usage.CPUUsedCores != 0 || usage.MemoryUsedBytes != 0 {
-		t.Errorf("live usage should be zero without node stats, got %+v", usage)
+		t.Errorf("live usage should be zero without metrics, got %+v", usage)
 	}
 }
