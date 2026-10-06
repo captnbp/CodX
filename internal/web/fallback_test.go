@@ -248,12 +248,16 @@ func TestSessionTTLConfigurable(t *testing.T) {
 	}
 
 	// The default TTL applies when session.ttl is not set or invalid.
+	defaultTTL, err := time.ParseDuration(config.DefaultSessionTTL)
+	if err != nil {
+		t.Fatalf("parse config.DefaultSessionTTL %q: %v", config.DefaultSessionTTL, err)
+	}
 	srv.cfg.Session.TTL = ""
-	if ttl := srv.sessionTTL(); ttl != 24*time.Hour {
-		t.Errorf("sessionTTL() with empty config = %v, want 12h", ttl)
+	if ttl := srv.sessionTTL(); ttl != defaultTTL {
+		t.Errorf("sessionTTL() with empty config = %v, want %v (config.DefaultSessionTTL)", ttl, defaultTTL)
 	}
 	srv.cfg.Session.TTL = "bogus"
-	if ttl := srv.sessionTTL(); ttl != 24*time.Hour {
-		t.Errorf("sessionTTL() with invalid config = %v, want 12h", ttl)
+	if ttl := srv.sessionTTL(); ttl != defaultTTL {
+		t.Errorf("sessionTTL() with invalid config = %v, want %v (config.DefaultSessionTTL)", ttl, defaultTTL)
 	}
 }
