@@ -82,7 +82,12 @@ func run(configPath string) error {
 	}
 	log.Info("OIDC provider discovered", "issuer", cfg.OIDC.Issuer)
 
-	// Set up the session store (Redis in production).
+	// Set up the session store (Redis in production). The store key TTL
+	// follows the configured session lifetime.
+	sessionTTL, err := cfg.Session.ParseTTL()
+	if err != nil || sessionTTL <= 0 {
+		sessionTTL = 24 * time.Hour
+	}
 	store := session.NewRedisStore(session.RedisOptions{
 		Addr:       cfg.Redis.Host,
 		Password:   cfg.Redis.Password,
@@ -90,6 +95,7 @@ func run(configPath string) error {
 		TLS:        cfg.Redis.TLS,
 		CAFilePath: cfg.Redis.CAFilePath,
 		KeyPrefix:  cfg.InstanceName,
+		TTL:        sessionTTL,
 	})
 	defer store.Close()
 

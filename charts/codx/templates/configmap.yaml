@@ -43,6 +43,8 @@ data:
         {{- end }}
       {{- end }}
     {{- end }}
+    session:
+      ttl: {{ .Values.session.ttl | quote }}
     redis:
       host: {{ template "common.names.fullname" . }}-valkey.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}:6379
       db: {{ .Values.redis.db }}

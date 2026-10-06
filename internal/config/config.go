@@ -38,6 +38,11 @@ type Config struct {
 	// +optional
 	AuthFallback AuthFallbackConfig `yaml:"authFallback,omitempty"`
 
+	// Session configures the lifetime of user sessions, for both OIDC
+	// logins and the mTLS fallback.
+	// +optional
+	Session SessionConfig `yaml:"session,omitempty"`
+
 	// Redis configures the Redis/Valkey session store.
 	Redis RedisConfig `yaml:"redis"`
 
@@ -167,6 +172,26 @@ type AuthFallbackConfig struct {
 	// enabled is true.
 	// +optional
 	AdminCNs []string `yaml:"adminCns"`
+}
+
+// DefaultSessionTTL is the session lifetime used when session.ttl is not
+// set.
+const DefaultSessionTTL = "12h"
+
+// SessionConfig configures the lifetime of user sessions, for both OIDC
+// logins and the mTLS fallback. The same TTL drives the server-side session
+// expiry, the session store key expiry and the session cookie MaxAge.
+type SessionConfig struct {
+	// TTL is how long a session stays valid after it is created, for OIDC
+	// logins and mTLS fallback logins alike. Defaults to "12h".
+	// +optional
+	// +default="12h"
+	TTL string `yaml:"ttl"`
+}
+
+// ParseTTL parses the TTL string into a time.Duration.
+func (c *SessionConfig) ParseTTL() (time.Duration, error) {
+	return time.ParseDuration(c.TTL)
 }
 
 // RedisConfig configures the Redis/Valkey session store.
@@ -393,6 +418,10 @@ func applyDefaults(cfg *Config) {
 		cfg.AuthFallback.HeaderName = "X-Forwarded-Tls-Client-Cert-Info"
 	}
 
+	if cfg.Session.TTL == "" {
+		cfg.Session.TTL = DefaultSessionTTL
+	}
+
 	if cfg.Redis.CAFilePath == "" {
 		cfg.Redis.CAFilePath = "/tls/ca.crt"
 	}
@@ -476,6 +505,12 @@ func Validate(cfg *Config) error {
 
 	if cfg.AuthFallback.Enabled && len(cfg.AuthFallback.AdminCNs) == 0 {
 		errs = append(errs, "authFallback.adminCns must list at least one client certificate Common Name when authFallback.enabled is true")
+	}
+
+	if _, err := time.ParseDuration(cfg.Session.TTL); err != nil {
+		errs = append(errs, fmt.Sprintf("session.ttl %q is not a valid duration: %v", cfg.Session.TTL, err))
+	} else if sessionTTL, _ := time.ParseDuration(cfg.Session.TTL); sessionTTL <= 0 {
+		errs = append(errs, fmt.Sprintf("session.ttl %q must be positive", cfg.Session.TTL))
 	}
 
 	if cfg.Redis.Host == "" {

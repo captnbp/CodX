@@ -156,7 +156,7 @@ func (s *Server) withMiddleware(h http.Handler) http.Handler {
 				"remote", clientIP(r),
 			)
 
-			setSessionCookie(w, sess.ID, s.cfg.InstanceName)
+			s.setSessionCookie(w, sess.ID)
 			r = r.WithContext(WithSession(r.Context(), sess))
 			h.ServeHTTP(w, r)
 			return
@@ -582,6 +582,11 @@ func (s *Server) handleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The session lives for the configured lifetime, regardless of the
+	// OAuth2 token expiry (tokens are kept in the session but never
+	// re-validated after login).
+	sess.ExpiresAt = time.Now().Add(s.sessionTTL())
+
 	// Save the session.
 	if err := s.store.Save(r.Context(), sess); err != nil {
 		s.audit.Info("session_save_failed", "user", sess.Username, "error", err, "remote", clientIP(r))
@@ -598,7 +603,7 @@ func (s *Server) handleCallback(w http.ResponseWriter, r *http.Request) {
 	)
 
 	// Set the session cookie.
-	setSessionCookie(w, sess.ID, s.cfg.InstanceName)
+	s.setSessionCookie(w, sess.ID)
 
 	// Clear the state cookie.
 	http.SetCookie(w, &http.Cookie{
@@ -991,12 +996,24 @@ func randomState() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
-func setSessionCookie(w http.ResponseWriter, sessionID, instance string) {
+// sessionTTL returns the configured session lifetime, falling back to the
+// default when unset or invalid.
+func (s *Server) sessionTTL() time.Duration {
+	if ttl, err := s.cfg.Session.ParseTTL(); err == nil && ttl > 0 {
+		return ttl
+	}
+	ttl, _ := time.ParseDuration(config.DefaultSessionTTL)
+	return ttl
+}
+
+// setSessionCookie writes the session cookie with a MaxAge matching the
+// configured session lifetime.
+func (s *Server) setSessionCookie(w http.ResponseWriter, sessionID string) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     SessionCookieName,
 		Value:    sessionID,
 		Path:     "/",
-		MaxAge:   86400, // 24 hours
+		MaxAge:   int(s.sessionTTL().Seconds()),
 		HttpOnly: true,
 		Secure:   true,
 		SameSite: http.SameSiteLaxMode,

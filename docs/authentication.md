@@ -86,13 +86,28 @@ Service, Certificate, PVC, Pod.
 
 ## Session management
 
+Sessions are created by both authentication mechanisms and carry the same
+information. Their lifetime is set by the `session.ttl` configuration key
+(Go duration, default `12h`), which drives three things consistently: the
+server-side session expiry (`ExpiresAt`), the session store key expiry in
+Redis/Valkey, and the session cookie `MaxAge`.
+
 | Property | Value |
 |----------|-------|
 | Cookie name | `codx-session` |
 | Cookie flags | `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/` |
-| Cookie lifetime | 24 hours (matches the session TTL) |
-| Store | Redis/Valkey, keys `<instance>:session:<id>` |
+| Cookie lifetime | `session.ttl` (default 12 h) |
+| Session expiry | `session.ttl` (default 12 h), for OIDC and mTLS sessions alike |
+| Store | Redis/Valkey, keys `<instance>:session:<id>`, key TTL = `session.ttl` |
 | Session contents | subject, username, slug, groups, admin flag, tokens, expiry |
+
+The OIDC session lives for `session.ttl` from login, regardless of the
+OAuth2 token expiry: the tokens are kept in the session but never
+re-validated after login.
+
+| Config key | Default | Description |
+|------------|---------|-------------|
+| `session.ttl` | `12h` | Lifetime of a user session (OIDC login and mTLS fallback alike), applied to the session expiry, the store key expiry and the cookie MaxAge. Must be a positive Go duration (e.g. `8h`, `30m`); the server refuses to start otherwise. |
 
 Sessions are shared between CodX replicas, so the deployment scales
 horizontally. Sessions expire server-side; an expired or unknown session
@@ -139,7 +154,8 @@ list.
 3. CodX's session middleware, when the request has no valid session cookie,
    decodes the header, extracts the CN, and compares it against
    `authFallback.adminCns`.
-4. On a match, CodX creates an admin session (24 h) with:
+4. On a match, CodX creates an admin session (valid for `session.ttl`,
+   default 24 h) with:
    - `Username` = certificate CN
    - `Slug` = slug derived from the CN
    - `Subject` = `mtls:<CN>`
@@ -182,7 +198,8 @@ authFallback:
   per-request would be fragile, and presenting a valid client certificate is
   a sufficient credential on its own.
 - Fallback sessions are full admin sessions: the admin UI and API work as
-  with an OIDC admin, and the session survives the outage (24 h TTL) even if
+  with an OIDC admin, and the session survives the outage for its full
+  `session.ttl` even if
   the client certificate is not presented again.
 - `/auth/login` still redirects to the OIDC provider when it is used.
 
@@ -306,8 +323,9 @@ openssl pkcs12 -export -in admin.crt -inkey admin.key -out admin.p12
 - **Allow list granularity.** Access is granted per CN; the certificate
   subject is not otherwise verified. Compromise of an allowed client
   certificate is equivalent to compromise of an admin OIDC account.
-- **Sessions outlive the certificate presentation.** A fallback session is
-  valid for 24 hours even if the certificate is revoked; the store TTL is
+- **Sessions outlive the certificate presentation.** A fallback session
+  stays valid for its full `session.ttl` even if the certificate is
+  revoked; the store TTL is
   the only bound. Rotate the allow list (a ConfigMap rollout) to revoke.
 - **Audit trail.** Fallback logins (`login`, `method=mtls-fallback`) and
   denials (`login_failed`, `reason=certificate common name not allowed`)

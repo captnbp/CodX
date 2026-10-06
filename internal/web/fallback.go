@@ -17,10 +17,6 @@ import (
 	"github.com/captnbp/CodX/internal/slug"
 )
 
-// fallbackSessionTTL is the lifetime of a fallback session. It matches the
-// session cookie MaxAge and the default session store TTL.
-const fallbackSessionTTL = 24 * time.Hour
-
 // fallbackSession attempts mTLS fallback authentication. It returns an
 // admin session when the fallback is enabled, the request carries the
 // client certificate info header, and the certificate Common Name is in the
@@ -62,7 +58,7 @@ func (s *Server) fallbackSession(r *http.Request) *session.Session {
 		Slug:      slug.Make(cn, s.cfg.Slug.MaxLength),
 		Groups:    []string{s.cfg.OIDC.AdminGroup},
 		IsAdmin:   true,
-		ExpiresAt: time.Now().Add(fallbackSessionTTL),
+		ExpiresAt: time.Now().Add(s.sessionTTL()),
 	}
 }
 

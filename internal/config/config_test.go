@@ -1,8 +1,10 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"testing"
+	"time"
 )
 
 func TestLoadDefaults(t *testing.T) {
@@ -557,5 +559,98 @@ certManager:
 	}
 	if !contains(err.Error(), "authFallback.adminCns") {
 		t.Errorf("error should mention authFallback.adminCns: %v", err)
+	}
+}
+
+func TestSessionTTLDefault(t *testing.T) {
+	yaml := `
+instanceName: "codx"
+http:
+  tlsCertFile: "/tls/tls.crt"
+  tlsKeyFile: "/tls/tls.key"
+oidc:
+  issuer: "https://keycloak.example.com/realms/myrealm"
+  clientId: "codx"
+  redirectUrl: "https://codx.example.com/auth/callback"
+  adminGroup: "codx-admins"
+redis:
+  host: "valkey:6379"
+certManager:
+  issuerName: "codx-workspace-issuer"
+`
+	cfg, err := Load([]byte(yaml))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Session.TTL != "12h" {
+		t.Errorf("Session.TTL default = %q, want 12h", cfg.Session.TTL)
+	}
+}
+
+func TestSessionTTLCustom(t *testing.T) {
+	yaml := `
+instanceName: "codx"
+http:
+  tlsCertFile: "/tls/tls.crt"
+  tlsKeyFile: "/tls/tls.key"
+oidc:
+  issuer: "https://keycloak.example.com/realms/myrealm"
+  clientId: "codx"
+  redirectUrl: "https://codx.example.com/auth/callback"
+  adminGroup: "codx-admins"
+session:
+  ttl: "8h"
+redis:
+  host: "valkey:6379"
+certManager:
+  issuerName: "codx-workspace-issuer"
+`
+	cfg, err := Load([]byte(yaml))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Session.TTL != "8h" {
+		t.Errorf("Session.TTL = %q, want 8h", cfg.Session.TTL)
+	}
+	ttl, err := cfg.Session.ParseTTL()
+	if err != nil {
+		t.Fatalf("ParseTTL: %v", err)
+	}
+	if ttl != 8*time.Hour {
+		t.Errorf("ParseTTL() = %v, want 8h", ttl)
+	}
+}
+
+func TestValidationSessionTTL(t *testing.T) {
+	base := func(ttl string) string {
+		return fmt.Sprintf(`
+instanceName: "codx"
+http:
+  tlsCertFile: "/tls/tls.crt"
+  tlsKeyFile: "/tls/tls.key"
+oidc:
+  issuer: "https://keycloak.example.com/realms/myrealm"
+  clientId: "codx"
+  redirectUrl: "https://codx.example.com/auth/callback"
+  adminGroup: "codx-admins"
+session:
+  ttl: %q
+redis:
+  host: "valkey:6379"
+certManager:
+  issuerName: "codx-workspace-issuer"
+`, ttl)
+	}
+
+	if _, err := Load([]byte(base("not-a-duration"))); err == nil {
+		t.Error("expected validation error for invalid session.ttl")
+	} else if !contains(err.Error(), "session.ttl") {
+		t.Errorf("error should mention session.ttl: %v", err)
+	}
+
+	if _, err := Load([]byte(base("0s"))); err == nil {
+		t.Error("expected validation error for zero session.ttl")
+	} else if !contains(err.Error(), "session.ttl") {
+		t.Errorf("error should mention session.ttl: %v", err)
 	}
 }

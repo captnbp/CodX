@@ -693,6 +693,15 @@ oidc:
   adminGroup: codx-admins
   usernameClaimName: preferred_username
 
+## @section Session
+## Session configures the lifetime of user sessions, for both OIDC logins and
+## mTLS fallback logins. The TTL drives the server-side session expiry, the
+## session store (Redis/Valkey) key expiry and the session cookie MaxAge.
+## @param session.ttl How long a session stays valid after login (Go duration, e.g. 12h, 8h, 30m).
+##
+session:
+  ttl: 12h
+
 ## @section mTLS Fallback Authentication
 ## AuthFallback enables a client-certificate (mTLS) fallback that grants admin
 ## access when the OIDC provider is unavailable. The ingress must request and

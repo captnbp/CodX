@@ -208,3 +208,52 @@ func TestFallbackSessionContent(t *testing.T) {
 		t.Errorf("ExpiresAt = %v, should be in the future", sess.ExpiresAt)
 	}
 }
+
+func TestSessionTTLConfigurable(t *testing.T) {
+	srv, _, _ := testServer(t)
+	srv.cfg.AuthFallback = config.AuthFallbackConfig{
+		Enabled:    true,
+		HeaderName: "X-Forwarded-Tls-Client-Cert-Info",
+		AdminCNs:   []string{"alice"},
+	}
+	srv.cfg.Session.TTL = "8h"
+
+	// The session expiry follows the configured TTL.
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("X-Forwarded-Tls-Client-Cert-Info", escapedCertInfoHeader(`Subject="CN=alice"`))
+	sess := srv.fallbackSession(req)
+	if sess == nil {
+		t.Fatal("fallbackSession returned nil for an allowed CN")
+	}
+	want := 8 * time.Hour
+	got := time.Until(sess.ExpiresAt)
+	if got < want-time.Minute || got > want+time.Minute {
+		t.Errorf("ExpiresAt is %v from now, want ~%v (session.ttl)", got, want)
+	}
+
+	// The cookie MaxAge follows the configured TTL too.
+	rec := httptest.NewRecorder()
+	srv.setSessionCookie(rec, sess.ID)
+	found := false
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == SessionCookieName {
+			found = true
+			if c.MaxAge != int(want.Seconds()) {
+				t.Errorf("cookie MaxAge = %d, want %d (session.ttl seconds)", c.MaxAge, int(want.Seconds()))
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("setSessionCookie did not set the %s cookie", SessionCookieName)
+	}
+
+	// The default TTL applies when session.ttl is not set or invalid.
+	srv.cfg.Session.TTL = ""
+	if ttl := srv.sessionTTL(); ttl != 24*time.Hour {
+		t.Errorf("sessionTTL() with empty config = %v, want 12h", ttl)
+	}
+	srv.cfg.Session.TTL = "bogus"
+	if ttl := srv.sessionTTL(); ttl != 24*time.Hour {
+		t.Errorf("sessionTTL() with invalid config = %v, want 12h", ttl)
+	}
+}
