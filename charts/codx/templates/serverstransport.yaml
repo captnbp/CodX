@@ -1,4 +1,4 @@
-{{- if and (eq .Values.ingress.ingressControllerType "traefik") .Values.tls.enabled }}
+{{- if and (eq .Values.ingress.ingressControllerType "traefik") .Values.tls.enabled (not .Values.httpRoute.enabled) }}
 {{- $releaseNamespace := .Release.Namespace }}
 {{- $clusterDomain := .Values.clusterDomain }}
 {{- $serviceName := include "common.names.fullname" . }}

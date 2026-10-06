@@ -1,0 +1,41 @@
+{{/*
+BackendTLSPolicy (Gateway API): configures TLS between the Gateway and the
+CodX Service, the Gateway API equivalent of the Traefik ServersTransport
+used with the Ingress. Rendered when the HTTPRoute is enabled
+(httpRoute.enabled) and internal TLS is enabled (tls.enabled).
+
+The CA validating the CodX server certificate is the same secret as the
+ServersTransport rootCAs: <fullname>-server-tls (cert-manager server
+certificate secret, key ca.crt). Referencing a CA as kind Secret requires
+Traefik 3.7+.
+*/}}
+{{- if and .Values.httpRoute.enabled .Values.httpRoute.backendTls.enabled .Values.tls.enabled }}
+{{- $releaseNamespace := .Release.Namespace }}
+{{- $clusterDomain := .Values.clusterDomain }}
+{{- $serviceName := include "common.names.fullname" . }}
+apiVersion: {{ .Values.httpRoute.backendTls.apiVersion | default "gateway.networking.k8s.io/v1" }}
+kind: BackendTLSPolicy
+metadata:
+  name: {{ include "common.names.fullname" . }}
+  namespace: {{ include "common.names.namespace" . | quote }}
+  labels: {{- include "common.labels.standard" . | nindent 4 }}
+    app.kubernetes.io/component: codx
+    {{- if .Values.commonLabels }}
+    {{- include "common.tplvalues.render" ( dict "value" .Values.commonLabels "context" $ ) | nindent 4 }}
+    {{- end }}
+  {{- if or .Values.httpRoute.backendTls.annotations .Values.commonAnnotations }}
+  annotations: {{- include "common.tplvalues.merge" ( dict "values" ( list .Values.httpRoute.backendTls.annotations .Values.commonAnnotations ) "context" . ) | nindent 4 }}
+  {{- end }}
+spec:
+  targetRef:
+    group: ""
+    kind: Service
+    name: {{ include "common.names.fullname" . }}
+    sectionName: https
+  validation:
+    hostname: "{{ printf "%s.%s.svc.%s" $serviceName $releaseNamespace $clusterDomain }}"
+    caCertificateRefs:
+      - group: ""
+        kind: Secret
+        name: {{ $serviceName }}-server-tls
+{{- end }}

@@ -421,6 +421,125 @@ ingress:
   ##
   extraRules: []
 
+## @section Gateway (Gateway API)
+## Gateway creates a Gateway API Gateway to pair with the HTTPRoute
+## (httpRoute.enabled). Requires the Gateway API CRDs and an implementation
+## of the GatewayClass (e.g. Traefik). The chart HTTPRoutes attach with
+## parentRefs name "<fullname>" (and sectionName web / websecure). The web
+## listener serves the redirect HTTPRoute; the websecure listener terminates
+## TLS with the certificate secret <hostname>-tls (same naming as the Ingress
+## TLS). When the mTLS fallback is enabled (traefikMtls.enabled), the
+## websecure listener also requests and validates client certificates with
+## the same CA secret as the TLSOption (clientCertificateValidation, Gateway
+## API experimental CRDs, Traefik 3.7+ for kind Secret).
+## @param gateway.enabled Create a Gateway API Gateway for CodX.
+## @param gateway.apiVersion API version of the Gateway. Defaults to gateway.networking.k8s.io/v1.
+## @param gateway.annotations Annotations for the Gateway, e.g. cert-manager.io/cluster-issuer to issue the listener certificate.
+## @param gateway.gatewayClassName GatewayClassName of the Gateway.
+## @param gateway.hostname Hostname of the Gateway listener certificate. Defaults to httpRoute.hostname or ingress.hostname.
+## @param gateway.webListener.enabled Create the HTTP (web) listener.
+## @param gateway.webListener.name Name of the HTTP listener.
+## @param gateway.webListener.port Port of the HTTP listener.
+## @param gateway.websecureListener.enabled Create the HTTPS (websecure) listener.
+## @param gateway.websecureListener.name Name of the HTTPS listener.
+## @param gateway.websecureListener.port Port of the HTTPS listener.
+## @param gateway.websecureListener.certificateRefs [array] Certificate references of the HTTPS listener. Defaults to the <hostname>-tls Secret.
+## @param gateway.extraListeners [array] Extra listeners rendered as-is.
+##
+gateway:
+  enabled: false
+  apiVersion: ""
+  annotations: {}
+  gatewayClassName: traefik
+  hostname: ""
+  webListener:
+    enabled: true
+    name: web
+    port: 80
+  websecureListener:
+    enabled: true
+    name: websecure
+    port: 443
+    ## e.g:
+    ## certificateRefs:
+    ##   - group: ""
+    ##     kind: Secret
+    ##     name: codx-tls
+    certificateRefs: []
+  extraListeners: []
+
+## @section HTTPRoute (Gateway API)
+## HTTPRoute creates a Gateway API HTTPRoute as an alternative to the Ingress
+## (set ingress.enabled=false and httpRoute.enabled=true). Requires the
+## Gateway API CRDs (gateway.networking.k8s.io) and a Gateway to attach to.
+## When the Gateway is implemented by Traefik, middlewares are attached to
+## the main rule with ExtensionRef filters, and the chart passTLSClientCert
+## Middleware (mTLS fallback) can be attached automatically. The backend
+## protocol follows the Service annotations (serversscheme=https when
+## tls.enabled).
+## @param httpRoute.enabled Create an HTTPRoute (Gateway API) for CodX.
+## @param httpRoute.apiVersion API version of the HTTPRoute. Defaults to gateway.networking.k8s.io/v1.
+## @param httpRoute.annotations Annotations for the HTTPRoute (and the redirect HTTPRoute).
+## @param httpRoute.hostname Hostname served by the HTTPRoute. Defaults to ingress.hostname.
+## @param httpRoute.parentRefs [array] ParentRefs (Gateway listeners) the HTTPRoute attaches to.
+## @param httpRoute.path Path prefix served by the HTTPRoute (main rule match).
+## @param httpRoute.extraMatches [array] Extra matches of the main rule, rendered as-is.
+## @param httpRoute.extraMiddlewares [array] Extra middlewares attached as ExtensionRef filters (Traefik Gateway API), given by reference.
+## @param httpRoute.traefikMtlsMiddleware Attach the chart passTLSClientCert Middleware (requires traefikMtls.enabled and Traefik as the Gateway implementation).
+## @param httpRoute.extraFilters [array] Extra HTTPRule filters rendered as-is (RequestHeaderModifier, URLRewrite, ...).
+## @param httpRoute.backendRefs [array] BackendRefs of the main rule. Defaults to the CodX Service HTTPS port.
+## @param httpRoute.extraRules [array] Extra rules appended to the HTTPRoute, rendered as-is.
+## @param httpRoute.backendTls.enabled Create a BackendTLSPolicy configuring TLS from the Gateway to the CodX Service (the Gateway API equivalent of the Traefik ServersTransport). Requires tls.enabled and Traefik 3.7+ (CA referenced as a Secret).
+## @param httpRoute.backendTls.apiVersion API version of the BackendTLSPolicy. Defaults to gateway.networking.k8s.io/v1.
+## @param httpRoute.backendTls.annotations Annotations for the BackendTLSPolicy.
+## @param httpRoute.redirect.enabled Create a second HTTPRoute (<fullname>-redirect) with a RequestRedirect filter redirecting to HTTPS.
+## @param httpRoute.redirect.parentRefs [array] ParentRefs of the redirect HTTPRoute (typically the plain HTTP listener of the Gateway). Defaults to httpRoute.parentRefs.
+## @param httpRoute.redirect.scheme Scheme to redirect to.
+## @param httpRoute.redirect.statusCode Redirect status code (301 or 302).
+##
+httpRoute:
+  enabled: false
+  apiVersion: ""
+  annotations: {}
+  hostname: ""
+  parentRefs:
+    ## When gateway.enabled, the chart Gateway is named "<fullname>" with
+    ## sectionName web (HTTP) / websecure (HTTPS).
+    - name: gateway
+      # sectionName: websecure
+      # kind: Gateway
+      # group: gateway.networking.k8s.io
+      # namespace: ""
+  path: /
+  extraMatches: []
+  ## e.g (Traefik middlewares by reference):
+  ## extraMiddlewares:
+  ##   - name: my-middleware
+  ##     group: traefik.io
+  ##     kind: Middleware
+  extraMiddlewares: []
+  traefikMtlsMiddleware: true
+  extraFilters: []
+  ## e.g:
+  ## backendRefs:
+  ##   - name: codx
+  ##     port: 8443
+  backendRefs: []
+  extraRules: []
+  backendTls:
+    enabled: true
+    apiVersion: ""
+    annotations: {}
+  redirect:
+    enabled: false
+    parentRefs: []
+    ## e.g (HTTP listener):
+    ## parentRefs:
+    ##   - name: gateway
+    ##     sectionName: web
+    scheme: https
+    statusCode: 301
+
 ## @section RBAC parameter
 ## Specifies whether a ServiceAccount should be created
 ##

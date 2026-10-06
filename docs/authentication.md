@@ -248,6 +248,33 @@ Both objects are created in the same namespace as the Ingress, so Traefik
 resolves the plain-name references. When enabled, the render fails with an
 explicit error if neither `existingCaSecret` nor `caCertificates` is set.
 
+When CodX is exposed with a Gateway API HTTPRoute instead of the Ingress
+(`httpRoute.enabled`, Traefik as the Gateway implementation), the
+`passTLSClientCert` Middleware is attached to the main rule as an
+`ExtensionRef` filter (`httpRoute.traefikMtlsMiddleware`), alongside the
+extra middlewares listed in `httpRoute.extraMiddlewares`.
+
+The chart can also create the Gateway itself (`gateway.enabled`): the
+`websecure` listener terminates TLS with the `<hostname>-tls` secret and,
+when the mTLS fallback is enabled, requests and validates client
+certificates on the listener (`tls.clientCertificateValidation`), with
+the same CA secret as the TLSOption - the Gateway API equivalent of the
+TLSOption. This requires the experimental Gateway API CRDs and Traefik
+3.7+ (CA referenced as `kind: Secret`). The `web` listener serves the
+redirect HTTPRoute. When using your own Gateway, configure the client
+certificate policy on its listener instead; the TLSOption does not apply
+to Gateway API routes.
+
+With the HTTPRoute, TLS between the Gateway and the CodX Service is
+configured with a `BackendTLSPolicy` (Gateway API) instead of the
+Traefik-specific `ServersTransport` used by the Ingress: the chart renders
+one when `httpRoute.backendTls.enabled` and `tls.enabled` are true,
+targeting the CodX Service (`sectionName: https`) with the Service FQDN as
+validation hostname. The CA reference is the same secret as the
+ServersTransport `rootCAs`: `<fullname>-server-tls` (the cert-manager
+server certificate secret, key `ca.crt`). Referencing a CA as `kind:
+Secret` requires Traefik 3.7+.
+
 ### Choosing the client CA
 
 - **Own PKI**: set `traefikMtls.existingCaSecret` to a secret containing the

@@ -9,7 +9,7 @@ metadata:
     {{- if or .Values.service.annotations .Values.commonAnnotations }}
     {{- $annotations := include "common.tplvalues.merge" ( dict "values" ( list .Values.service.annotations .Values.commonAnnotations ) "context" . ) }}{{- include "common.tplvalues.render" ( dict "value" $annotations "context" $) | nindent 4 }}
     {{- end }}
-    {{- if and (eq .Values.ingress.ingressControllerType "traefik") .Values.tls.enabled }}
+    {{- if and (eq .Values.ingress.ingressControllerType "traefik") .Values.tls.enabled (not .Values.httpRoute.enabled) }}
     traefik.ingress.kubernetes.io/service.serversscheme: https
     traefik.ingress.kubernetes.io/service.serverstransport: "{{ .Release.Namespace }}-{{ template "common.names.fullname" . }}@kubernetescrd"
     {{- end }}

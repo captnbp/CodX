@@ -1,0 +1,68 @@
+{{/*
+Gateway API Gateway, to pair with the HTTPRoute (httpRoute.enabled).
+Requires the Gateway API CRDs and an implementation of the GatewayClass
+(e.g. Traefik). The Gateway is created in the release namespace; routes in
+the same namespace can attach by default (allowedRoutes default).
+
+Listeners:
+  - web (HTTP) for the redirect HTTPRoute (httpRoute.redirect),
+  - websecure (HTTPS) for the main HTTPRoute, terminating TLS with the
+    certificate secret <hostname>-tls (same naming as the Ingress TLS).
+
+When the mTLS fallback is enabled (traefikMtls.enabled), the websecure
+listener requests and validates client certificates with the same CA
+secret as the TLSOption (clientCertificateValidation, Gateway API
+experimental CRDs, Traefik 3.7+ for kind Secret).
+*/}}
+{{- if .Values.gateway.enabled }}
+{{- $fullname := include "common.names.fullname" . }}
+{{- $hostname := .Values.gateway.hostname | default .Values.httpRoute.hostname | default .Values.ingress.hostname }}
+{{- if and .Values.gateway.websecureListener.enabled (not $hostname) (not .Values.gateway.websecureListener.certificateRefs) }}
+{{- fail "gateway: set gateway.hostname (or httpRoute.hostname/ingress.hostname) or gateway.websecureListener.certificateRefs" }}
+{{- end }}
+apiVersion: {{ .Values.gateway.apiVersion | default "gateway.networking.k8s.io/v1" }}
+kind: Gateway
+metadata:
+  name: {{ $fullname }}
+  namespace: {{ include "common.names.namespace" . | quote }}
+  labels: {{- include "common.labels.standard" . | nindent 4 }}
+    app.kubernetes.io/component: codx
+    {{- if .Values.commonLabels }}
+    {{- include "common.tplvalues.render" ( dict "value" .Values.commonLabels "context" $ ) | nindent 4 }}
+    {{- end }}
+  {{- if or .Values.gateway.annotations .Values.commonAnnotations }}
+  annotations: {{- include "common.tplvalues.merge" ( dict "values" ( list .Values.gateway.annotations .Values.commonAnnotations ) "context" . ) | nindent 4 }}
+  {{- end }}
+spec:
+  gatewayClassName: {{ .Values.gateway.gatewayClassName }}
+  listeners:
+    {{- if .Values.gateway.webListener.enabled }}
+    - name: {{ .Values.gateway.webListener.name }}
+      port: {{ .Values.gateway.webListener.port }}
+      protocol: HTTP
+    {{- end }}
+    {{- if .Values.gateway.websecureListener.enabled }}
+    - name: {{ .Values.gateway.websecureListener.name }}
+      port: {{ .Values.gateway.websecureListener.port }}
+      protocol: HTTPS
+      tls:
+        certificateRefs:
+          {{- if .Values.gateway.websecureListener.certificateRefs }}
+          {{- include "common.tplvalues.render" ( dict "value" .Values.gateway.websecureListener.certificateRefs "context" $ ) | nindent 10 }}
+          {{- else }}
+          - group: ""
+            kind: Secret
+            name: {{ printf "%s-tls" $hostname }}
+          {{- end }}
+        {{- if .Values.traefikMtls.enabled }}
+        clientCertificateValidation:
+          caCertificateRefs:
+            - group: ""
+              kind: Secret
+              name: {{ include "codx.traefikMtls.caSecretName" . }}
+        {{- end }}
+    {{- end }}
+    {{- if .Values.gateway.extraListeners }}
+    {{- include "common.tplvalues.render" ( dict "value" .Values.gateway.extraListeners "context" $ ) | nindent 4 }}
+    {{- end }}
+{{- end }}

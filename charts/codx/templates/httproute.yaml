@@ -1,0 +1,100 @@
+{{/*
+Gateway API HTTPRoute, an alternative to the Ingress (set ingress.enabled
+to false and httpRoute.enabled to true). Requires the Gateway API CRDs
+(gateway.networking.k8s.io) and a Gateway to attach to.
+
+When the Gateway is implemented by Traefik, middlewares are attached to the
+main rule with ExtensionRef filters (group traefik.io, kind Middleware):
+  - the extra middlewares listed in httpRoute.extraMiddlewares (references),
+  - the chart passTLSClientCert middleware of the mTLS fallback
+    (traefikMtls.enabled and httpRoute.traefikMtlsMiddleware),
+  - any raw filter listed in httpRoute.extraFilters.
+
+The HTTP-to-HTTPS redirect (RequestRedirect filter) is rendered as a
+separate HTTPRoute (<fullname>-redirect) attached to the HTTP listener of
+the Gateway (httpRoute.redirect.parentRefs), because parentRefs cannot be
+set per rule.
+*/}}
+{{- if .Values.httpRoute.enabled }}
+{{- $fullname := include "common.names.fullname" . }}
+{{- $hostname := .Values.httpRoute.hostname | default .Values.ingress.hostname }}
+{{- if not $hostname }}
+{{- fail "httpRoute: set httpRoute.hostname (or ingress.hostname) when httpRoute.enabled is true" }}
+{{- end }}
+{{- $group := splitList "/" .Values.traefikMtls.apiVersion | first }}
+apiVersion: {{ .Values.httpRoute.apiVersion | default "gateway.networking.k8s.io/v1" }}
+kind: HTTPRoute
+metadata:
+  name: {{ $fullname }}
+  namespace: {{ include "common.names.namespace" . | quote }}
+  labels: {{- include "common.labels.standard" ( dict "customLabels" .Values.commonLabels "context" $ ) | nindent 4 }}
+    app.kubernetes.io/component: codx
+  {{- if or .Values.httpRoute.annotations .Values.commonAnnotations }}
+  annotations: {{- include "common.tplvalues.merge" ( dict "values" ( list .Values.httpRoute.annotations .Values.commonAnnotations ) "context" . ) | nindent 4 }}
+  {{- end }}
+spec:
+  parentRefs:
+    {{- include "common.tplvalues.render" ( dict "value" .Values.httpRoute.parentRefs "context" $ ) | nindent 4 }}
+  hostnames:
+    - {{ $hostname | quote }}
+  rules:
+    {{- $filters := list }}
+    {{- if and .Values.traefikMtls.enabled .Values.httpRoute.traefikMtlsMiddleware }}
+    {{- $filters = append $filters ( dict "type" "ExtensionRef" "extensionRef" ( dict "group" $group "kind" "Middleware" "name" ( include "codx.traefikMtls.middlewareName" . ) ) ) }}
+    {{- end }}
+    {{- range .Values.httpRoute.extraMiddlewares }}
+    {{- $filters = append $filters ( dict "type" "ExtensionRef" "extensionRef" ( dict "group" ( .group | default $group ) "kind" ( .kind | default "Middleware" ) "name" .name ) ) }}
+    {{- end }}
+    {{- range .Values.httpRoute.extraFilters }}
+    {{- $filters = append $filters . }}
+    {{- end }}
+    - matches:
+        - path:
+            type: PathPrefix
+            value: {{ .Values.httpRoute.path }}
+        {{- if .Values.httpRoute.extraMatches }}
+        {{- include "common.tplvalues.render" ( dict "value" .Values.httpRoute.extraMatches "context" $ ) | nindent 8 }}
+        {{- end }}
+      {{- if $filters }}
+      filters:
+        {{- toYaml $filters | nindent 8 }}
+      {{- end }}
+      backendRefs:
+        {{- if .Values.httpRoute.backendRefs }}
+        {{- include "common.tplvalues.render" ( dict "value" .Values.httpRoute.backendRefs "context" $ ) | nindent 8 }}
+        {{- else }}
+        - name: {{ $fullname }}
+          port: {{ .Values.service.ports.https }}
+        {{- end }}
+    {{- range .Values.httpRoute.extraRules }}
+    {{- include "common.tplvalues.render" ( dict "value" . "context" $ ) | nindent 4 }}
+    {{- end }}
+{{- if .Values.httpRoute.redirect.enabled }}
+---
+apiVersion: {{ .Values.httpRoute.apiVersion | default "gateway.networking.k8s.io/v1" }}
+kind: HTTPRoute
+metadata:
+  name: {{ $fullname }}-redirect
+  namespace: {{ include "common.names.namespace" . | quote }}
+  labels: {{- include "common.labels.standard" ( dict "customLabels" .Values.commonLabels "context" $ ) | nindent 4 }}
+    app.kubernetes.io/component: codx
+  {{- if or .Values.httpRoute.annotations .Values.commonAnnotations }}
+  annotations: {{- include "common.tplvalues.merge" ( dict "values" ( list .Values.httpRoute.annotations .Values.commonAnnotations ) "context" . ) | nindent 4 }}
+  {{- end }}
+spec:
+  parentRefs:
+    {{- if .Values.httpRoute.redirect.parentRefs }}
+    {{- include "common.tplvalues.render" ( dict "value" .Values.httpRoute.redirect.parentRefs "context" $ ) | nindent 4 }}
+    {{- else }}
+    {{- include "common.tplvalues.render" ( dict "value" .Values.httpRoute.parentRefs "context" $ ) | nindent 4 }}
+    {{- end }}
+  hostnames:
+    - {{ $hostname | quote }}
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: {{ .Values.httpRoute.redirect.scheme }}
+            statusCode: {{ .Values.httpRoute.redirect.statusCode }}
+{{- end }}
+{{- end }}
