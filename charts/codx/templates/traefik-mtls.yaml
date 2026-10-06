@@ -1,0 +1,83 @@
+{{/*
+Traefik objects for the mTLS admin fallback authentication:
+  - a Secret with the client CA certificates (when traefikMtls.caCertificates
+    is set, or a user-managed secret via traefikMtls.existingCaSecret),
+  - a TLSOption requesting and validating the client certificate on the
+    ingress route,
+  - a passTLSClientCert Middleware forwarding the certificate information to
+    CodX in the X-Forwarded-Tls-Client-Cert-Info header.
+
+Requires the Traefik CRDs (traefik.io/v1alpha1 Middleware and TLSOption).
+All objects are created in the release namespace, the same namespace as the
+Ingress, so Traefik resolves the plain-name references (name@kubernetescrd).
+*/}}
+{{- if .Values.traefikMtls.enabled }}
+{{- $fullname := include "common.names.fullname" . }}
+{{- $namespace := include "common.names.namespace" . }}
+{{- $caSecret := include "codx.traefikMtls.caSecretName" . }}
+{{- if and (not .Values.traefikMtls.existingCaSecret) (not .Values.traefikMtls.caCertificates) }}
+{{- fail "traefikMtls: set traefikMtls.existingCaSecret or traefikMtls.caCertificates to the CA that signed the admin client certificates" }}
+{{- end }}
+---
+{{- if not .Values.traefikMtls.existingCaSecret }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $caSecret }}
+  namespace: {{ $namespace | quote }}
+  labels: {{- include "common.labels.standard" . | nindent 4 }}
+    app.kubernetes.io/component: codx
+    {{- if .Values.commonLabels }}
+    {{- include "common.tplvalues.render" ( dict "value" .Values.commonLabels "context" $ ) | nindent 4 }}
+    {{- end }}
+  {{- if or .Values.commonAnnotations .Values.traefikMtls.annotations }}
+  annotations: {{- include "common.tplvalues.merge" ( dict "values" ( list .Values.traefikMtls.annotations .Values.commonAnnotations ) "context" . ) | nindent 4 }}
+  {{- end }}
+type: Opaque
+stringData:
+  # PEM-encoded client CA certificate(s), read by Traefik through the
+  # TLSOption clientAuth.secretNames field.
+  ca.crt: |-
+{{ .Values.traefikMtls.caCertificates | indent 4 }}
+---
+{{- end }}
+apiVersion: {{ .Values.traefikMtls.apiVersion }}
+kind: TLSOption
+metadata:
+  name: {{ include "codx.traefikMtls.tlsOptionName" . }}
+  namespace: {{ $namespace | quote }}
+  labels: {{- include "common.labels.standard" . | nindent 4 }}
+    app.kubernetes.io/component: codx
+    {{- if .Values.commonLabels }}
+    {{- include "common.tplvalues.render" ( dict "value" .Values.commonLabels "context" $ ) | nindent 4 }}
+    {{- end }}
+  {{- if or .Values.commonAnnotations .Values.traefikMtls.tlsOption.annotations }}
+  annotations: {{- include "common.tplvalues.merge" ( dict "values" ( list .Values.traefikMtls.tlsOption.annotations .Values.commonAnnotations ) "context" . ) | nindent 4 }}
+  {{- end }}
+spec:
+  clientAuth:
+    secretNames:
+      - {{ $caSecret }}
+    clientAuthType: {{ .Values.traefikMtls.tlsOption.clientAuthType | quote }}
+---
+apiVersion: {{ .Values.traefikMtls.apiVersion }}
+kind: Middleware
+metadata:
+  name: {{ include "codx.traefikMtls.middlewareName" . }}
+  namespace: {{ $namespace | quote }}
+  labels: {{- include "common.labels.standard" . | nindent 4 }}
+    app.kubernetes.io/component: codx
+    {{- if .Values.commonLabels }}
+    {{- include "common.tplvalues.render" ( dict "value" .Values.commonLabels "context" $ ) | nindent 4 }}
+    {{- end }}
+  {{- if or .Values.commonAnnotations .Values.traefikMtls.middleware.annotations }}
+  annotations: {{- include "common.tplvalues.merge" ( dict "values" ( list .Values.traefikMtls.middleware.annotations .Values.commonAnnotations ) "context" . ) | nindent 4 }}
+  {{- end }}
+spec:
+  passTLSClientCert:
+    pem: {{ .Values.traefikMtls.middleware.pem }}
+    {{- with .Values.traefikMtls.middleware.info }}
+    info:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+{{- end }}

@@ -126,22 +126,43 @@ func (s *Server) withMiddleware(h http.Handler) http.Handler {
 
 		// All other routes require a valid session.
 		cookie, err := r.Cookie(SessionCookieName)
-		if err != nil {
-			http.Redirect(w, r, "/auth/login", http.StatusSeeOther)
-			return
-		}
-
-		sess, err := s.store.Get(r.Context(), cookie.Value)
-		if err != nil || sess.IsExpired(time.Now()) {
-			// Clear the cookie and redirect to login.
+		if err == nil {
+			sess, err := s.store.Get(r.Context(), cookie.Value)
+			if err == nil && !sess.IsExpired(time.Now()) {
+				// Attach the session to the request context.
+				r = r.WithContext(WithSession(r.Context(), sess))
+				h.ServeHTTP(w, r)
+				return
+			}
+			// Invalid or expired session: clear the cookie.
 			clearSessionCookie(w, s.cfg.InstanceName)
-			http.Redirect(w, r, "/auth/login", http.StatusSeeOther)
+		}
+
+		// No valid session: try the mTLS client-certificate fallback for
+		// admins (used when the OIDC provider is unavailable).
+		if sess := s.fallbackSession(r); sess != nil {
+			if err := s.store.Save(r.Context(), sess); err != nil {
+				s.audit.Info("session_save_failed", "user", sess.Username, "error", err, "remote", clientIP(r))
+				http.Error(w, "session save failed", http.StatusInternalServerError)
+				return
+			}
+
+			s.audit.Info("login",
+				"method", "mtls-fallback",
+				"user", sess.Username,
+				"slug", sess.Slug,
+				"groups", sess.Groups,
+				"admin", sess.IsAdmin,
+				"remote", clientIP(r),
+			)
+
+			setSessionCookie(w, sess.ID, s.cfg.InstanceName)
+			r = r.WithContext(WithSession(r.Context(), sess))
+			h.ServeHTTP(w, r)
 			return
 		}
 
-		// Attach the session to the request context.
-		r = r.WithContext(WithSession(r.Context(), sess))
-		h.ServeHTTP(w, r)
+		http.Redirect(w, r, "/auth/login", http.StatusSeeOther)
 	})
 }
 

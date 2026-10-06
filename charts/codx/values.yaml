@@ -693,6 +693,68 @@ oidc:
   adminGroup: codx-admins
   usernameClaimName: preferred_username
 
+## @section mTLS Fallback Authentication
+## AuthFallback enables a client-certificate (mTLS) fallback that grants admin
+## access when the OIDC provider is unavailable. The ingress must request and
+## validate client certificates (Traefik TLSOption) and forward the certificate
+## information to CodX (Traefik passTLSClientCert middleware, which sets the
+## X-Forwarded-Tls-Client-Cert-Info header). CodX matches the forwarded
+## certificate Common Name against the adminCns allow list.
+## @param authFallback.enabled Enable the mTLS client-certificate fallback authentication for admins.
+## @param authFallback.headerName HTTP header carrying the escaped client certificate information.
+## @param authFallback.adminCns Client certificate Common Names allowed to authenticate as admins via the fallback.
+##
+authFallback:
+  enabled: false
+  headerName: X-Forwarded-Tls-Client-Cert-Info
+  adminCns: []
+  # Example:
+  # adminCns:
+  #   - alice
+
+## @section Traefik mTLS objects
+## TraefikMtls creates the Traefik objects needed by the mTLS fallback
+## authentication (authFallback): a Secret with the client CA certificates, a
+## TLSOption requesting and validating the client certificate on the ingress
+## route, and a passTLSClientCert Middleware forwarding the certificate
+## information to CodX in the X-Forwarded-Tls-Client-Cert-Info header.
+## Requires the Traefik CRDs (Middleware, TLSOption) and the ingress to be
+## managed by Traefik (ingress.ingressControllerType=traefik). All objects are
+## created in the release namespace. When enabled, the chart also sets the
+## traefik.ingress.kubernetes.io/router.tls.options annotation on the Ingress
+## (unless already set) and appends the Middleware to
+## traefik.ingress.kubernetes.io/router.middlewares.
+## @param traefikMtls.enabled Create the client CA Secret, TLSOption and passTLSClientCert Middleware.
+## @param traefikMtls.apiVersion API version of the Traefik CRDs: traefik.io/v1alpha1 (Traefik v3, default) or traefik.containo.us/v1alpha1 (Traefik v2).
+## @param traefikMtls.existingCaSecret Existing secret with the client CA certificate (key ca.crt), e.g. the chart internal CA "<fullname>-ca-crt". When empty, a Secret is created from traefikMtls.caCertificates.
+## @param traefikMtls.caCertificates PEM-encoded client CA certificate(s) for the created Secret. Use --set-file or prefer existingCaSecret.
+## @param traefikMtls.annotations Annotations added to the created client CA Secret.
+## @param traefikMtls.tlsOption.name Name of the TLSOption. Defaults to "<fullname>-client-mtls".
+## @param traefikMtls.tlsOption.annotations Annotations for the TLSOption.
+## @param traefikMtls.tlsOption.clientAuthType Client certificate policy: VerifyClientCertIfGiven (default, keeps the OIDC flow working for browsers without a client certificate), RequireAndVerifyClientCert, RequireClientCert or RequestClientCert.
+## @param traefikMtls.middleware.name Name of the Middleware. Defaults to "<fullname>-passtlsclientcert".
+## @param traefikMtls.middleware.annotations Annotations for the Middleware.
+## @param traefikMtls.middleware.pem Also forward the full client certificate (PEM) in the X-Forwarded-Tls-Client-Cert header.
+## @param traefikMtls.middleware.info Client certificate fields forwarded in the X-Forwarded-Tls-Client-Cert-Info header. Defaults to the subject common name, which is what the CodX fallback matches (authFallback.adminCns).
+##
+traefikMtls:
+  enabled: false
+  apiVersion: traefik.io/v1alpha1
+  existingCaSecret: ""
+  caCertificates: ""
+  annotations: {}
+  tlsOption:
+    name: ""
+    annotations: {}
+    clientAuthType: VerifyClientCertIfGiven
+  middleware:
+    name: ""
+    annotations: {}
+    pem: false
+    info:
+      subject:
+        commonName: true
+
 ## @section Redis/Valkey Session Store
 ## Redis configures the Redis/Valkey session store.
 ## @param redis.host Redis hostname (host:port).

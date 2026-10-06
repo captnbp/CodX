@@ -467,3 +467,95 @@ func indexOf(s, sub string) int {
 	}
 	return -1
 }
+
+func TestAuthFallbackDefaults(t *testing.T) {
+	yaml := `
+instanceName: "codx"
+http:
+  tlsCertFile: "/tls/tls.crt"
+  tlsKeyFile: "/tls/tls.key"
+oidc:
+  issuer: "https://keycloak.example.com/realms/myrealm"
+  clientId: "codx"
+  redirectUrl: "https://codx.example.com/auth/callback"
+  adminGroup: "codx-admins"
+redis:
+  host: "valkey:6379"
+certManager:
+  issuerName: "codx-workspace-issuer"
+`
+	cfg, err := Load([]byte(yaml))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.AuthFallback.Enabled {
+		t.Error("AuthFallback.Enabled should default to false")
+	}
+	if cfg.AuthFallback.HeaderName != "X-Forwarded-Tls-Client-Cert-Info" {
+		t.Errorf("AuthFallback.HeaderName default = %q, want X-Forwarded-Tls-Client-Cert-Info", cfg.AuthFallback.HeaderName)
+	}
+}
+
+func TestAuthFallbackEnabled(t *testing.T) {
+	yaml := `
+instanceName: "codx"
+http:
+  tlsCertFile: "/tls/tls.crt"
+  tlsKeyFile: "/tls/tls.key"
+oidc:
+  issuer: "https://keycloak.example.com/realms/myrealm"
+  clientId: "codx"
+  redirectUrl: "https://codx.example.com/auth/callback"
+  adminGroup: "codx-admins"
+authFallback:
+  enabled: true
+  headerName: "X-Custom-Cert-Info"
+  adminCns:
+    - "alice"
+    - "bob"
+redis:
+  host: "valkey:6379"
+certManager:
+  issuerName: "codx-workspace-issuer"
+`
+	cfg, err := Load([]byte(yaml))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !cfg.AuthFallback.Enabled {
+		t.Error("AuthFallback.Enabled should be true")
+	}
+	if cfg.AuthFallback.HeaderName != "X-Custom-Cert-Info" {
+		t.Errorf("AuthFallback.HeaderName = %q, want X-Custom-Cert-Info", cfg.AuthFallback.HeaderName)
+	}
+	if len(cfg.AuthFallback.AdminCNs) != 2 || cfg.AuthFallback.AdminCNs[0] != "alice" || cfg.AuthFallback.AdminCNs[1] != "bob" {
+		t.Errorf("AuthFallback.AdminCNs = %v, want [alice bob]", cfg.AuthFallback.AdminCNs)
+	}
+}
+
+func TestValidationAuthFallbackEnabledWithoutCNs(t *testing.T) {
+	yaml := `
+instanceName: "codx"
+http:
+  tlsCertFile: "/tls/tls.crt"
+  tlsKeyFile: "/tls/tls.key"
+oidc:
+  issuer: "https://keycloak.example.com/realms/myrealm"
+  clientId: "codx"
+  redirectUrl: "https://codx.example.com/auth/callback"
+  adminGroup: "codx-admins"
+authFallback:
+  enabled: true
+redis:
+  host: "valkey:6379"
+certManager:
+  issuerName: "codx-workspace-issuer"
+`
+	_, err := Load([]byte(yaml))
+	if err == nil {
+		t.Fatal("expected validation error for authFallback.enabled without adminCns")
+	}
+	if !contains(err.Error(), "authFallback.adminCns") {
+		t.Errorf("error should mention authFallback.adminCns: %v", err)
+	}
+}

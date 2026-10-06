@@ -32,6 +32,17 @@ data:
       groupClaimName: {{ .Values.oidc.groupClaimName | quote }}
       adminGroup: {{ .Values.oidc.adminGroup | quote }}
       usernameClaimName: {{ .Values.oidc.usernameClaimName | quote }}
+    {{- if .Values.authFallback }}
+    authFallback:
+      enabled: {{ .Values.authFallback.enabled }}
+      headerName: {{ .Values.authFallback.headerName | quote }}
+      {{- if .Values.authFallback.adminCns }}
+      adminCns:
+        {{- range .Values.authFallback.adminCns }}
+        - {{ . | quote }}
+        {{- end }}
+      {{- end }}
+    {{- end }}
     redis:
       host: {{ template "common.names.fullname" . }}-valkey.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}:6379
       db: {{ .Values.redis.db }}

@@ -33,6 +33,11 @@ type Config struct {
 	// OIDC configures the OIDC authentication provider.
 	OIDC OIDCConfig `yaml:"oidc"`
 
+	// AuthFallback configures the mTLS client-certificate fallback used to
+	// grant admin access when the OIDC provider is unavailable.
+	// +optional
+	AuthFallback AuthFallbackConfig `yaml:"authFallback,omitempty"`
+
 	// Redis configures the Redis/Valkey session store.
 	Redis RedisConfig `yaml:"redis"`
 
@@ -133,6 +138,35 @@ type OIDCConfig struct {
 	// +optional
 	// +default="preferred_username"
 	UsernameClaimName string `yaml:"usernameClaimName"`
+}
+
+// AuthFallbackConfig configures the mTLS client-certificate fallback for
+// admin access when the OIDC provider is unavailable.
+//
+// The ingress must terminate client-certificate mTLS and forward the
+// certificate information to CodX in a header. With Traefik this is the
+// passTLSClientCert middleware, whose X-Forwarded-Tls-Client-Cert-Info header
+// carries the escaped certificate fields (subject, issuer, ...); Traefik
+// validates the certificate against the TLSOption CA chain, CodX only trusts
+// the forwarded Common Name against the configured allow list.
+type AuthFallbackConfig struct {
+	// Enabled enables the mTLS fallback authentication.
+	// +optional
+	// +default=false
+	Enabled bool `yaml:"enabled"`
+
+	// HeaderName is the HTTP header carrying the escaped client certificate
+	// information. Defaults to "X-Forwarded-Tls-Client-Cert-Info" (Traefik
+	// passTLSClientCert middleware).
+	// +optional
+	// +default="X-Forwarded-Tls-Client-Cert-Info"
+	HeaderName string `yaml:"headerName"`
+
+	// AdminCNs is the list of client certificate Common Names that are
+	// allowed to authenticate as admins through the fallback. Required when
+	// enabled is true.
+	// +optional
+	AdminCNs []string `yaml:"adminCns"`
 }
 
 // RedisConfig configures the Redis/Valkey session store.
@@ -355,6 +389,10 @@ func applyDefaults(cfg *Config) {
 		cfg.OIDC.UsernameClaimName = "preferred_username"
 	}
 
+	if cfg.AuthFallback.HeaderName == "" {
+		cfg.AuthFallback.HeaderName = "X-Forwarded-Tls-Client-Cert-Info"
+	}
+
 	if cfg.Redis.CAFilePath == "" {
 		cfg.Redis.CAFilePath = "/tls/ca.crt"
 	}
@@ -434,6 +472,10 @@ func Validate(cfg *Config) error {
 	}
 	if cfg.OIDC.AdminGroup == "" {
 		errs = append(errs, "oidc.adminGroup is required")
+	}
+
+	if cfg.AuthFallback.Enabled && len(cfg.AuthFallback.AdminCNs) == 0 {
+		errs = append(errs, "authFallback.adminCns must list at least one client certificate Common Name when authFallback.enabled is true")
 	}
 
 	if cfg.Redis.Host == "" {

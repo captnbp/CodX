@@ -66,3 +66,30 @@ Instance name: defaults to release name, used in workspace object names.
 {{- .Release.Name -}}
 {{- end -}}
 {{- end -}}
+
+{{/*
+Traefik mTLS: name of the client CA Secret. When traefikMtls.existingCaSecret
+is set the user-managed secret is used, otherwise the chart creates one.
+*/}}
+{{- define "codx.traefikMtls.caSecretName" -}}
+{{- $secret := .Values.traefikMtls.existingCaSecret -}}
+{{- if $secret -}}
+{{- tpl $secret $ -}}
+{{- else -}}
+{{- printf "%s-client-ca" (include "common.names.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Traefik mTLS: name of the TLSOption requesting the client certificate.
+*/}}
+{{- define "codx.traefikMtls.tlsOptionName" -}}
+{{- .Values.traefikMtls.tlsOption.name | default (printf "%s-client-mtls" (include "common.names.fullname" .)) -}}
+{{- end -}}
+
+{{/*
+Traefik mTLS: name of the passTLSClientCert Middleware.
+*/}}
+{{- define "codx.traefikMtls.middlewareName" -}}
+{{- .Values.traefikMtls.middleware.name | default (printf "%s-passtlsclientcert" (include "common.names.fullname" .)) -}}
+{{- end -}}

@@ -1,4 +1,5 @@
 {{- if .Values.ingress.enabled }}
+{{- $mtlsMiddleware := and .Values.traefikMtls.enabled (eq .Values.ingress.ingressControllerType "traefik") }}
 apiVersion: {{ include "common.capabilities.ingress.apiVersion" . }}
 kind: Ingress
 metadata:
@@ -6,11 +7,25 @@ metadata:
   namespace: {{ include "common.names.namespace" . | quote }}
   labels: {{- include "common.labels.standard" ( dict "customLabels" .Values.commonLabels "context" $ ) | nindent 4 }}
     app.kubernetes.io/component: codx
-  annotations:
-    {{- if or .Values.ingress.annotations .Values.commonAnnotations }}
-    {{- $annotations := include "common.tplvalues.merge" ( dict "values" ( list .Values.ingress.annotations .Values.commonAnnotations ) "context" . ) }}
-    {{- include "common.tplvalues.render" ( dict "value" $annotations "context" $) | nindent 4 }}
-    {{- end }}
+  {{- $ann := dict }}
+  {{- if or .Values.ingress.annotations .Values.commonAnnotations }}
+  {{- $ann = include "common.tplvalues.merge" ( dict "values" ( list .Values.ingress.annotations .Values.commonAnnotations ) "context" . ) | fromYaml }}
+  {{- end }}
+  {{- if $mtlsMiddleware }}
+  {{- $mwRef := printf "%s@kubernetescrd" (include "codx.traefikMtls.middlewareName" .) }}
+  {{- if index $ann "traefik.ingress.kubernetes.io/router.middlewares" }}
+  {{- $mwRef = printf "%s,%s" (index $ann "traefik.ingress.kubernetes.io/router.middlewares") $mwRef }}
+  {{- end }}
+  {{- $_ := set $ann "traefik.ingress.kubernetes.io/router.middlewares" $mwRef }}
+  {{- if not (index $ann "traefik.ingress.kubernetes.io/router.tls.options") }}
+  {{- $_ := set $ann "traefik.ingress.kubernetes.io/router.tls.options" (printf "%s@kubernetescrd" (include "codx.traefikMtls.tlsOptionName" .)) }}
+  {{- end }}
+  {{- end }}
+  {{- if $ann }}
+  annotations: {{- include "common.tplvalues.render" ( dict "value" $ann "context" $) | nindent 4 }}
+  {{- else }}
+  annotations: {}
+  {{- end }}
 spec:
   {{- if .Values.ingress.ingressClassName }}
   ingressClassName: {{ .Values.ingress.ingressClassName | quote }}
