@@ -862,6 +862,14 @@ func (s *Server) handleWorkspaceLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.serveWorkspaceLogs(w, r, sess.Slug)
+}
+
+// serveWorkspaceLogs streams the logs of the given workspace's code-server
+// container: plain text with the last `tail` lines, or an SSE stream with
+// follow=true. Shared by the user endpoint (/api/workspace/logs) and the
+// admin endpoint (/api/admin/users/<slug>/logs).
+func (s *Server) serveWorkspaceLogs(w http.ResponseWriter, r *http.Request, userSlug string) {
 	tail := int64(200)
 	if raw := r.URL.Query().Get("tail"); raw != "" {
 		if v, err := strconv.ParseInt(raw, 10, 64); err == nil {
@@ -876,12 +884,12 @@ func (s *Server) handleWorkspaceLogs(w http.ResponseWriter, r *http.Request) {
 	}
 	follow := r.URL.Query().Get("follow") == "true"
 
-	if !s.workspaces.IsWorkspaceRunning(r.Context(), sess.Slug) {
+	if !s.workspaces.IsWorkspaceRunning(r.Context(), userSlug) {
 		http.Error(w, "workspace not running", http.StatusConflict)
 		return
 	}
 
-	logs, err := s.workspaces.GetWorkspaceLogs(r.Context(), sess.Slug, k8s.CodeServerContainerName, tail, follow)
+	logs, err := s.workspaces.GetWorkspaceLogs(r.Context(), userSlug, k8s.CodeServerContainerName, tail, follow)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to get workspace logs: %v", err), http.StatusInternalServerError)
 		return
@@ -891,7 +899,7 @@ func (s *Server) handleWorkspaceLogs(w http.ResponseWriter, r *http.Request) {
 	if !follow {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		if _, err := io.Copy(w, logs); err != nil {
-			s.log.Error(err, "failed to stream workspace logs", "user", sess.Username, "slug", sess.Slug)
+			s.log.Error(err, "failed to stream workspace logs", "slug", userSlug)
 		}
 		return
 	}
@@ -923,7 +931,7 @@ func (s *Server) handleWorkspaceLogs(w http.ResponseWriter, r *http.Request) {
 		sendEvent("log", scanner.Text())
 	}
 	if err := scanner.Err(); err != nil {
-		s.log.Error(err, "workspace log stream failed", "user", sess.Username, "slug", sess.Slug)
+		s.log.Error(err, "workspace log stream failed", "slug", userSlug)
 		sendEvent("error", fmt.Sprintf("log stream failed: %v", err))
 		return
 	}

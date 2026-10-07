@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/captnbp/CodX/internal/k8s"
 	"github.com/captnbp/CodX/internal/session"
@@ -77,13 +78,54 @@ func (s *Server) handleAdminUI(w http.ResponseWriter, r *http.Request) {
   <div class="table-responsive">
     <table class="table table-striped table-hover align-middle">
       <thead class="table-dark">
-        <tr><th>Username</th><th>Slug</th><th>Online</th><th>Actions</th></tr>
+        <tr><th>Username</th><th>Slug</th><th>Online</th><th>Created</th><th>CPU</th><th>RAM</th><th>Actions</th></tr>
       </thead>
       <tbody id="users"></tbody>
     </table>
   </div>
 </div>
+<div class="modal fade" id="logsModal" tabindex="-1">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="logsTitle">Workspace logs</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <pre id="logsPre" class="bg-dark text-light p-3 rounded" style="max-height: 60vh; overflow-y: scroll; font-size: 0.8rem;"></pre>
+      </div>
+    </div>
+  </div>
+</div>
 <script>
+function formatBytes(b) {
+    if (b < 1024) { return b + " B"; }
+    var units = ["KiB", "MiB", "GiB", "TiB"];
+    var u = -1;
+    do { b = b / 1024; u++; } while (b >= 1024 && u < units.length - 1);
+    return b.toFixed(1) + " " + units[u];
+}
+function formatCores(c) {
+    if (c === 0) { return "0"; }
+    if (c < 1) { return Math.round(c * 1000) + "m"; }
+    return c.toFixed(2);
+}
+function resourceBar(used, limit, request, fmt) {
+    var pct = 0;
+    var limitText = "no limit";
+    if (limit > 0) {
+        pct = Math.min(100, Math.round(used / limit * 100));
+        limitText = fmt(limit);
+    }
+    var color = pct > 90 ? "bg-danger" : (pct > 75 ? "bg-warning" : "bg-success");
+    var html = '<div style="min-width: 120px;"><div class="d-flex justify-content-between"><span>' + fmt(used) + '</span><span class="text-muted">' + limitText + '</span></div>';
+    html += '<div class="progress" style="height: 6px;"><div class="progress-bar ' + color + '" style="width: ' + pct + '%%"></div></div>';
+    if (request > 0) {
+        html += '<div class="text-muted" style="font-size: 0.75rem;">request: ' + fmt(request) + '</div>';
+    }
+    html += '</div>';
+    return html;
+}
 function loadUsers() {
     fetch("/api/admin/users").then(r => r.json()).then(users => {
         var tbody = document.querySelector("#users");
@@ -93,11 +135,22 @@ function loadUsers() {
             var onlineBadge = u.online
                 ? '<span class="badge text-bg-success">online</span>'
                 : '<span class="badge text-bg-secondary">offline</span>';
+            var created = u.createdAt
+                ? new Date(u.createdAt).toLocaleString()
+                : '<span class="text-muted">unknown</span>';
+            var usage = u.usage ? usageCell(u.usage) : '<span class="text-muted">&mdash;</span>';
+            var logsBtn = u.online
+                ? '<button class="btn btn-sm btn-outline-secondary me-1" onclick="openLogs(\'' + u.slug + '\')">Logs</button>'
+                : '';
             tr.innerHTML = "<td>" + u.username + "</td>" +
                 "<td><code>" + u.slug + "</code></td>" +
                 "<td>" + onlineBadge + "</td>" +
+                "<td>" + created + "</td>" +
+                "<td>" + (u.usage ? resourceBar(u.usage.cpu.usedCores, u.usage.cpu.limitCores, u.usage.cpu.requestCores, formatCores) : '<span class="text-muted">&mdash;</span>') + "</td>" +
+                "<td>" + (u.usage ? resourceBar(u.usage.memory.usedBytes, u.usage.memory.limitBytes, u.usage.memory.requestBytes, formatBytes) : '<span class="text-muted">&mdash;</span>') + "</td>" +
                 "<td>" +
                 '<button class="btn btn-sm btn-outline-primary me-1" onclick="extendPVC(\'' + u.slug + '\')">Extend PVC</button>' +
+                logsBtn +
                 '<button class="btn btn-sm btn-outline-warning me-1" onclick="stopWorkspace(\'' + u.slug + '\')">Stop</button>' +
                 '<button class="btn btn-sm btn-outline-danger" onclick="deleteUser(\'' + u.slug + '\')">Delete</button>' +
                 "</td>";
@@ -105,6 +158,31 @@ function loadUsers() {
         });
     });
 }
+var logsEvtSource = null;
+function closeLogs() {
+    if (logsEvtSource) { logsEvtSource.close(); logsEvtSource = null; }
+}
+function openLogs(slug) {
+    document.getElementById("logsTitle").textContent = "Workspace logs: " + slug;
+    var pre = document.getElementById("logsPre");
+    pre.textContent = "";
+    closeLogs();
+    logsEvtSource = new EventSource("/api/admin/users/" + encodeURIComponent(slug) + "/logs?follow=true&tail=200");
+    logsEvtSource.addEventListener("log", function(e) {
+        pre.textContent += e.data + "\n";
+        pre.scrollTop = pre.scrollHeight;
+    });
+    logsEvtSource.addEventListener("end", function(e) {
+        pre.textContent += "--- " + (e.data || "stream closed") + " ---\n";
+        closeLogs();
+    });
+    logsEvtSource.addEventListener("error", function(e) {
+        if (e.data) { pre.textContent += "Error: " + e.data + "\n"; }
+        closeLogs();
+    });
+    new bootstrap.Modal(document.getElementById("logsModal")).show();
+}
+document.getElementById("logsModal").addEventListener("hidden.bs.modal", closeLogs);
 function extendPVC(slug) {
     var size = prompt("New PVC size (e.g. 50Gi):");
     if (!size) return;
@@ -121,6 +199,7 @@ function deleteUser(slug) {
         .then(r => r.json()).then(function(d){ alert(JSON.stringify(d)); }).then(loadUsers);
 }
 loadUsers();
+setInterval(loadUsers, 10000);
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
 </body>
@@ -148,10 +227,32 @@ func (s *Server) handleAdminListUsers(w http.ResponseWriter, r *http.Request) {
 
 // userInfo represents a workspace user in the admin list.
 type userInfo struct {
-	Username     string `json:"username"`
-	Slug         string `json:"slug"`
-	Online       bool   `json:"online"`
-	LastActivity string `json:"lastActivity,omitempty"`
+	Username string `json:"username"`
+	Slug     string `json:"slug"`
+	Online   bool   `json:"online"`
+
+	// CreatedAt is the creation time of the user's workspace (RFC3339),
+	// read from the workspace PVC creationTimestamp.
+	CreatedAt string `json:"createdAt,omitempty"`
+
+	// Usage is the current CPU/RAM usage of the code-server container,
+	// only reported for running workspaces.
+	Usage *usageInfo `json:"usage,omitempty"`
+}
+
+// usageInfo is the JSON shape of a workspace's resource usage, matching the
+// user status endpoint so the UI rendering code is shared.
+type usageInfo struct {
+	CPU struct {
+		UsedCores    float64 `json:"usedCores"`
+		RequestCores float64 `json:"requestCores"`
+		LimitCores   float64 `json:"limitCores"`
+	} `json:"cpu"`
+	Memory struct {
+		UsedBytes    int64 `json:"usedBytes"`
+		RequestBytes int64 `json:"requestBytes"`
+		LimitBytes   int64 `json:"limitBytes"`
+	} `json:"memory"`
 }
 
 func (s *Server) listWorkspaceUsers(r *http.Request) []userInfo {
@@ -167,12 +268,36 @@ func (s *Server) listWorkspaceUsers(r *http.Request) []userInfo {
 		if slug == "" {
 			continue
 		}
-		online := s.workspaces.IsWorkspaceRunning(r.Context(), slug)
-		users = append(users, userInfo{
+
+		info := userInfo{
 			Username: slug,
 			Slug:     slug,
-			Online:   online,
-		})
+			Online:   s.workspaces.IsWorkspaceRunning(r.Context(), slug),
+		}
+
+		// Creation date of the user's workspace: the PVC is created on
+		// first start and survives stops and restarts.
+		if createdAt, err := s.workspaces.GetWorkspaceCreationTime(r.Context(), slug); err == nil && !createdAt.IsZero() {
+			info.CreatedAt = createdAt.UTC().Format(time.RFC3339)
+		}
+
+		// CPU/RAM usage with requests, like the user UI, for running
+		// workspaces only.
+		if info.Online {
+			if usage, running, err := s.workspaces.GetWorkspaceUsage(r.Context(), slug); err != nil {
+				s.log.V(1).Error(err, "failed to get workspace usage", "slug", slug)
+			} else if usage != nil && running {
+				info.Usage = &usageInfo{}
+				info.Usage.CPU.UsedCores = usage.CPUUsedCores
+				info.Usage.CPU.RequestCores = usage.CPURequestCores
+				info.Usage.CPU.LimitCores = usage.CPULimitCores
+				info.Usage.Memory.UsedBytes = usage.MemoryUsedBytes
+				info.Usage.Memory.RequestBytes = usage.MemoryRequestBytes
+				info.Usage.Memory.LimitBytes = usage.MemoryLimitBytes
+			}
+		}
+
+		users = append(users, info)
 	}
 	return users
 }
@@ -194,6 +319,13 @@ func (s *Server) handleAdminUserAction(w http.ResponseWriter, r *http.Request) {
 	adminUser := SessionFromContext(r.Context()).Username
 
 	switch action {
+	case "logs":
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		s.serveWorkspaceLogs(w, r, slug)
+
 	case "stop":
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)

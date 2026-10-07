@@ -15,6 +15,7 @@ import (
 	"github.com/captnbp/CodX/internal/k8s/fake"
 	"github.com/captnbp/CodX/internal/session"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -65,6 +66,23 @@ func adminTestServer(t *testing.T) (*Server, *session.MemoryStore, *k8s.Workspac
 	if err != nil {
 		t.Fatalf("create workspace jane-smith: %v", err)
 	}
+
+	// john-doe's workspace is running (usage and logs are available);
+	// jane-smith's is stopped. The PVC creation timestamp of john-doe is
+	// fixed so the reported creation date is deterministic.
+	coreClient.PodMap["codx-john-doe"].Status.Phase = corev1.PodRunning
+	coreClient.PodMap["codx-john-doe"].Spec.Containers[0].Resources = corev1.ResourceRequirements{
+		Requests: corev1.ResourceList{
+			corev1.ResourceCPU:    resource.MustParse("250m"),
+			corev1.ResourceMemory: resource.MustParse("256Mi"),
+		},
+		Limits: corev1.ResourceList{
+			corev1.ResourceCPU:    resource.MustParse("2"),
+			corev1.ResourceMemory: resource.MustParse("4Gi"),
+		},
+	}
+	coreClient.PVCMap["codx-john-doe"].CreationTimestamp = metav1.NewTime(time.Date(2026, 1, 15, 10, 30, 0, 0, time.UTC))
+	coreClient.PodLogs["codx-john-doe"] = "code-server starting\nlistening on 8080\n"
 
 	proxyFactory := func(fqdn string) (http.Handler, error) {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -276,9 +294,111 @@ func TestRestartWorkspaceWrongMethod(t *testing.T) {
 
 // Ensure the fake clients compile with the expected types.
 var (
-	_ corev1.Service = corev1.Service{}
+	_ corev1.Service     = corev1.Service{}
 	_ metav1.ListOptions = metav1.ListOptions{}
 )
 
 // httptest.ResponseRecorder alias for readability.
 var _ = httptest.NewRecorder
+
+func TestAdminListUsersReportsCreationAndUsage(t *testing.T) {
+	srv, _, _ := adminTestServer(t)
+	handler := srv.Handler()
+
+	rr := doRequest(t, handler, "GET", "/api/admin/users", "admin-session")
+	if rr.Code != http.StatusOK {
+		t.Fatalf("list users: got %d, want %d", rr.Code, http.StatusOK)
+	}
+
+	var users []userInfo
+	if err := json.Unmarshal(rr.Body.Bytes(), &users); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(users) != 2 {
+		t.Fatalf("users count = %d, want 2", len(users))
+	}
+
+	bySlug := map[string]userInfo{}
+	for _, u := range users {
+		bySlug[u.Slug] = u
+	}
+
+	// john-doe: running, so usage with requests is reported.
+	john := bySlug["john-doe"]
+	if !john.Online {
+		t.Error("john-doe should be online")
+	}
+	if john.Usage == nil {
+		t.Fatal("john-doe usage is nil, want usage for a running workspace")
+	}
+	if john.Usage.CPU.RequestCores != 0.25 {
+		t.Errorf("CPU request = %v, want 0.25", john.Usage.CPU.RequestCores)
+	}
+	if john.Usage.CPU.LimitCores != 2 {
+		t.Errorf("CPU limit = %v, want 2", john.Usage.CPU.LimitCores)
+	}
+	if john.Usage.Memory.RequestBytes != 256*1024*1024 {
+		t.Errorf("memory request = %v, want 256Mi", john.Usage.Memory.RequestBytes)
+	}
+	if john.Usage.Memory.LimitBytes != 4*1024*1024*1024 {
+		t.Errorf("memory limit = %v, want 4Gi", john.Usage.Memory.LimitBytes)
+	}
+
+	// Creation date from the PVC creationTimestamp.
+	createdAt, err := time.Parse(time.RFC3339, john.CreatedAt)
+	if err != nil {
+		t.Fatalf("createdAt %q is not RFC3339: %v", john.CreatedAt, err)
+	}
+	want := time.Date(2026, 1, 15, 10, 30, 0, 0, time.UTC)
+	if !createdAt.Equal(want) {
+		t.Errorf("createdAt = %v, want %v", createdAt, want)
+	}
+
+	// jane-smith: stopped, no usage but still a creation date.
+	jane := bySlug["jane-smith"]
+	if jane.Online {
+		t.Error("jane-smith should be offline")
+	}
+	if jane.Usage != nil {
+		t.Errorf("jane-smith usage = %v, want nil for a stopped workspace", jane.Usage)
+	}
+	if jane.CreatedAt == "" {
+		t.Error("jane-smith createdAt is empty, want the PVC creation date")
+	}
+}
+
+func TestAdminLogsRunningWorkspace(t *testing.T) {
+	srv, _, _ := adminTestServer(t)
+	handler := srv.Handler()
+
+	rr := doRequest(t, handler, "GET", "/api/admin/users/john-doe/logs?tail=100", "admin-session")
+	if rr.Code != http.StatusOK {
+		t.Fatalf("admin logs: got %d, want %d, body: %s", rr.Code, http.StatusOK, rr.Body.String())
+	}
+	if got := rr.Header().Get("Content-Type"); !strings.Contains(got, "text/plain") {
+		t.Errorf("admin logs content type = %q, want text/plain", got)
+	}
+	if !strings.Contains(rr.Body.String(), "listening on 8080") {
+		t.Errorf("admin logs body should contain the pod logs: %q", rr.Body.String())
+	}
+}
+
+func TestAdminLogsWorkspaceNotRunning(t *testing.T) {
+	srv, _, _ := adminTestServer(t)
+	handler := srv.Handler()
+
+	rr := doRequest(t, handler, "GET", "/api/admin/users/jane-smith/logs", "admin-session")
+	if rr.Code != http.StatusConflict {
+		t.Errorf("logs of stopped workspace: got %d, want %d", rr.Code, http.StatusConflict)
+	}
+}
+
+func TestAdminLogsForbiddenForNonAdmin(t *testing.T) {
+	srv, _, _ := adminTestServer(t)
+	handler := srv.Handler()
+
+	rr := doRequest(t, handler, "GET", "/api/admin/users/john-doe/logs", "user-session")
+	if rr.Code != http.StatusForbidden {
+		t.Errorf("non-admin logs: got %d, want %d", rr.Code, http.StatusForbidden)
+	}
+}

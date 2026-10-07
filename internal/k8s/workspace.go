@@ -3,6 +3,7 @@ package k8s
 import (
 	"context"
 	"fmt"
+	"time"
 
 	profilev1 "github.com/captnbp/CodX/api/profile/v1"
 	"github.com/captnbp/CodX/internal/config"
@@ -143,6 +144,21 @@ func (m *WorkspaceManager) DeleteWorkspace(ctx context.Context, userSlug string)
 	}
 
 	return nil
+}
+
+// GetWorkspaceCreationTime returns the creation time of a user's workspace,
+// read from the creationTimestamp of the workspace PVC. The PVC is created on
+// first start and survives stops and restarts, so it tracks the user's
+// arrival better than the pod.
+func (m *WorkspaceManager) GetWorkspaceCreationTime(ctx context.Context, userSlug string) (time.Time, error) {
+	namespace := m.cfg.Namespace
+	objName := slug.ObjectName(m.cfg.InstanceName, userSlug, m.maxNameLen)
+
+	pvc, err := m.clients.CoreV1.PersistentVolumeClaims(namespace).Get(ctx, objName, metav1.GetOptions{})
+	if err != nil {
+		return time.Time{}, fmt.Errorf("get PVC: %w", err)
+	}
+	return pvc.CreationTimestamp.Time, nil
 }
 
 // ExtendPVC updates the PVC storage size.

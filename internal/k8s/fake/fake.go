@@ -161,8 +161,14 @@ func (f *pvcInterface) Create(ctx context.Context, pvc *corev1.PersistentVolumeC
 	if _, exists := f.client.PVCMap[pvc.Name]; exists {
 		return nil, apierrors.NewAlreadyExists(schema.GroupResource{Resource: "persistentvolumeclaims"}, pvc.Name)
 	}
-	f.client.PVCMap[pvc.Name] = pvc.DeepCopy()
-	return pvc.DeepCopy(), nil
+	stored := pvc.DeepCopy()
+	if stored.CreationTimestamp.IsZero() {
+		// Like the API server, stamp the creation time on newly created
+		// objects.
+		stored.CreationTimestamp = metav1.Now()
+	}
+	f.client.PVCMap[pvc.Name] = stored
+	return stored.DeepCopy(), nil
 }
 
 func (f *pvcInterface) Update(ctx context.Context, pvc *corev1.PersistentVolumeClaim, opts metav1.UpdateOptions) (*corev1.PersistentVolumeClaim, error) {
