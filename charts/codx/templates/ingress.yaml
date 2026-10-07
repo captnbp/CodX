@@ -11,14 +11,27 @@ metadata:
   {{- if or .Values.ingress.annotations .Values.commonAnnotations }}
   {{- $ann = include "common.tplvalues.merge" ( dict "values" ( list .Values.ingress.annotations .Values.commonAnnotations ) "context" . ) | fromYaml }}
   {{- end }}
-  {{- if $mtlsMiddleware }}
-  {{- $mwRef := printf "%s@kubernetescrd" (include "codx.traefikMtls.middlewareName" .) }}
-  {{- if index $ann "traefik.ingress.kubernetes.io/router.middlewares" }}
-  {{- $mwRef = printf "%s,%s" (index $ann "traefik.ingress.kubernetes.io/router.middlewares") $mwRef }}
+  {{- $mwKey := "traefik.ingress.kubernetes.io/router.middlewares" }}
+  {{- if and (eq .Values.ingress.ingressControllerType "traefik") (or $mtlsMiddleware .Values.ingress.extraMiddlewares) }}
+  {{- $mwList := list }}
+  {{- if index $ann $mwKey }}
+  {{- $mwList = append $mwList (index $ann $mwKey) }}
   {{- end }}
-  {{- $_ := set $ann "traefik.ingress.kubernetes.io/router.middlewares" $mwRef }}
+  {{- if $mtlsMiddleware }}
+  {{- $mwList = append $mwList (printf "%s-%s@kubernetescrd" (include "common.names.namespace" .) (include "codx.traefikMtls.middlewareName" .)) }}
+  {{- end }}
+  {{- range .Values.ingress.extraMiddlewares }}
+  {{- $ref := . }}
+  {{- if not (contains "@" $ref) }}
+  {{- $ref = printf "%s@kubernetescrd" $ref }}
+  {{- end }}
+  {{- $mwList = append $mwList $ref }}
+  {{- end }}
+  {{- $_ := set $ann $mwKey (join "," $mwList) }}
+  {{- end }}
+  {{- if $mtlsMiddleware }}
   {{- if not (index $ann "traefik.ingress.kubernetes.io/router.tls.options") }}
-  {{- $_ := set $ann "traefik.ingress.kubernetes.io/router.tls.options" (printf "%s@kubernetescrd" (include "codx.traefikMtls.tlsOptionName" .)) }}
+  {{- $_ := set $ann "traefik.ingress.kubernetes.io/router.tls.options" (printf "%s-%s@kubernetescrd" (include "common.names.namespace" .) (include "codx.traefikMtls.tlsOptionName" .)) }}
   {{- end }}
   {{- end }}
   {{- if $ann }}

@@ -238,11 +238,17 @@ traefikMtls:
 When `traefikMtls.enabled` is true and `ingress.ingressControllerType` is
 `traefik`, the chart also wires the ingress annotations automatically:
 
-- appends `<fullname>-passtlsclientcert@kubernetescrd` to
+- appends `<fullname>-passtlsclientcert-<namespace>@kubernetescrd` to
   `traefik.ingress.kubernetes.io/router.middlewares` (your existing list is
   preserved);
 - sets `traefik.ingress.kubernetes.io/router.tls.options` to
   `<fullname>-client-mtls@kubernetescrd`, unless you set it yourself.
+
+Extra middlewares can be added through the `ingress.extraMiddlewares`
+list: they are appended to `router.middlewares` after any user-defined
+middlewares (from `ingress.annotations`) and the chart
+`passTLSClientCert` middleware. Entries are middleware references; the
+`@kubernetescrd` provider suffix is added when missing.
 
 Both objects are created in the same namespace as the Ingress, so Traefik
 resolves the plain-name references. When enabled, the render fails with an
