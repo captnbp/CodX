@@ -201,8 +201,8 @@ func TestFallbackSessionContent(t *testing.T) {
 	if sess.Slug != "alice" {
 		t.Errorf("Slug = %q, want alice", sess.Slug)
 	}
-	if len(sess.Groups) != 1 || sess.Groups[0] != "codx-admins" {
-		t.Errorf("Groups = %v, want [codx-admins]", sess.Groups)
+	if len(sess.Groups) != 0 {
+		t.Errorf("Groups = %v, want no OIDC group claimed for a certificate CN", sess.Groups)
 	}
 	if sess.ExpiresAt.Before(time.Now()) {
 		t.Errorf("ExpiresAt = %v, should be in the future", sess.ExpiresAt)
@@ -259,5 +259,41 @@ func TestSessionTTLConfigurable(t *testing.T) {
 	srv.cfg.Session.TTL = "bogus"
 	if ttl := srv.sessionTTL(); ttl != defaultTTL {
 		t.Errorf("sessionTTL() with invalid config = %v, want %v (config.DefaultSessionTTL)", ttl, defaultTTL)
+	}
+}
+
+// TestFallbackAdminSeesAllProfiles verifies that a fallback admin session (no
+// OIDC groups) can access group-gated profiles, unlike a non-admin session.
+func TestFallbackAdminSeesAllProfiles(t *testing.T) {
+	srv, store, _ := testServer(t)
+	handler := srv.Handler()
+
+	// Fallback admin: no groups, IsAdmin.
+	adminCookie := createSessionCookie(t, store, "macbook-benoit", "macbook-benoit", nil, true)
+	rr := doRequest(t, handler, "GET", "/", adminCookie)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("fallback admin index: got %d, want %d", rr.Code, http.StatusOK)
+	}
+	// python-dev is gated on the "developers" group; the admin must see it.
+	if !strings.Contains(rr.Body.String(), "Python Developer") {
+		t.Error("fallback admin should see group-gated profiles")
+	}
+
+	rr = doRequest(t, handler, "GET", "/api/profiles", adminCookie)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("fallback admin list profiles: got %d, want %d", rr.Code, http.StatusOK)
+	}
+	if !strings.Contains(rr.Body.String(), "python-dev") {
+		t.Errorf("fallback admin /api/profiles should list python-dev: %s", rr.Body.String())
+	}
+
+	// Non-admin without matching groups: still gated.
+	userCookie := createSessionCookie(t, store, "nogroups", "nogroups", nil, false)
+	rr = doRequest(t, handler, "GET", "/", userCookie)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("non-admin index: got %d, want %d", rr.Code, http.StatusOK)
+	}
+	if strings.Contains(rr.Body.String(), "Python Developer") {
+		t.Error("non-admin without the developers group should not see the gated profile")
 	}
 }

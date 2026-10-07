@@ -171,6 +171,16 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(w, "ok")
 }
 
+// allowedProfiles returns the profiles the session is allowed to use:
+// admins have access to every profile, other users follow the profiles'
+// OIDC group gating.
+func (s *Server) allowedProfiles(sess *session.Session) []*profilev1.Profile {
+	if sess.IsAdmin {
+		return s.profiles.All()
+	}
+	return s.profiles.AllowedForGroups(sess.Groups)
+}
+
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
 		http.NotFound(w, r)
@@ -183,7 +193,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	profiles := s.profiles.AllowedForGroups(sess.Groups)
+	profiles := s.allowedProfiles(sess)
 
 	s.log.Info("serving profile picker",
 		"user", sess.Username,
@@ -595,6 +605,7 @@ func (s *Server) handleCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.audit.Info("login",
+		"method", "oidc",
 		"user", sess.Username,
 		"slug", sess.Slug,
 		"groups", sess.Groups,
@@ -642,7 +653,7 @@ func (s *Server) handleListProfiles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	profiles := s.profiles.AllowedForGroups(sess.Groups)
+	profiles := s.allowedProfiles(sess)
 
 	s.log.V(1).Info("list profiles",
 		"user", sess.Username,
@@ -695,7 +706,7 @@ func (s *Server) handleStartWorkspace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !isProfileAllowed(profile, sess.Groups) {
+	if !sess.IsAdmin && !isProfileAllowed(profile, sess.Groups) {
 		s.audit.Info("workspace_start_denied", "user", sess.Username, "profile", profileName, "reason", "profile not allowed", "remote", clientIP(r))
 		http.Error(w, "profile not allowed", http.StatusForbidden)
 		return

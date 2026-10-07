@@ -76,12 +76,13 @@ Service, Certificate, PVC, Pod.
 ### Authorization
 
 - **Admin**: a user is an admin when the group claim contains
-  `oidc.adminGroup`. Admins see the Admin link in the UI and can use
-  `/admin` and `/api/admin/*` (list users, extend storage, stop or delete
-  workspaces).
+  `oidc.adminGroup` (or when they authenticate through the mTLS fallback).
+  Admins see the Admin link in the UI and can use `/admin` and
+  `/api/admin/*` (list users, extend storage, stop or delete workspaces).
 - **Profiles**: workspaces are gated by the profile's `oidcGroups` list; a
-  user can start a workspace when any of their groups matches. An empty list
-  means all authenticated users. See the
+  non-admin user can start a workspace when any of their groups matches. An
+  empty list means all authenticated users. Admins (including mTLS fallback
+  sessions, which claim no OIDC group) can use every profile. See the
   [Profile CRD reference](profile-crd.md).
 
 ## Session management
@@ -159,7 +160,8 @@ list.
    - `Username` = certificate CN
    - `Slug` = slug derived from the CN
    - `Subject` = `mtls:<CN>`
-   - `Groups` = `[oidc.adminGroup]`
+   - `Groups` = none - no OIDC group membership is claimed for a
+     certificate CN; access comes from `IsAdmin` (see Authorization)
    - `IsAdmin` = true
 
    The session is saved to the store, the `codx-session` cookie is set, and

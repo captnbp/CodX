@@ -52,11 +52,14 @@ func (s *Server) fallbackSession(r *http.Request) *session.Session {
 	}
 
 	return &session.Session{
-		ID:        sessID,
-		Subject:   "mtls:" + cn,
-		Username:  cn,
-		Slug:      slug.Make(cn, s.cfg.Slug.MaxLength),
-		Groups:    []string{s.cfg.OIDC.AdminGroup},
+		ID:       sessID,
+		Subject:  "mtls:" + cn,
+		Username: cn,
+		Slug:     slug.Make(cn, s.cfg.Slug.MaxLength),
+		// No OIDC group is claimed for a certificate CN: access is granted
+		// by IsAdmin (admins can use every profile), not by group
+		// membership.
+		Groups:    nil,
 		IsAdmin:   true,
 		ExpiresAt: time.Now().Add(s.sessionTTL()),
 	}
