@@ -141,7 +141,6 @@ function loadUsers() {
             var lastLogin = u.lastLogin
                 ? new Date(u.lastLogin).toLocaleString()
                 : '<span class="text-muted">never</span>';
-            var usage = u.usage ? usageCell(u.usage) : '<span class="text-muted">&mdash;</span>';
             var logsBtn = u.online
                 ? '<button class="btn btn-sm btn-outline-secondary me-1" onclick="openLogs(\'' + u.slug + '\')">Logs</button>'
                 : '';
