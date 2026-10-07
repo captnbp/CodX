@@ -3,6 +3,7 @@ package k8s
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/captnbp/CodX/internal/config"
 	cmv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
@@ -587,5 +588,67 @@ func TestBuildPodReadinessProbeOverrides(t *testing.T) {
 	}
 	if p := pod.Spec.Containers[1].ReadinessProbe; p == nil || p.TCPSocket == nil || p.TCPSocket.Port.IntValue() != 19999 || p.PeriodSeconds != 20 {
 		t.Errorf("envoy-tls readiness probe override not applied: %+v", pod.Spec.Containers[1].ReadinessProbe)
+	}
+}
+
+func TestWorkspaceLastLogin(t *testing.T) {
+	cs := newTestClientset()
+	cfg := testConfig()
+	mgr := NewWorkspaceManager(cs, cfg)
+	profile := testProfile("python-dev", "Python Dev", nil)
+
+	if _, err := mgr.EnsureWorkspace(context.Background(), profile, "john-doe"); err != nil {
+		t.Fatalf("EnsureWorkspace: %v", err)
+	}
+
+	// No annotation yet: zero time.
+	lastLogin, err := mgr.GetWorkspaceLastLogin(context.Background(), "john-doe")
+	if err != nil {
+		t.Fatalf("GetWorkspaceLastLogin: %v", err)
+	}
+	if !lastLogin.IsZero() {
+		t.Errorf("lastLogin = %v, want zero before the first login", lastLogin)
+	}
+
+	// Touch records the login time. The annotation is RFC3339 (second
+	// precision), so truncate the reference point accordingly.
+	before := time.Now().UTC().Truncate(time.Second)
+	if err := mgr.TouchWorkspaceLastLogin(context.Background(), "john-doe"); err != nil {
+		t.Fatalf("TouchWorkspaceLastLogin: %v", err)
+	}
+	lastLogin, err = mgr.GetWorkspaceLastLogin(context.Background(), "john-doe")
+	if err != nil {
+		t.Fatalf("GetWorkspaceLastLogin: %v", err)
+	}
+	if lastLogin.Before(before) || time.Since(lastLogin) > time.Minute {
+		t.Errorf("lastLogin = %v, want a recent timestamp", lastLogin)
+	}
+
+	// Touching again overwrites an older annotation.
+	stale := before.Add(-time.Hour)
+	coreV1 := cs.CoreV1.(*fakeCoreV1Client)
+	pvc, err := coreV1.PersistentVolumeClaims("").Get(context.Background(), "codx-john-doe", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("get PVC: %v", err)
+	}
+	pvc.Annotations[LastLoginAnnotation] = stale.Format(time.RFC3339)
+	if _, err := coreV1.PersistentVolumeClaims("").Update(context.Background(), pvc, metav1.UpdateOptions{}); err != nil {
+		t.Fatalf("update PVC: %v", err)
+	}
+	if err := mgr.TouchWorkspaceLastLogin(context.Background(), "john-doe"); err != nil {
+		t.Fatalf("TouchWorkspaceLastLogin: %v", err)
+	}
+	again, err := mgr.GetWorkspaceLastLogin(context.Background(), "john-doe")
+	if err != nil {
+		t.Fatalf("GetWorkspaceLastLogin: %v", err)
+	}
+	if !again.After(stale) {
+		t.Errorf("lastLogin = %v, want it to overwrite the stale %v", again, stale)
+	}
+
+	// Touching a user without a workspace fails (no PVC): the web layer
+	// tolerates it.
+	if err := mgr.TouchWorkspaceLastLogin(context.Background(), "nobody"); err == nil {
+		t.Error("TouchWorkspaceLastLogin for a user without PVC should fail")
 	}
 }

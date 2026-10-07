@@ -78,7 +78,7 @@ func (s *Server) handleAdminUI(w http.ResponseWriter, r *http.Request) {
   <div class="table-responsive">
     <table class="table table-striped table-hover align-middle">
       <thead class="table-dark">
-        <tr><th>Username</th><th>Slug</th><th>Online</th><th>Created</th><th>CPU</th><th>RAM</th><th>Actions</th></tr>
+        <tr><th>Username</th><th>Slug</th><th>Online</th><th>Created</th><th>Last login</th><th>CPU</th><th>RAM</th><th>Actions</th></tr>
       </thead>
       <tbody id="users"></tbody>
     </table>
@@ -138,6 +138,9 @@ function loadUsers() {
             var created = u.createdAt
                 ? new Date(u.createdAt).toLocaleString()
                 : '<span class="text-muted">unknown</span>';
+            var lastLogin = u.lastLogin
+                ? new Date(u.lastLogin).toLocaleString()
+                : '<span class="text-muted">never</span>';
             var usage = u.usage ? usageCell(u.usage) : '<span class="text-muted">&mdash;</span>';
             var logsBtn = u.online
                 ? '<button class="btn btn-sm btn-outline-secondary me-1" onclick="openLogs(\'' + u.slug + '\')">Logs</button>'
@@ -146,6 +149,7 @@ function loadUsers() {
                 "<td><code>" + u.slug + "</code></td>" +
                 "<td>" + onlineBadge + "</td>" +
                 "<td>" + created + "</td>" +
+                "<td>" + lastLogin + "</td>" +
                 "<td>" + (u.usage ? resourceBar(u.usage.cpu.usedCores, u.usage.cpu.limitCores, u.usage.cpu.requestCores, formatCores) : '<span class="text-muted">&mdash;</span>') + "</td>" +
                 "<td>" + (u.usage ? resourceBar(u.usage.memory.usedBytes, u.usage.memory.limitBytes, u.usage.memory.requestBytes, formatBytes) : '<span class="text-muted">&mdash;</span>') + "</td>" +
                 "<td>" +
@@ -235,6 +239,10 @@ type userInfo struct {
 	// read from the workspace PVC creationTimestamp.
 	CreatedAt string `json:"createdAt,omitempty"`
 
+	// LastLogin is the last login time of the user (RFC3339), read from
+	// the last-login annotation on the workspace PVC.
+	LastLogin string `json:"lastLogin,omitempty"`
+
 	// Usage is the current CPU/RAM usage of the code-server container,
 	// only reported for running workspaces.
 	Usage *usageInfo `json:"usage,omitempty"`
@@ -279,6 +287,11 @@ func (s *Server) listWorkspaceUsers(r *http.Request) []userInfo {
 		// first start and survives stops and restarts.
 		if createdAt, err := s.workspaces.GetWorkspaceCreationTime(r.Context(), slug); err == nil && !createdAt.IsZero() {
 			info.CreatedAt = createdAt.UTC().Format(time.RFC3339)
+		}
+
+		// Last login, recorded on the PVC at every successful login.
+		if lastLogin, err := s.workspaces.GetWorkspaceLastLogin(r.Context(), slug); err == nil && !lastLogin.IsZero() {
+			info.LastLogin = lastLogin.UTC().Format(time.RFC3339)
 		}
 
 		// CPU/RAM usage with requests, like the user UI, for running

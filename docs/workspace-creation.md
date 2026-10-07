@@ -113,7 +113,16 @@ event and an audit `workspace_start_failed` is recorded.
 
 The PVC is mounted at `/home/coder` in the code-server container. It is kept
 across stops and restarts; only deleting the workspace (admin action) removes
-it. An admin can grow it later from the admin UI (`workspace_pvc_extend`).
+it. An admin can grow it later from the admin UI (`pvc_extend`).
+
+The PVC also carries the per-user facts CodX tracks without a database:
+
+- its `creationTimestamp` is the user's workspace creation date (shown in the
+  admin UI);
+- the `codx.captnbp.io/last-login` annotation (RFC3339) is stamped on every
+  successful login (OIDC or mTLS fallback) and shown as the user's last
+  login in the admin UI. Users without a workspace yet have no PVC, so their
+  first login is only recorded from their second login on.
 
 ### Certificate (cert-manager)
 

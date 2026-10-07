@@ -82,6 +82,11 @@ func adminTestServer(t *testing.T) (*Server, *session.MemoryStore, *k8s.Workspac
 		},
 	}
 	coreClient.PVCMap["codx-john-doe"].CreationTimestamp = metav1.NewTime(time.Date(2026, 1, 15, 10, 30, 0, 0, time.UTC))
+	// Last login of john-doe, recorded by the login flow on the PVC
+	// annotation; jane-smith never logged in since her workspace exists.
+	coreClient.PVCMap["codx-john-doe"].Annotations = map[string]string{
+		k8s.LastLoginAnnotation: time.Date(2026, 10, 7, 15, 43, 58, 0, time.UTC).Format(time.RFC3339),
+	}
 	coreClient.PodLogs["codx-john-doe"] = "code-server starting\nlistening on 8080\n"
 
 	proxyFactory := func(fqdn string) (http.Handler, error) {
@@ -354,6 +359,16 @@ func TestAdminListUsersReportsCreationAndUsage(t *testing.T) {
 		t.Errorf("createdAt = %v, want %v", createdAt, want)
 	}
 
+	// Last login from the PVC annotation.
+	lastLogin, err := time.Parse(time.RFC3339, john.LastLogin)
+	if err != nil {
+		t.Fatalf("lastLogin %q is not RFC3339: %v", john.LastLogin, err)
+	}
+	wantLogin := time.Date(2026, 10, 7, 15, 43, 58, 0, time.UTC)
+	if !lastLogin.Equal(wantLogin) {
+		t.Errorf("lastLogin = %v, want %v", lastLogin, wantLogin)
+	}
+
 	// jane-smith: stopped, no usage but still a creation date.
 	jane := bySlug["jane-smith"]
 	if jane.Online {
@@ -364,6 +379,9 @@ func TestAdminListUsersReportsCreationAndUsage(t *testing.T) {
 	}
 	if jane.CreatedAt == "" {
 		t.Error("jane-smith createdAt is empty, want the PVC creation date")
+	}
+	if jane.LastLogin != "" {
+		t.Errorf("jane-smith lastLogin = %q, want empty (never logged in)", jane.LastLogin)
 	}
 }
 

@@ -5,6 +5,7 @@ package web
 
 import (
 	"bufio"
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
@@ -156,6 +157,8 @@ func (s *Server) withMiddleware(h http.Handler) http.Handler {
 				"remote", clientIP(r),
 			)
 
+			s.recordLastLogin(r.Context(), sess.Slug)
+
 			s.setSessionCookie(w, sess.ID)
 			r = r.WithContext(WithSession(r.Context(), sess))
 			h.ServeHTTP(w, r)
@@ -164,6 +167,14 @@ func (s *Server) withMiddleware(h http.Handler) http.Handler {
 
 		http.Redirect(w, r, "/auth/login", http.StatusSeeOther)
 	})
+}
+
+// recordLastLogin stamps the user's last login time on the workspace PVC
+// (best-effort: users without a workspace yet have no PVC to annotate).
+func (s *Server) recordLastLogin(ctx context.Context, userSlug string) {
+	if err := s.workspaces.TouchWorkspaceLastLogin(ctx, userSlug); err != nil {
+		s.log.V(1).Error(err, "failed to record last login on PVC", "slug", userSlug)
+	}
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
@@ -612,6 +623,10 @@ func (s *Server) handleCallback(w http.ResponseWriter, r *http.Request) {
 		"admin", sess.IsAdmin,
 		"remote", clientIP(r),
 	)
+
+	// Record the login time on the user's workspace PVC (best-effort: no
+	// PVC before the first workspace start).
+	s.recordLastLogin(r.Context(), sess.Slug)
 
 	// Set the session cookie.
 	s.setSessionCookie(w, sess.ID)

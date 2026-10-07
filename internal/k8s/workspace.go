@@ -146,6 +146,56 @@ func (m *WorkspaceManager) DeleteWorkspace(ctx context.Context, userSlug string)
 	return nil
 }
 
+// LastLoginAnnotation is the PVC annotation tracking the user's last login,
+// formatted as RFC3339. CodX has no database: the workspace PVC carries the
+// few per-user facts that must survive pod restarts.
+const LastLoginAnnotation = "codx.captnbp.io/last-login"
+
+// TouchWorkspaceLastLogin stamps the current time on the workspace PVC's
+// LastLoginAnnotation. Called on every successful login; callers tolerate
+// the error (users without a workspace yet have no PVC to annotate).
+func (m *WorkspaceManager) TouchWorkspaceLastLogin(ctx context.Context, userSlug string) error {
+	namespace := m.cfg.Namespace
+	objName := slug.ObjectName(m.cfg.InstanceName, userSlug, m.maxNameLen)
+
+	pvc, err := m.clients.CoreV1.PersistentVolumeClaims(namespace).Get(ctx, objName, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("get PVC: %w", err)
+	}
+
+	if pvc.Annotations == nil {
+		pvc.Annotations = make(map[string]string, 1)
+	}
+	pvc.Annotations[LastLoginAnnotation] = time.Now().UTC().Format(time.RFC3339)
+
+	if _, err := m.clients.CoreV1.PersistentVolumeClaims(namespace).Update(ctx, pvc, metav1.UpdateOptions{}); err != nil {
+		return fmt.Errorf("update PVC: %w", err)
+	}
+	return nil
+}
+
+// GetWorkspaceLastLogin returns the user's last login time recorded on the
+// workspace PVC (zero when never logged in or no workspace yet).
+func (m *WorkspaceManager) GetWorkspaceLastLogin(ctx context.Context, userSlug string) (time.Time, error) {
+	namespace := m.cfg.Namespace
+	objName := slug.ObjectName(m.cfg.InstanceName, userSlug, m.maxNameLen)
+
+	pvc, err := m.clients.CoreV1.PersistentVolumeClaims(namespace).Get(ctx, objName, metav1.GetOptions{})
+	if err != nil {
+		return time.Time{}, fmt.Errorf("get PVC: %w", err)
+	}
+
+	raw, ok := pvc.Annotations[LastLoginAnnotation]
+	if !ok {
+		return time.Time{}, nil
+	}
+	lastLogin, err := time.Parse(time.RFC3339, raw)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("parse %s annotation %q: %w", LastLoginAnnotation, raw, err)
+	}
+	return lastLogin, nil
+}
+
 // GetWorkspaceCreationTime returns the creation time of a user's workspace,
 // read from the creationTimestamp of the workspace PVC. The PVC is created on
 // first start and survives stops and restarts, so it tracks the user's
