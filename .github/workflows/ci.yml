@@ -95,7 +95,9 @@ jobs:
 
       - name: Upload SARIF to GitHub code scanning
         uses: github/codeql-action/upload-sarif@v4
-        if: always()
+        # Skipped for fork PRs: their GITHUB_TOKEN is read-only and the
+        # upload would fail (the gosec scan itself still gates the job).
+        if: always() && github.event.pull_request.head.repo.fork == false
         with:
           sarif_file: results.sarif
 
