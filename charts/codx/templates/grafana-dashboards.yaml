@@ -1,0 +1,37 @@
+{{/*
+Grafana dashboard for the CodX workspaces (pod-level CPU, memory and
+network metrics of the workspace pods, with a workspace filter).
+
+The dashboard JSON lives in dashboards/workspaces.json (a static file, so
+the Grafana legend templates like {{pod}} are not parsed as Helm
+expressions). The __NAMESPACE__ and __INSTANCE__ placeholders are replaced
+with the release namespace and instance name at render time.
+
+The ConfigMap carries the label watched by the Grafana sidecar of
+kube-prometheus-stack (grafana_dashboard by default; the sidecar watches
+all namespaces), so the dashboard is imported automatically.
+*/}}
+{{- if .Values.grafanaDashboards.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "common.names.fullname" . }}-workspaces-dashboard
+  namespace: {{ include "common.names.namespace" . | quote }}
+  labels: {{- include "common.labels.standard" . | nindent 4 }}
+    app.kubernetes.io/component: codx
+    {{ .Values.grafanaDashboards.label }}: "1"
+    grafana_folder: {{ .Values.grafanaDashboards.folder | quote }}
+    {{- if .Values.commonLabels }}
+    {{- include "common.tplvalues.render" ( dict "value" .Values.commonLabels "context" $ ) | nindent 4 }}
+    {{- end }}
+  {{- if or .Values.grafanaDashboards.annotations .Values.commonAnnotations }}
+  annotations: {{- include "common.tplvalues.merge" ( dict "values" ( list .Values.grafanaDashboards.annotations .Values.commonAnnotations ) "context" . ) | nindent 4 }}
+  {{- end }}
+data:
+  workspaces.json: |-
+{{- $json := .Files.Get "dashboards/workspaces.json" }}
+{{- $json = replace "__NAMESPACE__" (include "common.names.namespace" .) $json }}
+{{- $json = replace "__INSTANCE__" (include "codx.instanceName" .) $json }}
+{{- $json = replace "__FULLNAME__" (include "common.names.fullname" .) $json }}
+{{- $json | nindent 4 }}
+{{- end }}

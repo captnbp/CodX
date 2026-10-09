@@ -683,6 +683,30 @@ metrics:
     # Extra labels to add to the ServiceMonitor resource, e.g:
     # release: kube-prometheus-stack
 
+## @section Grafana dashboards
+## GrafanaDashboards creates a ConfigMap with a "CodX / Workspaces" dashboard:
+## pod-level CPU, memory and network metrics of the workspace pods (modeled
+## on the kube-prometheus-stack "Kubernetes / Compute Resources / Pod"
+## dashboard, without the per-container breakdown), with a Namespace
+## multi-select variable and a filter to show one user workspace or all of
+## them, plus the CodX server gauges (running and pending workspaces,
+## health). Workspaces are listed from kube_pod_info by pod name prefix
+## (<instance>-<slug>, excluding the chart's valkey pods): no kube_pod_labels
+## or custom pod labels are required. Requires kubelet/cAdvisor and
+## kube-state-metrics (core metrics only) and the Grafana sidecar
+## (grafana.sidecar.dashboards enabled), which watches all namespaces by
+## default.
+## @param grafanaDashboards.enabled Create the ConfigMap with the workspaces dashboard.
+## @param grafanaDashboards.label Label key watched by the Grafana dashboard sidecar (kube-prometheus-stack default: grafana_dashboard).
+## @param grafanaDashboards.folder Grafana folder imported by the sidecar (grafana_folder label).
+## @param grafanaDashboards.annotations Annotations for the dashboard ConfigMap.
+##
+grafanaDashboards:
+  enabled: false
+  label: grafana_dashboard
+  folder: CodX
+  annotations: {}
+
 ## @section OIDC Authentication
 ## OIDC configures the OIDC authentication provider.
 ## @param oidc.issuer OIDC issuer URL (e.g. https://keycloak.example.com/realms/myrealm).
@@ -909,7 +933,7 @@ profiles:
           memory: 4Gi
         requests:
           cpu: 250m
-          memory: 256Mi
+          memory: 650Mi
       args:
         - --bind-addr
         - '[::1]:8080'
