@@ -223,6 +223,22 @@ jobs:
           exit-code: '1'
           format: table
 
+      # SBOM of the same image (amd64 tar): the package inventory of the
+      # distroless base plus the Go modules embedded in the static binary.
+      - name: Generate SBOM (Trivy, CycloneDX)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          input: /tmp/codx-image.tar
+          format: cyclonedx
+          output: sbom.cyclonedx.json
+          scanners: vuln
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: sbom-cyclonedx
+          path: sbom.cyclonedx.json
+
       - name: Build and push
         uses: docker/build-push-action@v7
         with:
@@ -245,4 +261,17 @@ jobs:
         run: |
           echo "$TAGS" | while read -r image; do
             cosign sign --yes "$image"
+          done
+
+      # Attach the SBOM to the pushed image as a cosign attestation, so the
+      # SBOM travels with the image in the registry (verifiable with
+      # `cosign attest verify`). Generated from the amd64 build; the
+      # package inventory is equivalent across architectures.
+      - name: Attach SBOM to the image (cosign attest)
+        if: github.event_name != 'pull_request'
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          echo "$TAGS" | while read -r image; do
+            cosign attest --yes --type cyclonedx --predicate sbom.cyclonedx.json "$image"
           done
