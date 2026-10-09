@@ -85,6 +85,10 @@ chore: ...
 3. Make sure `go test -race ./...`, `helm lint` and `helm template` pass.
 4. Open a pull request with a description of *what* changed and *why*.
 
+Pull requests are automatically assigned to the repository's code owners
+for review (see [.github/CODEOWNERS](.github/CODEOWNERS)); no change
+merges without their approval.
+
 ## License
 
 By contributing, you agree that your contributions are licensed under the

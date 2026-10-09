@@ -1,0 +1,11 @@
+# CODEOWNERS: automatic review requests.
+# ref: https://docs.github.com/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+#
+# The repository owner owns every path: any pull request is automatically
+# assigned to them for review.
+#
+# To onboard additional maintainers, scope them per area, e.g:
+#   /charts/codx/ @helm-maintainer
+#   /.github/    @release-manager
+
+* @captnbp
