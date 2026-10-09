@@ -66,8 +66,13 @@ jobs:
     name: gosec (SAST)
     runs-on: ubuntu-latest
     permissions:
+      # code scanning upload (codeql-action/upload-sarif): security-events
+      # for the SARIF upload, actions to read the workflow run it queries
+      # while adding fingerprints (otherwise the API call fails with
+      # "Resource not accessible by integration").
       contents: read
       security-events: write
+      actions: read
     steps:
       - name: Checkout
         uses: actions/checkout@v7
