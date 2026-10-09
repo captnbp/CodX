@@ -1,6 +1,6 @@
 # Helm chart for codx
 
-[codx](https://github.com/codx), is a tool for 
+[CodX](https://github.com/captnbp/codx) runs an isolated, per-user code-server workspace on Kubernetes: OIDC login, per-user pod, TLS certificate and persistent home directory. This chart deploys the CodX server, its Valkey session store, the Traefik objects for the mTLS admin fallback, and the optional Grafana dashboard.
 
 ## Architecture
 
