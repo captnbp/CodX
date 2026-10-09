@@ -42,6 +42,7 @@ func run(configPath string) error {
 	log.Info("starting CodX server", "config", configPath)
 
 	// Load configuration.
+	// #nosec G304 -- configPath is the -config flag value, operator controlled.
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return fmt.Errorf("read config file: %w", err)

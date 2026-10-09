@@ -633,10 +633,13 @@ func (s *Server) handleCallback(w http.ResponseWriter, r *http.Request) {
 
 	// Clear the state cookie.
 	http.SetCookie(w, &http.Cookie{
-		Name:   "codx-state",
-		Value:  "",
-		Path:   "/",
-		MaxAge: -1,
+		Name:     "codx-state",
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
 	})
 
 	http.Redirect(w, r, "/", http.StatusSeeOther)
@@ -1056,10 +1059,13 @@ func (s *Server) setSessionCookie(w http.ResponseWriter, sessionID string) {
 
 func clearSessionCookie(w http.ResponseWriter, instance string) {
 	http.SetCookie(w, &http.Cookie{
-		Name:   SessionCookieName,
-		Value:  "",
-		Path:   "/",
-		MaxAge: -1,
+		Name:     SessionCookieName,
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
 	})
 }
 

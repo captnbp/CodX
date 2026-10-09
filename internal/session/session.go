@@ -125,6 +125,7 @@ func NewRedisStore(opts RedisOptions) *RedisStore {
 // buildRedisTLSConfig loads the CA certificate from the given file path and
 // returns a *tls.Config that uses it for server certificate verification.
 func buildRedisTLSConfig(caFilePath string) *tls.Config {
+	// #nosec G304 -- caFilePath comes from the operator-controlled ConfigMap.
 	caCert, err := os.ReadFile(caFilePath)
 	if err != nil {
 		panic(fmt.Sprintf("failed to read Redis CA certificate from %s: %v", caFilePath, err))
@@ -146,6 +147,9 @@ func (s *RedisStore) Save(ctx context.Context, sess *Session) error {
 	if sess.ID == "" {
 		return fmt.Errorf("session ID is required")
 	}
+	// #nosec G117 -- the tokens are part of the session on purpose: the
+	// session is the user's credential store, written to the operator's
+	// Redis/Valkey instance.
 	data, err := json.Marshal(sess)
 	if err != nil {
 		return fmt.Errorf("marshal session: %w", err)
