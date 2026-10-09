@@ -149,9 +149,9 @@ jobs:
           helm push "$chart" "oci://${REGISTRY}/${owner}/charts"
           cosign sign --yes "${REGISTRY}/${owner}/charts/${name}:${version}"
 
-  # -- Docker build & push --
+  # -- Docker build, CVE scan & push --
   docker:
-    name: Docker build & push
+    name: Docker build, scan & push
     runs-on: ubuntu-latest
     needs: [go, lint, security, helm]
     permissions:
@@ -184,6 +184,29 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=sha,prefix=sha-
+
+      # Build a single-arch image for the CVE scan: the image is scanned
+      # before it is pushed, so a vulnerable build never reaches the
+      # registry. The layers are shared with the multi-arch build below
+      # through the GHA cache.
+      - name: Build image (amd64) for CVE scan
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64
+          outputs: type=docker,dest=/tmp/codx-image.tar
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Scan image for CVEs (Trivy)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          input: /tmp/codx-image.tar
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+          format: table
 
       - name: Build and push
         uses: docker/build-push-action@v7
