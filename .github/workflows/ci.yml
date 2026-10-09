@@ -81,8 +81,12 @@ jobs:
       - name: Install gosec
         run: go install github.com/securego/gosec/v2/cmd/gosec@v2.29.0
 
+      # Note: do not use -quiet here: it suppresses the report output
+      # entirely, including the -out SARIF file (the file is then never
+      # written and the upload step below fails).
       - name: Run gosec
-        run: gosec -quiet -fmt=sarif -out=results.sarif ./...
+        run: |
+          "$(go env GOPATH)/bin/gosec" -fmt=sarif -out=results.sarif ./...
 
       - name: Upload SARIF to GitHub code scanning
         uses: github/codeql-action/upload-sarif@v4
