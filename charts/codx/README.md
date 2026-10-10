@@ -201,38 +201,39 @@ $ helm delete --purge my-release
 
 ### Global parameters
 
-| Name                      | Description                                     | Value |
-| ------------------------- | ----------------------------------------------- | ----- |
-| `global.imageRegistry`    | Global Docker image registry                    | `""`  |
-| `global.imagePullSecrets` | Global Docker registry secret names as an array | `[]`  |
-| `global.storageClass`     | Global StorageClass for Persistent Volume(s)    | `""`  |
+| Name                      | Description                                                                                                                                                          | Value |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| `global.imageRegistry`    | Global Docker image registry                                                                                                                                         | `""`  |
+| `global.imagePullSecrets` | Global Docker registry secret names as an array. Also used as the fallback image pull secrets of workspace pods whose Profile does not set podSpec.imagePullSecrets. | `[]`  |
+| `global.storageClass`     | Global StorageClass for Persistent Volume(s)                                                                                                                         | `""`  |
 
 ### Common parameters
 
-| Name                     | Description                                                                                  | Value           |
-| ------------------------ | -------------------------------------------------------------------------------------------- | --------------- |
-| `nameOverride`           | String to partially override common.names.fullname template (will maintain the release name) | `""`            |
-| `fullnameOverride`       | String to fully override common.names.fullname template                                      | `""`            |
-| `commonLabels`           | Labels to add to all deployed objects                                                        | `{}`            |
-| `commonAnnotations`      | Annotations to add to all deployed objects                                                   | `{}`            |
-| `kubeVersion`            | Force target Kubernetes version (using Helm capabilities if not set)                         | `""`            |
-| `clusterDomain`          | Default Kubernetes cluster domain                                                            | `cluster.local` |
-| `extraDeploy`            | Array of extra objects to deploy with the release                                            | `[]`            |
-| `diagnosticMode.enabled` | Enable diagnostic mode (all probes will be disabled and the command will be overridden)      | `false`         |
-| `diagnosticMode.command` | Command to override all containers in the chart release                                      | `["sleep"]`     |
-| `diagnosticMode.args`    | Args to override all containers in the chart release                                         | `["infinity"]`  |
+| Name                     | Description                                                                                                                                                                                               | Value           |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| `nameOverride`           | String to partially override common.names.fullname template (will maintain the release name)                                                                                                              | `""`            |
+| `fullnameOverride`       | String to fully override common.names.fullname template                                                                                                                                                   | `""`            |
+| `instanceName`           | CodX instance name used to build workspace object names (<instance>-<slug> for Services, PVCs, Certificates, Pods) and the app.kubernetes.io/managed-by label. Defaults to the chart fullname when empty. | `""`            |
+| `commonLabels`           | Labels to add to all deployed objects                                                                                                                                                                     | `{}`            |
+| `commonAnnotations`      | Annotations to add to all deployed objects                                                                                                                                                                | `{}`            |
+| `kubeVersion`            | Force target Kubernetes version (using Helm capabilities if not set)                                                                                                                                      | `""`            |
+| `clusterDomain`          | Default Kubernetes cluster domain                                                                                                                                                                         | `cluster.local` |
+| `extraDeploy`            | Array of extra objects to deploy with the release                                                                                                                                                         | `[]`            |
+| `diagnosticMode.enabled` | Enable diagnostic mode (all probes will be disabled and the command will be overridden)                                                                                                                   | `false`         |
+| `diagnosticMode.command` | Command to override all containers in the chart release                                                                                                                                                   | `["sleep"]`     |
+| `diagnosticMode.args`    | Args to override all containers in the chart release                                                                                                                                                      | `["infinity"]`  |
 
 ### codx parameters
 
 | Name                 | Description                                                                 | Value          |
 | -------------------- | --------------------------------------------------------------------------- | -------------- |
-| `image.registry`     | codx image registry                                                      | `docker.io`    |
-| `image.repository`   | codx image repository                                                    | `""`           |
-| `image.tag`          | codx image tag (immutable tags are recommended)                          | `1.21.0`       |
+| `image.registry`     | codx image registry                                                         | `ghcr.io`      |
+| `image.repository`   | codx image repository                                                       | `captnbp/codx` |
+| `image.tag`          | codx image tag (immutable tags are recommended)                             | `main`         |
 | `image.pullPolicy`   | Image pull policy                                                           | `IfNotPresent` |
 | `image.pullSecrets`  | Specify docker-registry secret names as an array                            | `[]`           |
 | `image.debug`        | Specify if debug logs should be enabled                                     | `false`        |
-| `extraEnvVars`       | Extra environment variables to be set on codx container                  | `{}`           |
+| `extraEnvVars`       | Extra environment variables to be set on codx container                     | `{}`           |
 | `extraEnvVarsCM`     | ConfigMap with extra environment variables                                  | `""`           |
 | `extraEnvVarsSecret` | Secret with extra environment variables                                     | `""`           |
 | `command`            | Default container command (useful when using custom images). Use array form | `[]`           |
@@ -240,265 +241,311 @@ $ helm delete --purge my-release
 
 ### codx deployment/statefulset parameters
 
-| Name                                                | Description                                                                                              | Value                         |
-| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ----------------------------- |
-| `schedulerName`                                     | Specifies the schedulerName, if it's nil uses kube-scheduler                                             | `""`                          |
-| `updateStrategy.type`                               | codxwarden statefulset strategy type                                                                  | `RollingUpdate`               |
-| `updateStrategy.rollingUpdate`                      | codxwarden statefulset rolling update configuration parameters                                        | `{}`                          |
-| `hostAliases`                                       | codx pod host aliases                                                                                 | `[]`                          |
-| `containerPorts.http`                               | codx container port to open for codx http                                                          | `8081`                        |
-| `containerPorts.https`                              | codx container port to open for codx https                                                         | `9898`                        |
-| `podSecurityContext.enabled`                        | Enable pod Security Context                                                                              | `true`                        |
-| `podSecurityContext.fsGroup`                        | Group ID for the container                                                                               | `1001`                        |
-| `podSecurityContext.seccompProfile.type`            | Type of seccomp profile to use                                                                           | `RuntimeDefault`              |
-| `containerSecurityContext.enabled`                  | Enable container Security Context                                                                        | `true`                        |
-| `containerSecurityContext.runAsUser`                | User ID for the container                                                                                | `0`                           |
-| `containerSecurityContext.runAsNonRoot`             | Avoid running as root User                                                                               | `false`                       |
-| `containerSecurityContext.allowPrivilegeEscalation` | Allow privilege escalation                                                                               | `true`                        |
-| `containerSecurityContext.readOnlyRootFilesystem`   | Read-only root filesystem                                                                                | `false`                       |
-| `containerSecurityContext.capabilities.drop`        | Capabilities to drop                                                                                     | `["ALL"]`                     |
-| `containerSecurityContext.capabilities.add`         | Capabilities to add                                                                                      | `["CHOWN","SETGID","SETUID"]` |
-| `podLabels`                                         | Extra labels for codx pods                                                                            | `{}`                          |
-| `podAnnotations`                                    | Annotations for codx pods                                                                             | `{}`                          |
-| `podAffinityPreset`                                 | Pod affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`                      | `""`                          |
-| `podAntiAffinityPreset`                             | Pod anti-affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`                 | `soft`                        |
-| `nodeAffinityPreset.type`                           | Node affinity preset type. Ignored if `affinity` is set. Allowed values: `soft` or `hard`                | `""`                          |
-| `nodeAffinityPreset.key`                            | Node label key to match. Ignored if `affinity` is set.                                                   | `""`                          |
-| `nodeAffinityPreset.values`                         | Node label values to match. Ignored if `affinity` is set.                                                | `[]`                          |
-| `affinity`                                          | Affinity for pod assignment. Evaluated as a template.                                                    | `{}`                          |
-| `nodeSelector`                                      | Node labels for pod assignment. Evaluated as a template.                                                 | `{}`                          |
-| `tolerations`                                       | Tolerations for pod assignment. Evaluated as a template.                                                 | `[]`                          |
-| `topologySpreadConstraints`                         | Topology Spread Constraints for codx pods assignment spread across your cluster among failure-domains | `[]`                          |
-| `priorityClassName`                                 | codx pods' priorityClassName                                                                          | `""`                          |
-| `resources.limits`                                  | The resources limits for the codx container                                                           | `{}`                          |
-| `resources.requests`                                | The requested resources for the codx container                                                        | `{}`                          |
-| `livenessProbe.enabled`                             | Enable livenessProbe                                                                                     | `false`                       |
-| `livenessProbe.initialDelaySeconds`                 | Initial delay seconds for livenessProbe                                                                  | `5`                           |
-| `livenessProbe.periodSeconds`                       | Period seconds for livenessProbe                                                                         | `5`                           |
-| `livenessProbe.timeoutSeconds`                      | Timeout seconds for livenessProbe                                                                        | `5`                           |
-| `livenessProbe.failureThreshold`                    | Failure threshold for livenessProbe                                                                      | `5`                           |
-| `livenessProbe.successThreshold`                    | Success threshold for livenessProbe                                                                      | `1`                           |
-| `readinessProbe.enabled`                            | Enable readinessProbe                                                                                    | `true`                        |
-| `readinessProbe.initialDelaySeconds`                | Initial delay seconds for readinessProbe                                                                 | `5`                           |
-| `readinessProbe.periodSeconds`                      | Period seconds for readinessProbe                                                                        | `5`                           |
-| `readinessProbe.timeoutSeconds`                     | Timeout seconds for readinessProbe                                                                       | `1`                           |
-| `readinessProbe.failureThreshold`                   | Failure threshold for readinessProbe                                                                     | `5`                           |
-| `readinessProbe.successThreshold`                   | Success threshold for readinessProbe                                                                     | `1`                           |
-| `startupProbe.enabled`                              | Enable startupProbe                                                                                      | `false`                       |
-| `startupProbe.initialDelaySeconds`                  | Initial delay seconds for startupProbe                                                                   | `0`                           |
-| `startupProbe.periodSeconds`                        | Period seconds for startupProbe                                                                          | `10`                          |
-| `startupProbe.timeoutSeconds`                       | Timeout seconds for startupProbe                                                                         | `5`                           |
-| `startupProbe.failureThreshold`                     | Failure threshold for startupProbe                                                                       | `60`                          |
-| `startupProbe.successThreshold`                     | Success threshold for startupProbe                                                                       | `1`                           |
-| `customLivenessProbe`                               | Override default liveness probe                                                                          | `{}`                          |
-| `customReadinessProbe`                              | Override default readiness probe                                                                         | `{}`                          |
-| `customStartupProbe`                                | Override default startup probe                                                                           | `{}`                          |
-| `lifecycleHooks`                                    | for the codx container(s) to automate configuration before or after startup                           | `{}`                          |
-| `extraVolumes`                                      | Optionally specify extra list of additional volumes for codx pods                                     | `[]`                          |
-| `extraVolumeMounts`                                 | Optionally specify extra list of additional volumeMounts for codx container(s)                        | `[]`                          |
-| `initContainers`                                    | Add additional init containers to the codx pods                                                       | `[]`                          |
-| `sidecars`                                          | Add additional sidecar containers to the codx pods                                                    | `[]`                          |
+| Name                                                | Description                                                                                           | Value            |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ---------------- |
+| `schedulerName`                                     | Specifies the schedulerName, if it's nil uses kube-scheduler                                          | `""`             |
+| `updateStrategy.type`                               | codxwarden statefulset strategy type                                                                  | `RollingUpdate`  |
+| `updateStrategy.rollingUpdate`                      | codxwarden statefulset rolling update configuration parameters                                        | `{}`             |
+| `hostAliases`                                       | codx pod host aliases                                                                                 | `[]`             |
+| `containerPorts.https`                              | codx container port to open for codx https                                                            | `8443`           |
+| `podSecurityContext.enabled`                        | Enable pod Security Context                                                                           | `true`           |
+| `podSecurityContext.fsGroup`                        | Group ID for the container                                                                            | `65532`          |
+| `podSecurityContext.seccompProfile.type`            | Type of seccomp profile to use                                                                        | `RuntimeDefault` |
+| `containerSecurityContext.enabled`                  | Enable container Security Context                                                                     | `true`           |
+| `containerSecurityContext.runAsUser`                | User ID for the container                                                                             | `65532`          |
+| `containerSecurityContext.runAsNonRoot`             | Avoid running as root User                                                                            | `true`           |
+| `containerSecurityContext.allowPrivilegeEscalation` | Allow privilege escalation                                                                            | `false`          |
+| `containerSecurityContext.readOnlyRootFilesystem`   | Read-only root filesystem                                                                             | `true`           |
+| `containerSecurityContext.capabilities.drop`        | Capabilities to drop                                                                                  | `["ALL"]`        |
+| `containerSecurityContext.capabilities.add`         | Capabilities to add                                                                                   | `[]`             |
+| `podLabels`                                         | Extra labels for codx pods                                                                            | `{}`             |
+| `podAnnotations`                                    | Annotations for codx pods                                                                             | `{}`             |
+| `podAffinityPreset`                                 | Pod affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`                   | `""`             |
+| `podAntiAffinityPreset`                             | Pod anti-affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`              | `soft`           |
+| `nodeAffinityPreset.type`                           | Node affinity preset type. Ignored if `affinity` is set. Allowed values: `soft` or `hard`             | `""`             |
+| `nodeAffinityPreset.key`                            | Node label key to match. Ignored if `affinity` is set.                                                | `""`             |
+| `nodeAffinityPreset.values`                         | Node label values to match. Ignored if `affinity` is set.                                             | `[]`             |
+| `affinity`                                          | Affinity for pod assignment. Evaluated as a template.                                                 | `{}`             |
+| `nodeSelector`                                      | Node labels for pod assignment. Evaluated as a template.                                              | `{}`             |
+| `tolerations`                                       | Tolerations for pod assignment. Evaluated as a template.                                              | `[]`             |
+| `topologySpreadConstraints`                         | Topology Spread Constraints for codx pods assignment spread across your cluster among failure-domains | `[]`             |
+| `priorityClassName`                                 | codx pods' priorityClassName                                                                          | `""`             |
+| `resources.limits`                                  | The resources limits for the codx container                                                           | `{}`             |
+| `resources.requests`                                | The requested resources for the codx container                                                        | `{}`             |
+| `replicas`                                          | Number of CodX replicas                                                                               | `1`              |
 
 ### Exposure parameters
 
-| Name                               | Description                                                                                                                      | Value                    |
-| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
-| `service.type`                     | Kubernetes service type                                                                                                          | `ClusterIP`              |
-| `service.ports.http`               | codx service HTTP port                                                                                                        | `8200`                   |
-| `service.ports.https`              | codx service HTTPS port                                                                                                       | `8201`                   |
-| `service.nodePorts`                | Specify the nodePort values for the LoadBalancer and NodePort service types.                                                     | `{}`                     |
-| `service.sessionAffinity`          | Control where client requests go, to the same pod or round-robin                                                                 | `None`                   |
-| `service.sessionAffinityConfig`    | Additional settings for the sessionAffinity                                                                                      | `{}`                     |
-| `service.clusterIP`                | codx service clusterIP IP                                                                                                     | `""`                     |
-| `service.loadBalancerIP`           | loadBalancerIP for the SuiteCRM Service (optional, cloud specific)                                                               | `""`                     |
-| `service.loadBalancerSourceRanges` | Address that are allowed when service is LoadBalancer                                                                            | `[]`                     |
-| `service.externalTrafficPolicy`    | Enable client source IP preservation                                                                                             | `Cluster`                |
-| `service.annotations`              | Additional custom annotations for codx service                                                                                | `{}`                     |
-| `service.extraPorts`               | Extra port to expose on codx service                                                                                          | `[]`                     |
-| `service.extraHeadlessPorts`       | Extra ports to expose on codx headless service                                                                                | `[]`                     |
-| `service.ipFamilyPolicy`           | Controller Service ipFamilyPolicy (optional, cloud specific)                                                                     | `PreferDualStack`        |
-| `service.ipFamilies`               | Controller Service ipFamilies (optional, cloud specific)                                                                         | `["IPv6","IPv4"]`        |
-| `ingress.enabled`                  | Enable ingress record generation for codx                                                                                     | `true`                   |
-| `ingress.pathType`                 | Ingress path type                                                                                                                | `ImplementationSpecific` |
-| `ingress.apiVersion`               | Force Ingress API version (automatically detected if not set)                                                                    | `""`                     |
-| `ingress.hostname`                 | Default host for the ingress record                                                                                              | `codx.local`          |
-| `ingress.ingressClassName`         | IngressClass that will be be used to implement the Ingress (Kubernetes 1.18+)                                                    | `traefik`                |
-| `ingress.ingressControllerType`    | ingressControllerType that will be be used to implement the Ingress specific annotations (Ex. nginx or traefik)                  | `traefik`                |
-| `ingress.path`                     | Default path for the ingress record                                                                                              | `/`                      |
-| `ingress.annotations`              | Additional annotations for the Ingress resource. To enable certificate autogeneration, place here your cert-manager annotations. | `{}`                     |
-| `ingress.tls`                      | Enable TLS configuration for the host defined at `ingress.hostname` parameter                                                    | `false`                  |
-| `ingress.selfSigned`               | Create a TLS secret for this ingress record using self-signed certificates generated by Helm                                     | `false`                  |
-| `ingress.extraHosts`               | An array with additional hostname(s) to be covered with the ingress record                                                       | `[]`                     |
-| `ingress.extraPaths`               | An array with additional arbitrary paths that may need to be added to the ingress under the main host                            | `[]`                     |
-| `ingress.extraTls`                 | TLS configuration for additional hostname(s) to be covered with this ingress record                                              | `[]`                     |
-| `ingress.secrets`                  | Custom TLS certificates as secrets                                                                                               | `[]`                     |
-| `ingress.extraRules`               | Additional rules to be covered with this ingress record                                                                          | `[]`                     |
+| Name                               | Description                                                                                                                                                                                                                                                                                                     | Value                    |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
+| `service.type`                     | Kubernetes service type                                                                                                                                                                                                                                                                                         | `ClusterIP`              |
+| `service.ports.https`              | codx service HTTPS port                                                                                                                                                                                                                                                                                         | `8443`                   |
+| `service.nodePorts`                | Specify the nodePort values for the LoadBalancer and NodePort service types.                                                                                                                                                                                                                                    | `{}`                     |
+| `service.sessionAffinity`          | Control where client requests go, to the same pod or round-robin                                                                                                                                                                                                                                                | `None`                   |
+| `service.sessionAffinityConfig`    | Additional settings for the sessionAffinity                                                                                                                                                                                                                                                                     | `{}`                     |
+| `service.clusterIP`                | codx service clusterIP IP                                                                                                                                                                                                                                                                                       | `""`                     |
+| `service.loadBalancerIP`           | loadBalancerIP for the SuiteCRM Service (optional, cloud specific)                                                                                                                                                                                                                                              | `""`                     |
+| `service.loadBalancerSourceRanges` | Address that are allowed when service is LoadBalancer                                                                                                                                                                                                                                                           | `[]`                     |
+| `service.externalTrafficPolicy`    | Enable client source IP preservation                                                                                                                                                                                                                                                                            | `Cluster`                |
+| `service.annotations`              | Additional custom annotations for codx service                                                                                                                                                                                                                                                                  | `{}`                     |
+| `service.extraPorts`               | Extra port to expose on codx service                                                                                                                                                                                                                                                                            | `[]`                     |
+| `service.extraHeadlessPorts`       | Extra ports to expose on codx headless service                                                                                                                                                                                                                                                                  | `[]`                     |
+| `service.ipFamilyPolicy`           | Controller Service ipFamilyPolicy (optional, cloud specific)                                                                                                                                                                                                                                                    | `PreferDualStack`        |
+| `service.ipFamilies`               | Controller Service ipFamilies (optional, cloud specific)                                                                                                                                                                                                                                                        | `["IPv6","IPv4"]`        |
+| `ingress.enabled`                  | Enable ingress record generation for codx                                                                                                                                                                                                                                                                       | `true`                   |
+| `ingress.pathType`                 | Ingress path type                                                                                                                                                                                                                                                                                               | `ImplementationSpecific` |
+| `ingress.apiVersion`               | Force Ingress API version (automatically detected if not set)                                                                                                                                                                                                                                                   | `""`                     |
+| `ingress.hostname`                 | Default host for the ingress record                                                                                                                                                                                                                                                                             | `codx.local`             |
+| `ingress.ingressClassName`         | IngressClass that will be be used to implement the Ingress (Kubernetes 1.18+)                                                                                                                                                                                                                                   | `traefik`                |
+| `ingress.ingressControllerType`    | ingressControllerType that will be be used to implement the Ingress specific annotations (Ex. nginx or traefik)                                                                                                                                                                                                 | `traefik`                |
+| `ingress.path`                     | Default path for the ingress record                                                                                                                                                                                                                                                                             | `/`                      |
+| `ingress.annotations`              | Additional annotations for the Ingress resource. To enable certificate autogeneration, place here your cert-manager annotations.                                                                                                                                                                                | `{}`                     |
+| `ingress.extraMiddlewares`         | Extra Traefik middlewares appended to the traefik.ingress.kubernetes.io/router.middlewares annotation, after any user-defined middlewares and the chart passTLSClientCert middleware (when traefikMtls.enabled). Entries are middleware references; the "@kubernetescrd" provider suffix is added when missing. | `[]`                     |
+| `ingress.tls`                      | Enable TLS configuration for the host defined at `ingress.hostname` parameter                                                                                                                                                                                                                                   | `false`                  |
+| `ingress.selfSigned`               | Create a TLS secret for this ingress record using self-signed certificates generated by Helm                                                                                                                                                                                                                    | `false`                  |
+| `ingress.extraHosts`               | An array with additional hostname(s) to be covered with the ingress record                                                                                                                                                                                                                                      | `[]`                     |
+| `ingress.extraPaths`               | An array with additional arbitrary paths that may need to be added to the ingress under the main host                                                                                                                                                                                                           | `[]`                     |
+| `ingress.extraTls`                 | TLS configuration for additional hostname(s) to be covered with this ingress record                                                                                                                                                                                                                             | `[]`                     |
+| `ingress.secrets`                  | Custom TLS certificates as secrets                                                                                                                                                                                                                                                                              | `[]`                     |
+| `ingress.extraRules`               | Additional rules to be covered with this ingress record                                                                                                                                                                                                                                                         | `[]`                     |
 
 ### RBAC parameter
 
-| Name                                          | Description                                                    | Value   |
-| --------------------------------------------- | -------------------------------------------------------------- | ------- |
-| `serviceAccount.create`                       | Enable the creation of a ServiceAccount for codxwarden pods | `true`  |
-| `serviceAccount.name`                         | Name of the created ServiceAccount                             | `""`    |
-| `serviceAccount.automountServiceAccountToken` | Auto-mount the service account token in the pod                | `false` |
-| `serviceAccount.annotations`                  | Additional custom annotations for the ServiceAccount           | `{}`    |
-
-### Persistence parameters
-
-| Name                        | Description                                                       | Value               |
-| --------------------------- | ----------------------------------------------------------------- | ------------------- |
-| `persistence.enabled`       | Enable codx data persistence using PVC. If false, use emptyDir | `true`              |
-| `persistence.storageClass`  | PVC Storage Class for codx data volume                         | `""`                |
-| `persistence.mountPath`     | Data volume mount path                                            | `/data`             |
-| `persistence.accessModes`   | PVC Access Modes for codx data volume                          | `["ReadWriteOnce"]` |
-| `persistence.size`          | PVC Storage Request for codx data volume                       | `8Gi`               |
-| `persistence.annotations`   | Annotations for the PVC                                           | `{}`                |
-| `persistence.existingClaim` | Name of an existing PVC to use (only in `standalone` mode)        | `""`                |
+| Name                                          | Description                                                 | Value  |
+| --------------------------------------------- | ----------------------------------------------------------- | ------ |
+| `serviceAccount.create`                       | Enable the creation of a ServiceAccount for codxwarden pods | `true` |
+| `serviceAccount.name`                         | Name of the created ServiceAccount                          | `""`   |
+| `serviceAccount.automountServiceAccountToken` | Auto-mount the service account token in the pod             | `true` |
+| `serviceAccount.annotations`                  | Additional custom annotations for the ServiceAccount        | `{}`   |
 
 ### Global TLS settings for internal CA
 
-| Name                               | Description                                                                                | Value             |
-| ---------------------------------- | ------------------------------------------------------------------------------------------ | ----------------- |
-| `tls.enabled`                      | Enable internal TLS between Ingress controller and unifi                                   | `true`            |
-| `tls.autoGenerated`                | Create cert-manager signed TLS certificates.                                               | `true`            |
-| `tls.existingSecret`               | Existing secret containing the certificates for Unifi                                      | `""`              |
-| `tls.subject.organizationalUnits`  | Subject's organizational units                                                             | `codx`         |
-| `tls.subject.organizations`        | Subject's organization                                                                     | `codx`         |
-| `tls.subject.countries`            | Subject's country                                                                          | `fr`              |
-| `tls.issuerRef.existingIssuerName` | Existing name of the cert-manager http issuer. If provided, it won't create a default one. | `""`              |
-| `tls.issuerRef.kind`               | Kind of the cert-manager issuer resource (defaults to "Issuer")                            | `Issuer`          |
-| `tls.issuerRef.group`              | Group of the cert-manager issuer resource (defaults to "cert-manager.io")                  | `cert-manager.io` |
+| Name                                                             | Description                                                                                | Value             |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ----------------- |
+| `tls.enabled`                                                    | Enable internal TLS between Ingress controller and unifi                                   | `true`            |
+| `tls.autoGenerated`                                              | Create cert-manager signed TLS certificates.                                               | `true`            |
+| `tls.existingSecret`                                             | Existing secret containing the certificates for Unifi                                      | `""`              |
+| `tls.subject.organizationalUnits`                                | Subject's organizational units                                                             | `codx`            |
+| `tls.subject.organizations`                                      | Subject's organization                                                                     | `codx`            |
+| `tls.subject.countries`                                          | Subject's country                                                                          | `fr`              |
+| `tls.issuerRef.existingIssuerName`                               | Existing name of the cert-manager http issuer. If provided, it won't create a default one. | `""`              |
+| `tls.issuerRef.kind`                                             | Kind of the cert-manager issuer resource (defaults to "Issuer")                            | `Issuer`          |
+| `tls.issuerRef.group`                                            | Group of the cert-manager issuer resource (defaults to "cert-manager.io")                  | `cert-manager.io` |
+| `tls.serverCertDir`                                              | Directory where the CodX server certificate is mounted (from cert-manager)                 | `/tls`            |
+| `tls.clientCertDir`                                              | Directory where the CodX client certificate is mounted (from cert-manager)                 | `/tls/client`     |
+| `tls.caDir`                                                      | Directory where the CA certificate is mounted (from cert-manager)                          | `/tls`            |
+| `valkey.enabled`                                                 | Enable Valkey integration for CodX                                                         | `false`           |
+| `valkey.resources`                                               | Resources for the Valkey container                                                         | `{}`              |
+| `valkey.dataStorage.enabled`                                     | Enable persistent volume claim creation                                                    | `false`           |
+| `valkey.dataStorage.persistentVolumeClaimName`                   | Use an existing PVC by name (skip dynamic provisioning if set)                             | `""`              |
+| `valkey.dataStorage.subPath`                                     | Subpath inside the PVC to mount                                                            | `""`              |
+| `valkey.dataStorage.volumeName`                                  | Name of the volume (referenced in the deployment)                                          | `valkey-data`     |
+| `valkey.dataStorage.requestedSize`                               | Request size (e.g. 5Gi) for a dynamically provisioned volume                               | `""`              |
+| `valkey.dataStorage.className`                                   | Name of the storage class to use                                                           | `""`              |
+| `valkey.valkeyConfig`                                            | Content for valkey.conf (mounted via ConfigMap)                                            | `""`              |
+| `valkey.auth.enabled`                                            | Enable ACL-based authentication.                                                           | `false`           |
+| `valkey.auth.usersExistingSecret`                                | Use an existing secret for user passwords. Key defaults to username.                       | `""`              |
+| `valkey.auth.aclUsers`                                           | Map of users to create with ACL permissions.                                               | `{}`              |
+| `valkey.auth.aclConfig`                                          | Inline ACL configuration that will be appended after the generated users.                  | `""`              |
+| `valkey.replica.enabled`                                         | Enable master-replica replication mode                                                     | `false`           |
+| `valkey.tls.enabled`                                             | Enable TLS                                                                                 | `true`            |
+| `valkey.tls.existingSecret`                                      | Name of the Secret containing the TLS keys (required)                                      | `codx-valkey-tls` |
+| `valkey.tls.serverPublicKey`                                     | Secret key name containing the server public certificate                                   | `tls.crt`         |
+| `valkey.tls.serverKey`                                           | Secret key name containing the server private key                                          | `tls.key`         |
+| `valkey.tls.caPublicKey`                                         | Secret key name containing the Certificate Authority public certificate                    | `ca.crt`          |
+| `valkey.tls.requireClientCertificate`                            | Require that clients authenticate with a certificate                                       | `false`           |
+| `valkey.metrics.enabled`                                         | Enable the Prometheus exporter sidecar                                                     | `true`            |
+| `valkey.metrics.exporter.resources`                              | Resources for the Valkey Prometheus exporter container                                     | `{}`              |
+| `valkey.metrics.exporter.extraEnvs`                              | Extra environment variables for the Valkey Prometheus exporter container                   | `{}`              |
+| `valkey.metrics.exporter.securityContext.runAsNonRoot`           | Run the Valkey Prometheus exporter as a non-root user                                      | `true`            |
+| `valkey.metrics.exporter.securityContext.runAsUser`              | User ID for the Valkey Prometheus exporter container                                       | `1000`            |
+| `valkey.metrics.exporter.securityContext.runAsGroup`             | Group ID for the Valkey Prometheus exporter container                                      | `1000`            |
+| `valkey.metrics.exporter.securityContext.capabilities.drop`      | Capabilities to drop for the Valkey Prometheus exporter container                          | `[]`              |
+| `valkey.metrics.exporter.securityContext.readOnlyRootFilesystem` | Read-only root filesystem for the Valkey Prometheus exporter container                     | `true`            |
+| `valkey.metrics.serviceMonitor.enabled`                          | Create a ServiceMonitor resource for scraping service metrics                              | `true`            |
+| `valkey.metrics.podMonitor.enabled`                              | Create a PodMonitor resource for scraping pod metrics                                      | `false`           |
+| `valkey.metrics.prometheusRule.enabled`                          | Enable creation of the PrometheusRule resource                                             | `false`           |
+| `valkey.metrics.prometheusRule.extraLabels`                      | Extra labels to add to the PrometheusRule resource                                         | `{}`              |
+| `valkey.metrics.prometheusRule.extraAnnotations`                 | Extra annotations to add to the PrometheusRule resource                                    | `{}`              |
+| `valkey.metrics.prometheusRule.rules`                            | List of Prometheus alerting rules                                                          | `[]`              |
 
-### Prometheus metrics
+### Cert Manager
 
-| Name                                       | Description                                                                                            | Value   |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------------ | ------- |
-| `metrics.enabled`                          | Enable the export of Prometheus metrics                                                                | `true`  |
-| `metrics.serviceMonitor.enabled`           | if `true`, creates a Prometheus Operator ServiceMonitor (also requires `metrics.enabled` to be `true`) | `true`  |
-| `metrics.serviceMonitor.namespace`         | Namespace in which Prometheus is running                                                               | `""`    |
-| `metrics.serviceMonitor.annotations`       | Additional custom annotations for the ServiceMonitor                                                   | `{}`    |
-| `metrics.serviceMonitor.labels`            | Extra labels for the ServiceMonitor                                                                    | `{}`    |
-| `metrics.serviceMonitor.jobLabel`          | The name of the label on the target service to use as the job name in Prometheus                       | `""`    |
-| `metrics.serviceMonitor.honorLabels`       | honorLabels chooses the metric's labels on collisions with target labels                               | `false` |
-| `metrics.serviceMonitor.interval`          | Interval at which metrics should be scraped.                                                           | `""`    |
-| `metrics.serviceMonitor.scrapeTimeout`     | Timeout after which the scrape is ended                                                                | `""`    |
-| `metrics.serviceMonitor.metricRelabelings` | Specify additional relabeling of metrics                                                               | `[]`    |
-| `metrics.serviceMonitor.relabelings`       | Specify general relabeling                                                                             | `[]`    |
-| `metrics.serviceMonitor.selector`          | Prometheus instance selector labels                                                                    | `{}`    |
+| Name                   | Description                                                        | Value   |
+| ---------------------- | ------------------------------------------------------------------ | ------- |
+| `certManager.renewal`  | Certificate renewal period before expiry (Go duration, e.g. 720h). | `720h`  |
+| `certManager.validity` | Certificate validity duration (Go duration, e.g. 2160h).           | `2160h` |
 
-### Database parameters
+### CodX HTTP Server
 
-| Name                                                                      | Description                                                                                        | Value                     |
-| ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------- |
-| `postgresql.enabled`                                                      | Enable CloudNativePG cluster deployment                                                            | `true`                    |
-| `postgresql.instances`                                                    | Number of PostgreSQL instances (1 for single instance)                                             | `1`                       |
-| `postgresql.storage.size`                                                 | Storage size for PostgreSQL data                                                                   | `10Gi`                    |
-| `postgresql.storage.storageClass`                                         | Storage class for PostgreSQL PVCs                                                                  | `""`                      |
-| `postgresql.storage.pvcTemplate`                                          | Additional PVC template configuration for PostgreSQL PVCs                                          | `{}`                      |
-| `postgresql.database.name`                                                | Database name                                                                                      | `codx`                 |
-| `postgresql.database.username`                                            | Database username                                                                                  | `codx`                 |
-| `postgresql.database.password`                                            | Database password                                                                                  | `""`                      |
-| `postgresql.database.existingSecret`                                      | Existing secret with database credentials                                                          | `""`                      |
-| `postgresql.resources`                                                    | Resource requests and limits for PostgreSQL pod                                                    | `{}`                      |
-| `postgresql.affinity`                                                     | Affinity configuration for PostgreSQL pod                                                          | `{}`                      |
-| `postgresql.tolerations`                                                  | Tolerations for PostgreSQL pod                                                                     | `{}`                      |
-| `postgresql.nodeSelector`                                                 | Node selector for PostgreSQL pod                                                                   | `{}`                      |
-| `postgresql.backup.enabled`                                               | Enable Barman plugin WAL backup configuration                                                      | `true`                    |
-| `postgresql.backup.barmanObjectName`                                      | Barman ObjectStore name for backup                                                                 | `""`                      |
-| `postgresql.superuserSecret`                                              | Secret containing superuser credentials for the cluster                                            | `""`                      |
-| `postgresql.tls.enabled`                                                  | Enable TLS encryption for the cluster (requires cert-manager)                                      | `true`                    |
-| `postgresql.metrics.podMonitor.enabled`                                   | if `true`, creates a Prometheus Operator podMonitor (also requires `metrics.enabled` to be `true`) | `true`                    |
-| `postgresql.metrics.podMonitor.namespace`                                 | Namespace in which Prometheus is running                                                           | `""`                      |
-| `postgresql.metrics.podMonitor.annotations`                               | Additional custom annotations for the podMonitor                                                   | `{}`                      |
-| `postgresql.metrics.podMonitor.labels`                                    | Extra labels for the podMonitor                                                                    | `{}`                      |
-| `postgresql.metrics.podMonitor.jobLabel`                                  | The name of the label on the target service to use as the job name in Prometheus                   | `""`                      |
-| `postgresql.metrics.podMonitor.honorLabels`                               | honorLabels chooses the metric's labels on collisions with target labels                           | `false`                   |
-| `postgresql.metrics.podMonitor.interval`                                  | Interval at which metrics should be scraped.                                                       | `""`                      |
-| `postgresql.metrics.podMonitor.scrapeTimeout`                             | Timeout after which the scrape is ended                                                            | `""`                      |
-| `postgresql.metrics.podMonitor.metricRelabelings`                         | Specify additional relabeling of metrics                                                           | `[]`                      |
-| `postgresql.metrics.podMonitor.relabelings`                               | Specify general relabeling                                                                         | `[]`                      |
-| `postgresql.backup.enabled`                                               | Enable Barman plugin WAL backup configuration                                                      | `true`                    |
-| `postgresql.backup.barmanObjectName`                                      | Barman ObjectStore name for backup of an existing ObjectStore                                      | `""`                      |
-| `postgresql.backup.schedule.enabled`                                      | Enable scheduled backups for the cluster                                                           | `true`                    |
-| `postgresql.backup.schedule.cron`                                         | Cron expression for the backup schedule                                                            | `0 0 0 * * *`             |
-| `postgresql.backup.schedule.backupOwnerReference`                         | Backup owner reference for the backup schedule (self or cluster)                                   | `self`                    |
-| `postgresql.backup.schedule.method`                                       | Backup method for the backup schedule (plugin, volumeSnapshot, or barmanObjectStore (default))     | `plugin`                  |
-| `postgresql.barmanObjectStore.enabled`                                    | Enable Barman ObjectStore configuration                                                            | `true`                    |
-| `postgresql.barmanObjectStore.destinationPath`                            | ObjectStore destination path                                                                       | `""`                      |
-| `postgresql.barmanObjectStore.endpointUrl`                                | ObjectStore endpoint URL (only for S3-compatible providers)                                        | `""`                      |
-| `postgresql.barmanObjectStore.wal.compression`                            | Compression algorithm for WAL files (bzip2, gzip, lz4, snappy, zx, zstd, or none)                  | `bzip2`                   |
-| `postgresql.barmanObjectStore.wal.retentionPolicy`                        | Retention policy for WAL files (e.g., "30d" for 30 days)                                           | `30d`                     |
-| `postgresql.barmanObjectStore.s3Credentials.accessKeyId.name`             | Name of the Kubernetes secret containing the S3 access key ID                                      | `""`                      |
-| `postgresql.barmanObjectStore.s3Credentials.accessKeyId.key`              | Key in the secret containing the S3 access key ID                                                  | `ACCESS_KEY_ID`           |
-| `postgresql.barmanObjectStore.s3Credentials.secretAccessKey.name`         | Name of the Kubernetes secret containing the S3 secret access key                                  | `""`                      |
-| `postgresql.barmanObjectStore.s3Credentials.secretAccessKey.key`          | Key in the secret containing the S3 secret access key                                              | `ACCESS_SECRET_KEY`       |
-| `postgresql.barmanObjectStore.azureCredentials.connectionString.name`     | Name of the Kubernetes secret containing the Azure connection string                               | `""`                      |
-| `postgresql.barmanObjectStore.azureCredentials.connectionString.key`      | Key in the secret containing the Azure connection string                                           | `CONNECTION_STRING`       |
-| `postgresql.barmanObjectStore.gcsCredentials.applicationCredentials.name` | Name of the Kubernetes secret containing the GCS application credentials                           | `""`                      |
-| `postgresql.barmanObjectStore.gcsCredentials.applicationCredentials.key`  | Key in the secret containing the GCS application credentials                                       | `APPLICATION_CREDENTIALS` |
-| `postgresql.extraPlugins`                                                 | Add extra plugins to the CloudNativePG cluster.                                                    | `[]`                      |
-| `postgresql.externalClusters`                                             | Add external clusters to the CloudNativePG cluster to restore a cluster from an object store       | `[]`                      |
-| `externalDatabase.host`                                                   | Database host                                                                                      | `""`                      |
-| `externalDatabase.port`                                                   | Database port number                                                                               | `5432`                    |
-| `externalDatabase.username`                                               | Non-root username for codx                                                                      | `codx`                 |
-| `externalDatabase.password`                                               | Password for the non-root username for codx                                                     | `""`                      |
-| `externalDatabase.database`                                               | codx database name                                                                              | `codx`                 |
-| `externalDatabase.existingSecret`                                         | Name of an existing secret resource containing the database credentials                            | `""`                      |
-| `externalDatabase.existingSecretPasswordKey`                              | Name of an existing secret key containing the database credentials                                 | `""`                      |
+| Name               | Description                                                                                                | Value          |
+| ------------------ | ---------------------------------------------------------------------------------------------------------- | -------------- |
+| `http.listenAddr`  | Address the HTTP server binds to. Supports IPv4 (e.g. 0.0.0.0:8443), IPv6 (e.g. [::]:8443) and dual-stack. | `[::]:8443`    |
+| `http.tlsCertFile` | Path to the TLS certificate for the CodX server (TLS is mandatory).                                        | `/tls/tls.crt` |
+| `http.tlsKeyFile`  | Path to the TLS key for the CodX server (TLS is mandatory).                                                | `/tls/tls.key` |
 
-### SMTP Configuration
+### Metrics parameters
 
-| Name                          | Description                           | Value      |
-| ----------------------------- | ------------------------------------- | ---------- |
-| `smtp.host`                   | SMTP host                             | `""`       |
-| `smtp.security`               | SMTP Encryption method                | `starttls` |
-| `smtp.port`                   | SMTP port                             | `587`      |
-| `smtp.from`                   | SMTP sender email address             | `""`       |
-| `smtp.username`               | Username for the SMTP authentication. | `""`       |
-| `smtp.password`               | Password for the SMTP service.        | `""`       |
-| `smtp.authMechanism`          | SMTP authentication mechanism         | `Login`    |
-| `smtp.acceptInvalidHostnames` | Accept Invalid Hostnames              | `false`    |
-| `smtp.acceptInvalidCerts`     | Accept Invalid Certificates           | `false`    |
-| `smtp.debug`                  | SMTP debugging                        | `false`    |
+| Name                                   | Description                                                                                              | Value  |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------- | ------ |
+| `metrics.enabled`                      | Enable the dedicated Prometheus /metrics endpoint (configured via the CodX ConfigMap)                    | `true` |
+| `metrics.port`                         | Port of the dedicated metrics endpoint                                                                   | `9443` |
+| `metrics.tls`                          | Enable TLS on the metrics endpoint using the CodX server certificate (configured via the CodX ConfigMap) | `true` |
+| `metrics.serviceMonitor.enabled`       | Create a ServiceMonitor resource for Prometheus Operator                                                 | `true` |
+| `metrics.serviceMonitor.interval`      | Scrape interval for the ServiceMonitor                                                                   | `30s`  |
+| `metrics.serviceMonitor.scrapeTimeout` | Scrape timeout for the ServiceMonitor                                                                    | `10s`  |
+| `metrics.serviceMonitor.labels`        | Extra labels for the ServiceMonitor resource                                                             | `{}`   |
 
-### NetworkPolicy Configuration
+### Grafana dashboards
 
-| Name                                                                    | Description                                                                        | Value                  |
-| ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ---------------------- |
-| `networkPolicy.codx.enabled`                                         | Enable NetworkPolicy for codx                                                   | `true`                 |
-| `networkPolicy.codx.ingress.fromIngressController.enabled`           | Allow traffic from Ingress Controller                                              | `true`                 |
-| `networkPolicy.codx.ingress.fromIngressController.namespaceSelector` | Namespace selector for Ingress Controller                                          | `{}`                   |
-| `networkPolicy.codx.ingress.fromIngressController.podSelector`       | Pod selector for Ingress Controller                                                | `{}`                   |
-| `networkPolicy.codx.ingress.fromMonitoring.enabled`                  | Allow traffic from monitoring namespace                                            | `true`                 |
-| `networkPolicy.codx.ingress.fromMonitoring.namespaceSelector`        | Namespace selector for monitoring                                                  | `{}`                   |
-| `networkPolicy.codx.ingress.fromMonitoring.podSelector`              | Pod selector for monitoring                                                        | `{}`                   |
-| `networkPolicy.codx.egress.toSMTP.enabled`                           | Allow traffic to SMTP servers                                                      | `true`                 |
-| `networkPolicy.codx.egress.toSMTP.ports`                             | SMTP ports to allow                                                                | `[]`                   |
-| `networkPolicy.codx.egress.toSMTP.cidrBlocks`                        | CIDR blocks to SMTP                                                                | `["0.0.0.0/0","::/0"]` |
-| `networkPolicy.codx.egress.toInternet.enabled`                       | Allow traffic to Internet                                                          | `true`                 |
-| `networkPolicy.codx.egress.toInternet.cidrBlocks`                    | CIDR blocks to Internet                                                            | `["0.0.0.0/0","::/0"]` |
-| `networkPolicy.codx.egress.toInternet.ports`                         | Internet ports to allow                                                            | `[]`                   |
-| `networkPolicy.codx.egress.extraEgress`                              | Add extra ingress rules to the NetworkPolicy (ignored if allowExternalEgress=true) | `[]`                   |
-| `networkPolicy.postgresql.enabled`                                      | Enable NetworkPolicy for PostgreSQL CNPG                                           | `true`                 |
-| `networkPolicy.postgresql.ingress.fromMonitoring.enabled`               | Allow traffic from monitoring namespace                                            | `true`                 |
-| `networkPolicy.postgresql.ingress.fromMonitoring.namespaceSelector`     | Namespace selector for monitoring                                                  | `{}`                   |
-| `networkPolicy.postgresql.ingress.fromMonitoring.podSelector`           | Pod selector for monitoring                                                        | `{}`                   |
-| `networkPolicy.postgresql.ingress.fromPostgresqlInstances.enabled`      | Allow traffic between PostgreSQL instances                                         | `true`                 |
-| `networkPolicy.postgresql.ingress.fromCNPG.enabled`                     | Allow traffic from CNPG operator                                                   | `true`                 |
-| `networkPolicy.postgresql.ingress.fromCNPG.namespaceSelector`           | Namespace selector for CNPG operator                                               | `{}`                   |
-| `networkPolicy.postgresql.ingress.fromCNPG.podSelector`                 | Pod selector for CNPG operator                                                     | `{}`                   |
-| `networkPolicy.postgresql.egress.toObjectStorage.enabled`               | Allow traffic to Object Storage for backups                                        | `false`                |
-| `networkPolicy.postgresql.egress.toObjectStorage.cidrBlocks`            | CIDR blocks for Object Storage                                                     | `["0.0.0.0/0","::/0"]` |
+| Name                            | Description                                                                                            | Value               |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------ | ------------------- |
+| `grafanaDashboards.enabled`     | Create the ConfigMap with the workspaces dashboard.                                                    | `false`             |
+| `grafanaDashboards.label`       | Label key watched by the Grafana dashboard sidecar (kube-prometheus-stack default: grafana_dashboard). | `grafana_dashboard` |
+| `grafanaDashboards.folder`      | Grafana folder imported by the sidecar (grafana_folder label).                                         | `CodX`              |
+| `grafanaDashboards.annotations` | Annotations for the dashboard ConfigMap.                                                               | `{}`                |
 
-### Auxiliary image parameters
+### OIDC Authentication
 
-| Name                         | Description                                                                                               | Value                        |
-| ---------------------------- | --------------------------------------------------------------------------------------------------------- | ---------------------------- |
-| `auxiliaryImage.registry`    | Auxiliary image registry                                                                                  | `REGISTRY_NAME`              |
-| `auxiliaryImage.repository`  | Auxiliary image repository                                                                                | `REPOSITORY_NAME/postgresql` |
-| `auxiliaryImage.digest`      | Auxiliary image digest in the way sha256:aa.... Please note this parameter, if set, will override the tag | `""`                         |
-| `auxiliaryImage.pullPolicy`  | Auxiliary image pull policy                                                                               | `IfNotPresent`               |
-| `auxiliaryImage.pullSecrets` | Auxiliary image pull secrets                                                                              | `[]`                         |
+| Name                     | Description                                                                                 | Value                |
+| ------------------------ | ------------------------------------------------------------------------------------------- | -------------------- |
+| `oidc.issuer`            | OIDC issuer URL (e.g. https://keycloak.example.com/realms/myrealm).                         | `""`                 |
+| `oidc.clientId`          | OAuth2 client ID registered with the OIDC provider.                                         | `""`                 |
+| `oidc.clientSecret`      | OAuth2 client secret. Can also be set via the CODX_OIDC_CLIENT_SECRET environment variable. | `""`                 |
+| `oidc.groupClaimName`    | Name of the custom claim in the ID token that contains the user's group memberships.        | `groups`             |
+| `oidc.adminGroup`        | OIDC group whose members get admin privileges.                                              | `codx-admins`        |
+| `oidc.usernameClaimName` | ID token claim used as the username source for slug generation.                             | `preferred_username` |
+
+### Session
+
+| Name          | Description                                                                  | Value |
+| ------------- | ---------------------------------------------------------------------------- | ----- |
+| `session.ttl` | How long a session stays valid after login (Go duration, e.g. 12h, 8h, 30m). | `12h` |
+
+### mTLS Fallback Authentication
+
+| Name                      | Description                                                                         | Value                              |
+| ------------------------- | ----------------------------------------------------------------------------------- | ---------------------------------- |
+| `authFallback.enabled`    | Enable the mTLS client-certificate fallback authentication for admins.              | `false`                            |
+| `authFallback.headerName` | HTTP header carrying the escaped client certificate information.                    | `X-Forwarded-Tls-Client-Cert-Info` |
+| `authFallback.adminCns`   | Client certificate Common Names allowed to authenticate as admins via the fallback. | `[]`                               |
+
+### Traefik mTLS objects
+
+| Name                                             | Description                                                                                                                                                                                              | Value                     |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
+| `traefikMtls.enabled`                            | Create the client CA Secret, TLSOption and passTLSClientCert Middleware.                                                                                                                                 | `false`                   |
+| `traefikMtls.apiVersion`                         | API version of the Traefik CRDs: traefik.io/v1alpha1 (Traefik v3, default) or traefik.containo.us/v1alpha1 (Traefik v2).                                                                                 | `traefik.io/v1alpha1`     |
+| `traefikMtls.existingCaSecret`                   | Existing secret with the client CA certificate (key ca.crt), e.g. the chart internal CA "<fullname>-ca-crt". When empty, a Secret is created from traefikMtls.caCertificates.                            | `""`                      |
+| `traefikMtls.caCertificates`                     | PEM-encoded client CA certificate(s) for the created Secret. Use --set-file or prefer existingCaSecret.                                                                                                  | `""`                      |
+| `traefikMtls.annotations`                        | Annotations added to the created client CA Secret.                                                                                                                                                       | `{}`                      |
+| `traefikMtls.tlsOption.name`                     | Name of the TLSOption. Defaults to "<fullname>-client-mtls".                                                                                                                                             | `""`                      |
+| `traefikMtls.tlsOption.annotations`              | Annotations for the TLSOption.                                                                                                                                                                           | `{}`                      |
+| `traefikMtls.tlsOption.clientAuthType`           | Client certificate policy: VerifyClientCertIfGiven (default, keeps the OIDC flow working for browsers without a client certificate), RequireAndVerifyClientCert, RequireClientCert or RequestClientCert. | `VerifyClientCertIfGiven` |
+| `traefikMtls.middleware.name`                    | Name of the Middleware. Defaults to "<fullname>-passtlsclientcert".                                                                                                                                      | `""`                      |
+| `traefikMtls.middleware.annotations`             | Annotations for the Middleware.                                                                                                                                                                          | `{}`                      |
+| `traefikMtls.middleware.pem`                     | Also forward the full client certificate (PEM) in the X-Forwarded-Tls-Client-Cert header.                                                                                                                | `false`                   |
+| `traefikMtls.middleware.info.subject.commonName` | Forward the subject common name in the X-Forwarded-Tls-Client-Cert-Info header. Required by the CodX mTLS fallback.                                                                                      | `true`                    |
+
+### Redis/Valkey Session Store
+
+| Name               | Description                                                                                                                     | Value         |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| `redis.host`       | Redis hostname (host:port).                                                                                                     | `""`          |
+| `redis.password`   | Optional Redis password. Can also be set via the CODX_REDIS_PASSWORD environment variable.                                      | `""`          |
+| `redis.db`         | Redis logical database index.                                                                                                   | `0`           |
+| `redis.tls`        | Enable TLS to Redis. Automatically enabled when caFilePath is set.                                                              | `true`        |
+| `redis.caFilePath` | Path to a PEM-encoded CA certificate file used to verify the Redis TLS certificate. Typically mounted from a Kubernetes secret. | `/tls/ca.crt` |
+
+### Username Slug
+
+| Name                 | Description                                                         | Value                |
+| -------------------- | ------------------------------------------------------------------- | -------------------- |
+| `slug.usernameField` | OIDC claim used as the username source.                             | `preferred_username` |
+| `slug.maxLength`     | Maximum length of the generated slug (Kubernetes label/name limit). | `63`                 |
+
+### Inactivity Watcher
+
+| Name                                        | Description                                                                                                | Value  |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ------ |
+| `inactivity.checkInterval`                  | How often the watcher polls connections and checks for idle workspaces (Go duration, e.g. 60s).            | `60s`  |
+| `inactivity.leaderElection.enabled`         | Elect a single inactivity monitor via a Kubernetes Lease. Must be enabled with more than one CodX replica. | `true` |
+| `inactivity.leaderElection.leaseName`       | Name of the Lease object used for the election. Defaults to "<instanceName>-inactivity".                   | `""`   |
+| `inactivity.leaderElection.leaseNamespace`  | Namespace of the Lease object. Defaults to the namespace CodX runs in.                                     | `""`   |
+| `inactivity.leaderElection.leaseDuration`   | How long a non-leader waits before taking over an unresponsive leader (Go duration).                       | `15s`  |
+| `inactivity.leaderElection.renewDeadline`   | How long the leader retries renewing the lease before giving up (Go duration).                             | `10s`  |
+| `inactivity.leaderElection.retryPeriod`     | Interval between lease (re)acquisition attempts (Go duration).                                             | `2s`   |
+| `inactivity.leaderElection.releaseOnCancel` | Release the lease immediately on graceful shutdown.                                                        | `true` |
+
+### Workspace Service
+
+| Name                              | Description                                                           | Value             |
+| --------------------------------- | --------------------------------------------------------------------- | ----------------- |
+| `workspaceService.annotations`    | Extra annotations to add to every workspace Service.                  | `{}`              |
+| `workspaceService.ipFamilies`     | List of IP families (e.g. IPv4, IPv6) assigned to workspace Services. | `["IPv6","IPv4"]` |
+| `workspaceService.ipFamilyPolicy` | Dual-stack-ness requested or required by workspace Services.          | `PreferDualStack` |
+
+### Workspace
+
+| Name                             | Description                                                   | Value                                      |
+| -------------------------------- | ------------------------------------------------------------- | ------------------------------------------ |
+| `workspace.envoyImage`           | Image for the Envoy TLS termination sidecar in workspace pods | `envoyproxy/envoy:distroless-v1.39-latest` |
+| `workspace.tracing.enabled`      | Enable OpenTelemetry tracing in the workspace Envoy sidecar   | `false`                                    |
+| `workspace.tracing.otlpEndpoint` | OpenTelemetry collector endpoint (OTLP gRPC, host:port)       | `""`                                       |
+| `workspace.tracing.serviceName`  | OpenTelemetry service name reported for workspace requests    | `codx-workspace`                           |
+
+### Tracing
+
+| Name                                                                 | Description                                                                                 | Value                                   |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | --------------------------------------- |
+| `tracing.enabled`                                                    | Enable OpenTelemetry tracing for the CodX server                                            | `false`                                 |
+| `tracing.otlpEndpoint`                                               | OpenTelemetry collector endpoint (OTLP/HTTP, host:port, usually port 4318)                  | `""`                                    |
+| `tracing.serviceName`                                                | OpenTelemetry service name reported for the CodX server                                     | `codx`                                  |
+| `profiles.default.title`                                             | Title of the default profile, shown in the profile picker.                                  | `Default`                               |
+| `profiles.default.description`                                       | Description of the default profile, shown in the profile picker.                            | `Standard code-server workspace`        |
+| `profiles.default.inactivityStopDelaySeconds`                        | Seconds of inactivity after which the default profile's workspaces are stopped (0 = never). | `120`                                   |
+| `profiles.default.oidcGroups`                                        | OIDC groups allowed to use the default profile (empty = all authenticated users).           | `[]`                                    |
+| `profiles.default.podSpec.image`                                     | code-server image of the default profile.                                                   | `docker.io/captnbp/code-server:4.140.0` |
+| `profiles.default.podSpec.securityContext.runAsUser`                 | User ID of the code-server container.                                                       | `1000`                                  |
+| `profiles.default.podSpec.securityContext.runAsGroup`                | Group ID of the code-server container.                                                      | `1000`                                  |
+| `profiles.default.podSpec.securityContext.fsGroup`                   | Group ID of the volumes mounted by the code-server container.                               | `1000`                                  |
+| `profiles.default.podSpec.resources.limits.cpu`                      | CPU limit of the code-server container.                                                     | `2`                                     |
+| `profiles.default.podSpec.resources.limits.memory`                   | Memory limit of the code-server container.                                                  | `4Gi`                                   |
+| `profiles.default.podSpec.resources.requests.cpu`                    | CPU request of the code-server container.                                                   | `250m`                                  |
+| `profiles.default.podSpec.resources.requests.memory`                 | Memory request of the code-server container.                                                | `650Mi`                                 |
+| `profiles.default.podSpec.args`                                      | Args of the code-server container of the default profile.                                   | `[]`                                    |
+| `profiles.default.podSpec.command`                                   | Command of the code-server container of the default profile.                                | `[]`                                    |
+| `profiles.default.podSpec.codeServerReadinessProbe.exec.command`     | Exec command of the code-server readiness probe.                                            | `[]`                                    |
+| `profiles.default.pvc.size`                                          | Size of the default profile's per-user PVC.                                                 | `20Gi`                                  |
+| `networkPolicy.codx.enabled`                                         | Enable the NetworkPolicy for the CodX codx                                                  | `false`                                 |
+| `networkPolicy.codx.ingress.fromIngressController.enabled`           | Allow traffic from the Ingress Controller                                                   | `true`                                  |
+| `networkPolicy.codx.ingress.fromIngressController.namespaceSelector` | Namespace selector for the Ingress Controller                                               | `{}`                                    |
+| `networkPolicy.codx.ingress.fromIngressController.podSelector`       | Pod selector for the Ingress Controller                                                     | `{}`                                    |
+| `networkPolicy.codx.ingress.fromMonitoring.enabled`                  | Allow traffic from the monitoring namespace (requires metrics.enabled)                      | `true`                                  |
+| `networkPolicy.codx.ingress.fromMonitoring.namespaceSelector`        | Namespace selector for monitoring                                                           | `{}`                                    |
+| `networkPolicy.codx.ingress.fromMonitoring.podSelector`              | Pod selector for monitoring                                                                 | `{}`                                    |
+| `networkPolicy.codx.ingress.extraIngress`                            | Extra ingress rules for the codx                                                            | `[]`                                    |
+| `networkPolicy.codx.egress.toKubeAPI.enabled`                        | Allow traffic to the Kubernetes API                                                         | `true`                                  |
+| `networkPolicy.codx.egress.toKubeAPI.port`                           | Port of the Kubernetes API                                                                  | `443`                                   |
+| `networkPolicy.codx.egress.toKubeAPI.cidrBlocks`                     | CIDR blocks of the Kubernetes API endpoints                                                 | `["0.0.0.0/0","::/0"]`                  |
+| `networkPolicy.codx.egress.toWorkspaces.enabled`                     | Allow mTLS traffic to the workspace Envoy sidecars                                          | `true`                                  |
+| `networkPolicy.codx.egress.toWorkspaces.port`                        | Port of the workspace Envoy sidecars                                                        | `9443`                                  |
+| `networkPolicy.codx.egress.toValkey.enabled`                         | Allow traffic to the Valkey pods (requires valkey.enabled)                                  | `true`                                  |
+| `networkPolicy.codx.egress.toValkey.port`                            | Port of the Valkey pods                                                                     | `6379`                                  |
+| `networkPolicy.codx.egress.toInternet.enabled`                       | Allow traffic to the Internet (OIDC issuer, ...)                                            | `true`                                  |
+| `networkPolicy.codx.egress.toInternet.cidrBlocks`                    | CIDR blocks for the Internet                                                                | `["0.0.0.0/0","::/0"]`                  |
+| `networkPolicy.codx.egress.toInternet.ports`                         | Internet ports to allow                                                                     | `[]`                                    |
+| `networkPolicy.codx.egress.extraEgress`                              | Extra egress rules for the codx                                                             | `[]`                                    |
+| `networkPolicy.workspace.enabled`                                    | Enable the NetworkPolicy for the workspace pods                                             | `true`                                  |
+| `networkPolicy.workspace.ingress.fromCodX.enabled`                   | Allow mTLS traffic from the CodX codx                                                       | `true`                                  |
+| `networkPolicy.workspace.ingress.fromCodX.port`                      | Port of the workspace Envoy sidecar                                                         | `9443`                                  |
+| `networkPolicy.workspace.ingress.fromNode.enabled`                   | Allow kubelet readiness probes (code-server /healthz and Envoy /ready)                      | `false`                                 |
+| `networkPolicy.workspace.ingress.fromNode.cidrBlocks`                | CIDR blocks the kubelet probes originate from                                               | `["0.0.0.0/0","::/0"]`                  |
+| `networkPolicy.workspace.ingress.extraIngress`                       | Extra ingress rules for the workspace pods                                                  | `[]`                                    |
+| `networkPolicy.workspace.egress.toInternet.enabled`                  | Allow traffic to the Internet (registries, extensions, docs)                                | `true`                                  |
+| `networkPolicy.workspace.egress.toInternet.cidrBlocks`               | CIDR blocks for the Internet                                                                | `["0.0.0.0/0","::/0"]`                  |
+| `networkPolicy.workspace.egress.toInternet.ports`                    | Internet ports to allow                                                                     | `[]`                                    |
+| `networkPolicy.workspace.egress.extraEgress`                         | Extra egress rules for the workspace pods                                                   | `[]`                                    |
 
 ## License
 

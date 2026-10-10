@@ -490,45 +490,53 @@ tls:
 
 valkey:
   ## @param valkey.enabled Enable Valkey integration for CodX
+  ##
   enabled: false
   ## @param valkey.resources Resources for the Valkey container
+  ##
   resources: {}
-  # Persistent storage configuration (standalone deployment only)
+  ## Persistent storage configuration (standalone deployment only)
+  ##
   dataStorage:
-    # Enable persistent volume claim creation
+    ## @param valkey.dataStorage.enabled Enable persistent volume claim creation
+    ##
     enabled: false
-
-    # Use existing PVC by name (skip dynamic provisioning if set)
+    ## @param valkey.dataStorage.persistentVolumeClaimName Use an existing PVC by name (skip dynamic provisioning if set)
+    ##
     persistentVolumeClaimName: ""
-
-    # Subpath inside PVC to mount
+    ## @param valkey.dataStorage.subPath Subpath inside the PVC to mount
+    ##
     subPath: ""
-
-    # Name of the volume (referenced in deployment)
+    ## @param valkey.dataStorage.volumeName Name of the volume (referenced in the deployment)
+    ##
     volumeName: "valkey-data"
-
-    # Request size (e.g. 5Gi) for dynamically provisioned volume
+    ## @param valkey.dataStorage.requestedSize Request size (e.g. 5Gi) for a dynamically provisioned volume
+    ##
     requestedSize: ""
-
-    # Name of the storage class to use
+    ## @param valkey.dataStorage.className Name of the storage class to use
+    ##
     className: ""
-  # Content for valkey.conf (will be mounted via ConfigMap)
+  ## @param valkey.valkeyConfig Content for valkey.conf (mounted via ConfigMap)
+  ##
   valkeyConfig: ""
 
   auth:
-    # Enable ACL-based authentication
-    # IMPORTANT: When authentication is enabled, the 'default' user MUST be defined in either
-    # aclUsers or aclConfig. Without a default user, anyone can access the database without
-    # credentials, creating a security risk.
+    ## @param valkey.auth.enabled Enable ACL-based authentication.
+    ## IMPORTANT: When authentication is enabled, the 'default' user MUST be defined in either
+    ## aclUsers or aclConfig. Without a default user, anyone can access the database without
+    ## credentials, creating a security risk.
+    ##
     enabled: false
 
-    # Use an existing secret for user passwords. Key defaults to username.
-    # Supports templating, e.g.: "users-{{ .Release.Name }}"
+    ## @param valkey.auth.usersExistingSecret Use an existing secret for user passwords. Key defaults to username.
+    ## Supports templating, e.g.: "users-{{ .Release.Name }}"
+    ##
     usersExistingSecret: ""
 
-    # Map of users to create with ACL permissions.
-    # If usersExistingSecret is set, passwords from the secret take priority over inline passwords.
-    # NOTE: If using aclUsers, the 'default' user must be included here.
+    ## @param valkey.auth.aclUsers [object] Map of users to create with ACL permissions.
+    ## If usersExistingSecret is set, passwords from the secret take priority over inline passwords.
+    ## NOTE: If using aclUsers, the 'default' user must be included here.
+    ##
     aclUsers: {}
     # Example:
     # default:
@@ -538,108 +546,117 @@ valkey:
     # read-user:
     #   permissions: "~* -@all +@read +ping +info"
 
-    # Inline ACL configuration that will be appended after generated users.
-    # NOTE: If using aclConfig, ensure the 'default' user is defined here.
+    ## @param valkey.auth.aclConfig Inline ACL configuration that will be appended after the generated users.
+    ## NOTE: If using aclConfig, ensure the 'default' user is defined here.
+    ##
     aclConfig: ""
     # Example:
     # aclConfig: |
     #   user default on >secretpass ~* &* +@all
 
-  # Replica configuration for master-replica replication mode
+  ## Replica configuration for master-replica replication mode
+  ##
   replica:
+    ## @param valkey.replica.enabled Enable master-replica replication mode
+    ##
     enabled: false
 
   tls:
-    # Enable TLS
+    ## @param valkey.tls.enabled Enable TLS
+    ##
     enabled: true
-    # Name of the Secret containing TLS keys (required)
+    ## @param valkey.tls.existingSecret Name of the Secret containing the TLS keys (required)
+    ##
     existingSecret: "codx-valkey-tls"
-    # Secret key name containing server public certificate
+    ## @param valkey.tls.serverPublicKey Secret key name containing the server public certificate
+    ##
     serverPublicKey: tls.crt
-    # Secret key name containing server private key
+    ## @param valkey.tls.serverKey Secret key name containing the server private key
+    ##
     serverKey: tls.key
-    # Secret key name containing Certificate Authority public certificate
+    ## @param valkey.tls.caPublicKey Secret key name containing the Certificate Authority public certificate
+    ##
     caPublicKey: ca.crt
-    # Require that clients authenticate with a certificate
+    ## @param valkey.tls.requireClientCertificate Require that clients authenticate with a certificate
+    ##
     requireClientCertificate: false
 
   metrics:
-    # Enable Prometheus exporter sidecar
+    ## @param valkey.metrics.enabled Enable the Prometheus exporter sidecar
+    ##
     enabled: true
-    # Exporter configuration
+    ## Exporter configuration
+    ##
     exporter:
+      ## @param valkey.metrics.exporter.resources Resources for the Valkey Prometheus exporter container
+      ## Example:
+      ## limits:
+      ##   cpu: 100m
+      ##   memory: 128Mi
+      ## requests:
+      ##   cpu: 100m
+      ##   memory: 128Mi
+      ##
       resources: {}
-        # Example:
-        # limits:
-        #   cpu: 100m
-        #   memory: 128Mi
-        # requests:
-        #   cpu: 100m
-        #   memory: 128Mi
+      ## @param valkey.metrics.exporter.extraEnvs [object] Extra environment variables for the Valkey Prometheus exporter container
+      ## Example:
+      ## LOG_LEVEL: info
+      ##
       extraEnvs: {}
-      # Example:
-      # LOG_LEVEL: info
       securityContext:
+        ## @param valkey.metrics.exporter.securityContext.runAsNonRoot Run the Valkey Prometheus exporter as a non-root user
+        ##
         runAsNonRoot: true
+        ## @param valkey.metrics.exporter.securityContext.runAsUser User ID for the Valkey Prometheus exporter container
+        ##
         runAsUser: 1000
+        ## @param valkey.metrics.exporter.securityContext.runAsGroup Group ID for the Valkey Prometheus exporter container
+        ##
         runAsGroup: 1000
         capabilities:
+          ## @param valkey.metrics.exporter.securityContext.capabilities.drop [array] Capabilities to drop for the Valkey Prometheus exporter container
+          ##
           drop:
             - ALL
+        ## @param valkey.metrics.exporter.securityContext.readOnlyRootFilesystem Read-only root filesystem for the Valkey Prometheus exporter container
+        ##
         readOnlyRootFilesystem: true
 
     serviceMonitor:
-      # Enable ServiceMonitor resource for scraping service metrics
+      ## @param valkey.metrics.serviceMonitor.enabled Create a ServiceMonitor resource for scraping service metrics
+      ##
       enabled: true
 
     podMonitor:
-      # Enable PodMonitor resource for scraping pod metrics
+      ## @param valkey.metrics.podMonitor.enabled Create a PodMonitor resource for scraping pod metrics
+      ##
       enabled: false
 
-
-    # PrometheusRule configuration for alerting rules (used by kube-prometheus-stack)
+    ## PrometheusRule configuration for alerting rules (used by kube-prometheus-stack)
+    ##
     prometheusRule:
-      # Enable creation of PrometheusRule resource
+      ## @param valkey.metrics.prometheusRule.enabled Enable creation of the PrometheusRule resource
+      ##
       enabled: false
-      # Extra labels to add to the PrometheusRule resource
+      ## @param valkey.metrics.prometheusRule.extraLabels Extra labels to add to the PrometheusRule resource
+      ##
       extraLabels: {}
-      # Extra annotations to add to the PrometheusRule resource
+      ## @param valkey.metrics.prometheusRule.extraAnnotations Extra annotations to add to the PrometheusRule resource
+      ##
       extraAnnotations: {}
-      # List of Prometheus alerting rules
+      ## @param valkey.metrics.prometheusRule.rules [array] List of Prometheus alerting rules
+      ## Example:
+      ## - alert: ValkeyDown
+      ##   annotations:
+      ##     summary: Valkey instance {{ "{{ $labels.instance }}" }} down
+      ##     description: Valkey instance {{ "{{ $labels.instance }}" }} is down.
+      ##   expr: |
+      ##     redis_up{service="{{ include "valkey.fullname" . }}-metrics"} == 0
+      ##   for: 2m
+      ##   labels:
+      ##     severity: error
+      ##
       rules: []
-      # Example alerting rules:
-      # - alert: ValkeyDown
-      #   annotations:
-      #     summary: Valkey instance {{ "{{ $labels.instance }}" }} down
-      #     description: Valkey instance {{ "{{ $labels.instance }}" }} is down.
-      #   expr: |
-      #     redis_up{service="{{ include "valkey.fullname" . }}-metrics"} == 0
-      #   for: 2m
-      #   labels:
-      #     severity: error
-      # - alert: ValkeyMemoryHigh
-      #   annotations:
-      #     summary: Valkey instance {{ "{{ $labels.instance }}" }} is using too much memory
-      #     description: |
-      #        Valkey instance {{ "{{ $labels.instance }}" }} is using {{ "{{ $value }}" }}% of its available memory.
-      #   expr: |
-      #      redis_memory_used_bytes{service="{{ include "valkey.fullname" . }}-metrics"} * 100
-      #      /
-      #      redis_memory_max_bytes{service="{{ include "valkey.fullname" . }}-metrics"}
-      #      > 90 <= 100
-      #   for: 2m
-      #   labels:
-      #     severity: error
-      # - alert: ValkeyKeyEviction
-      #   annotations:
-      #     summary: Valkey instance {{ "{{ $labels.instance }}" }} has evicted keys
-      #     description: |
-      #        Valkey instance {{ "{{ $labels.instance }}" }} has evicted {{ "{{ $value }}" }} keys in the last 5 minutes.
-      #   expr: |
-      #     increase(redis_evicted_keys_total{service="{{ include "valkey.fullname" . }}-metrics"}[5m]) > 0
-      #   for: 1s
-      #   labels:
-      #     severity: error
 
 ## @section Cert Manager
 ## CertManager configures how per-user workspace certificates are issued.
@@ -775,7 +792,10 @@ authFallback:
 ## @param traefikMtls.middleware.name Name of the Middleware. Defaults to "<fullname>-passtlsclientcert".
 ## @param traefikMtls.middleware.annotations Annotations for the Middleware.
 ## @param traefikMtls.middleware.pem Also forward the full client certificate (PEM) in the X-Forwarded-Tls-Client-Cert header.
-## @param traefikMtls.middleware.info Client certificate fields forwarded in the X-Forwarded-Tls-Client-Cert-Info header. Defaults to the subject common name, which is what the CodX fallback matches (authFallback.adminCns).
+## The info section below selects the client certificate fields forwarded in the
+## X-Forwarded-Tls-Client-Cert-Info header. Defaults to the subject common name,
+## which is what the CodX fallback matches (authFallback.adminCns).
+## @param traefikMtls.middleware.info.subject.commonName Forward the subject common name in the X-Forwarded-Tls-Client-Cert-Info header. Required by the CodX mTLS fallback.
 ##
 traefikMtls:
   enabled: false
@@ -836,8 +856,10 @@ inactivity:
   checkInterval: 60s
   leaderElection:
     enabled: true
-    # leaseName: codx-inactivity
-    # leaseNamespace: codx
+    # Empty values fall back to the defaults: "<instanceName>-inactivity"
+    # and the namespace the CodX pod runs in.
+    leaseName: ""
+    leaseNamespace: ""
     leaseDuration: 15s
     renewDeadline: 10s
     retryPeriod: 2s
@@ -886,7 +908,8 @@ tracing:
 ## Profile custom resources (profiles.codx.io/v1) created by the chart.
 ## Each entry is a map: key -> Profile spec. The key becomes the resource name.
 ## An empty map renders no Profile objects.
-## @param profiles Map of Profile resources to deploy. Each value is a full Profile spec.
+## The @param entries below document the chart's default profile; add your own
+## profiles with the same structure. See docs/profile-crd.md for the full spec.
 ## e.g:
 ## profiles:
 ##   default:
@@ -924,6 +947,23 @@ tracing:
 ##       #     port: 9901
 ##     pvc:
 ##       size: 10Gi
+##
+## @param profiles.default.title Title of the default profile, shown in the profile picker.
+## @param profiles.default.description Description of the default profile, shown in the profile picker.
+## @param profiles.default.inactivityStopDelaySeconds Seconds of inactivity after which the default profile's workspaces are stopped (0 = never).
+## @param profiles.default.oidcGroups [array] OIDC groups allowed to use the default profile (empty = all authenticated users).
+## @param profiles.default.podSpec.image code-server image of the default profile.
+## @param profiles.default.podSpec.securityContext.runAsUser User ID of the code-server container.
+## @param profiles.default.podSpec.securityContext.runAsGroup Group ID of the code-server container.
+## @param profiles.default.podSpec.securityContext.fsGroup Group ID of the volumes mounted by the code-server container.
+## @param profiles.default.podSpec.resources.limits.cpu CPU limit of the code-server container.
+## @param profiles.default.podSpec.resources.limits.memory Memory limit of the code-server container.
+## @param profiles.default.podSpec.resources.requests.cpu CPU request of the code-server container.
+## @param profiles.default.podSpec.resources.requests.memory Memory request of the code-server container.
+## @param profiles.default.podSpec.args [array] Args of the code-server container of the default profile.
+## @param profiles.default.podSpec.command [array] Command of the code-server container of the default profile.
+## @param profiles.default.podSpec.codeServerReadinessProbe.exec.command [array] Exec command of the code-server readiness probe.
+## @param profiles.default.pvc.size Size of the default profile's per-user PVC.
 ##
 profiles:
   default:

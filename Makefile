@@ -47,3 +47,7 @@ fmt:
 .PHONY: docs-crd
 docs-crd:
 	python3 hack/gen_crd_docs.py
+
+.PHONY: check-values-docs
+check-values-docs:
+	python3 hack/check_values_docs.py charts/codx/values.yaml
