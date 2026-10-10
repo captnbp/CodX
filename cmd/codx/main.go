@@ -250,7 +250,9 @@ func run(configPath string) error {
 
 	// Set up the web server (handler wrapped with the otelhttp middleware
 	// for server spans and W3C trace context extraction).
-	webServer := web.New(cfg, auth, store, profileStore, wm, nil).WithLogger(log)
+	webServer := web.New(cfg, auth, store, profileStore, wm, nil).
+		WithLogger(log).
+		WithActivityStore(activityStore)
 
 	server := &http.Server{
 		Addr:         cfg.HTTP.ListenAddr,

@@ -420,3 +420,73 @@ func TestAdminLogsForbiddenForNonAdmin(t *testing.T) {
 		t.Errorf("non-admin logs: got %d, want %d", rr.Code, http.StatusForbidden)
 	}
 }
+
+// fakeActivityStore is a web.ActivityStore for tests: the last-activity map
+// persisted by the inactivity leader.
+type fakeActivityStore struct {
+	records map[string]time.Time
+}
+
+func (f *fakeActivityStore) Load(ctx context.Context) (map[string]time.Time, error) {
+	return f.records, nil
+}
+
+func TestAdminListUsersReportsIdleTime(t *testing.T) {
+	srv, _, _ := adminTestServer(t)
+	handler := srv.Handler()
+
+	// The inactivity context persisted by the leader: john-doe has been
+	// idle for 25 minutes, jane-smith (stopped) has no record.
+	idleSince := time.Now().Add(-25 * time.Minute)
+	srv.WithActivityStore(&fakeActivityStore{records: map[string]time.Time{
+		"john-doe": idleSince,
+	}})
+
+	rr := doRequest(t, handler, "GET", "/api/admin/users", "admin-session")
+	if rr.Code != http.StatusOK {
+		t.Fatalf("list users: got %d, want %d", rr.Code, http.StatusOK)
+	}
+
+	var users []userInfo
+	if err := json.Unmarshal(rr.Body.Bytes(), &users); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	bySlug := map[string]userInfo{}
+	for _, u := range users {
+		bySlug[u.Slug] = u
+	}
+
+	john := bySlug["john-doe"]
+	if john.IdleSeconds == nil {
+		t.Fatal("john-doe idleSeconds is nil, want the persisted idle time")
+	}
+	if *john.IdleSeconds < 24*60 || *john.IdleSeconds > 26*60 {
+		t.Errorf("john-doe idleSeconds = %d, want ~1500 (25 minutes)", *john.IdleSeconds)
+	}
+
+	// No recorded activity (never active or lost context): idle unknown.
+	jane := bySlug["jane-smith"]
+	if jane.IdleSeconds != nil {
+		t.Errorf("jane-smith idleSeconds = %d, want nil (no activity record)", *jane.IdleSeconds)
+	}
+}
+
+func TestAdminListUsersWithoutActivityStore(t *testing.T) {
+	srv, _, _ := adminTestServer(t)
+	handler := srv.Handler()
+
+	// No activity store attached: the admin UI works, idle simply unknown.
+	rr := doRequest(t, handler, "GET", "/api/admin/users", "admin-session")
+	if rr.Code != http.StatusOK {
+		t.Fatalf("list users: got %d, want %d", rr.Code, http.StatusOK)
+	}
+	var users []userInfo
+	if err := json.Unmarshal(rr.Body.Bytes(), &users); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	for _, u := range users {
+		if u.IdleSeconds != nil {
+			t.Errorf("%s idleSeconds = %d, want nil without an activity store", u.Slug, *u.IdleSeconds)
+		}
+	}
+}

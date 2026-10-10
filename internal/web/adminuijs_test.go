@@ -44,7 +44,7 @@ func TestAdminUIDefinesReferencedFunctions(t *testing.T) {
 	}
 
 	// Sanity: the admin UI handlers are defined.
-	for _, name := range []string{"loadUsers", "openLogs", "closeLogs", "extendPVC", "stopWorkspace", "deleteUser", "resourceBar", "formatBytes", "formatCores"} {
+	for _, name := range []string{"loadUsers", "openLogs", "closeLogs", "extendPVC", "stopWorkspace", "deleteUser", "resourceBar", "formatBytes", "formatCores", "formatIdle"} {
 		if !defined[name] {
 			t.Errorf("admin UI does not define function %q", name)
 		}

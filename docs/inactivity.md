@@ -116,6 +116,11 @@ blind**:
 No configuration is needed: the persistence uses the existing Redis/Valkey
 connection settings of the session store.
 
+The persisted context is also what the admin UI displays as each
+workspace's **Idle** time: the last-activity records are read directly from
+Redis/Valkey by any replica (not only the leader), and a workspace with no
+record (never active, or context lost) shows an em dash.
+
 ## How activity is detected
 
 Activity is defined at the network level, not by code-server usage: a

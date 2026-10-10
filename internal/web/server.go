@@ -27,6 +27,16 @@ import (
 // SessionCookieName is the name of the cookie storing the session ID.
 const SessionCookieName = "codx-session"
 
+// ActivityStore reads the inactivity tracking context persisted by the
+// inactivity leader (the last-activity timestamp per workspace), so the
+// admin UI can report each workspace's idle time from any replica. It is
+// satisfied by the Redis/Valkey-backed store (session.ActivityStore).
+type ActivityStore interface {
+	// Load returns all known last-activity timestamps, keyed by workspace
+	// slug. An empty map means no known context.
+	Load(ctx context.Context) (map[string]time.Time, error)
+}
+
 // Server is the CodX HTTP server.
 type Server struct {
 	cfg          *config.Config
@@ -37,6 +47,7 @@ type Server struct {
 	proxyFactory ProxyFactory
 	log          logr.Logger
 	audit        logr.Logger
+	activity     ActivityStore
 }
 
 // ProxyFactory creates a WorkspaceProxy for a given workspace FQDN.
@@ -81,6 +92,13 @@ func (s *Server) WithLogger(log logr.Logger) *Server {
 // to a dedicated output.
 func (s *Server) WithAuditLogger(log logr.Logger) *Server {
 	s.audit = log.WithName("audit")
+	return s
+}
+
+// WithActivityStore attaches the inactivity tracking context store, used to
+// report each workspace's idle time in the admin UI.
+func (s *Server) WithActivityStore(store ActivityStore) *Server {
+	s.activity = store
 	return s
 }
 
