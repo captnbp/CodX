@@ -20,14 +20,14 @@ import (
 // winning replica runs the inactivity activity source, watcher and
 // registration reconciler; the other replicas stand by.
 type Election struct {
-	leaseNamespace string
-	leaseName      string
-	identity       string
-	leaseDuration  time.Duration
-	renewDeadline  time.Duration
-	retryPeriod    time.Duration
+	leaseNamespace  string
+	leaseName       string
+	identity        string
+	leaseDuration   time.Duration
+	renewDeadline   time.Duration
+	retryPeriod     time.Duration
 	releaseOnCancel bool
-	log            logr.Logger
+	log             logr.Logger
 }
 
 // NewElection builds an Election. The identity defaults to the pod name and

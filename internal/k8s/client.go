@@ -66,8 +66,8 @@ func NewInClusterClientset() (*Clientset, error) {
 		leaderElectionClient:   coreClient,
 		leaderElectionRecorder: recorder,
 		CoreV1:                 &realCoreV1{inner: coreClient.CoreV1()},
-		CertManager: &realCertManager{inner: cmClient.CertmanagerV1()},
-		Profile:     &realProfileClient{client: dynClient},
+		CertManager:            &realCertManager{inner: cmClient.CertmanagerV1()},
+		Profile:                &realProfileClient{client: dynClient},
 		// Pod metrics are fetched with raw requests against the
 		// metrics.k8s.io API (served by metrics-server); reuse the corev1
 		// REST client of the typed clientset (it already carries auth,
