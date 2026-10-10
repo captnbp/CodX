@@ -51,3 +51,10 @@ docs-crd:
 .PHONY: check-values-docs
 check-values-docs:
 	python3 hack/check_values_docs.py charts/codx/values.yaml
+
+# Scan the Go modules (go.mod/go.sum) for known CVEs, like the CI does on
+# the Docker image. Requires trivy on PATH (https://trivy.dev).
+# Fails on HIGH/CRITICAL findings with a fix available.
+.PHONY: scan-cves
+scan-cves:
+	trivy filesystem --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 .
