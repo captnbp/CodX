@@ -281,7 +281,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
         <button id="logs-workspace" class="btn btn-outline-secondary d-none" onclick="loadWorkspaceLogs()">View logs</button>
         <button id="stop-workspace" class="btn btn-danger d-none" onclick="stopWorkspace()">Stop my workspace</button>
       </div>
-      <div id="status" class="mt-3"></div>
+      <div id="status" class="mt-3">%s</div>
     </div>
   </div>
 </div>
@@ -474,7 +474,7 @@ function restartWorkspace() {
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
 </body>
-</html>`)
+</html>`, workspaceStoppedAlert(r.URL.Query().Get("workspace") == "stopped"))
 }
 
 func (s *Server) handleProfile(w http.ResponseWriter, r *http.Request) {
@@ -568,6 +568,15 @@ func adminNavLink(isAdmin bool) string {
 		return `<a href="/admin" class="btn btn-outline-warning btn-sm me-2">Admin</a>`
 	}
 	return ""
+}
+
+// workspaceStoppedAlert returns the alert shown on the index page after a
+// redirect from the URL of a stopped workspace, or an empty string.
+func workspaceStoppedAlert(stopped bool) string {
+	if !stopped {
+		return ""
+	}
+	return `<div class="alert alert-warning">Your workspace is stopped. Pick a profile and press Start to run it again.</div>`
 }
 
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
@@ -999,6 +1008,20 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 	if pathSlug != sess.Slug {
 		s.audit.Info("proxy_access_denied", "user", sess.Username, "target", pathSlug, "remote", clientIP(r))
 		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
+	// A stopped workspace cannot serve anything: on browser navigation to
+	// the workspace page, redirect to the user UI instead of a proxy
+	// error, so the user can start the workspace again. Only the page
+	// itself is checked (the assets and websocket it loads are proxied as
+	// usual), keeping the per-page state check off the hot path.
+	if rest == sess.Slug+"/" && !s.workspaces.IsWorkspaceRunning(r.Context(), sess.Slug) {
+		s.log.V(1).Info("redirecting stopped workspace request to the UI",
+			"user", sess.Username,
+			"slug", sess.Slug,
+		)
+		http.Redirect(w, r, "/?workspace=stopped", http.StatusSeeOther)
 		return
 	}
 
