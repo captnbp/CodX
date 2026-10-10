@@ -10,14 +10,13 @@ The following diagram illustrates the codx Helm chart architecture with network 
 graph TB
     subgraph Internet["External Network"]
         Users[Users/Clients]
-        SMTP[SMTP Servers<br/>Ports: 25, 587, 465]
-        ExtServices[External Services<br/>HTTPS: 443, HTTP: 80]
-        S3[Object Storage/S3<br/>Port: 443]
+        OIDC[OIDC Provider<br/>e.g. Forgejo<br/>HTTPS: 443]
+        Registries[Container Registries<br/>HTTPS: 443]
     end
 
     subgraph K8s["Kubernetes Cluster"]
-        subgraph IngressNS["Ingress Namespace<br/>ingress-nginx or traefik"]
-            Ingress[Ingress Controller<br/>nginx/traefik]
+        subgraph IngressNS["traefik Namespace"]
+            Traefik[Traefik Ingress<br/>TLS termination]
         end
 
         subgraph MonitoringNS["kube-prometheus-stack Namespace<br/>Optional"]
@@ -25,60 +24,43 @@ graph TB
         end
 
         subgraph codxNS["codx Namespace"]
-            subgraph VWPod["codx Pod"]
-                VW[codx<br/>Port: 8080]
+            subgraph CodXPod["CodX Pod"]
+                CodX[CodX server<br/>HTTPS: 8443<br/>Metrics: 9443]
             end
-
-            subgraph CNPGCluster["CloudNativePG Cluster"]
-                PG1[PostgreSQL Primary<br/>Port: 5432]
-                PG2[PostgreSQL Replica<br/>Port: 5432]
-            end
+            Valkey[Valkey<br/>Port: 6379<br/>Sessions + inactivity context]
+            Workspaces[Workspace Pods<br/>created at runtime, per user<br/>Envoy: 9443, admin: 9901]
         end
 
         subgraph SystemNS["kube-system Namespace"]
             DNS[CoreDNS<br/>Port: 53 UDP/TCP]
         end
-
-        subgraph CNPGNS["cnpg-system Namespace"]
-            CNPGOp[CNPG Operator<br/>Cluster Management]
-        end
     end
 
-    Users -->|HTTPS/HTTP| Ingress
-    Ingress -->|HTTP: 8080<br/>NetworkPolicy: Ingress| VW
-    
-    VW -->|PostgreSQL: 5432<br/>NetworkPolicy: Egress| PG1
-    VW -->|DNS: 53<br/>NetworkPolicy: Egress| DNS
-    VW -->|SMTP: 25/587/465<br/>NetworkPolicy: Egress| SMTP
-    VW -->|HTTPS/HTTP: 443/80<br/>NetworkPolicy: Egress| ExtServices
-    
-    PG1 <-->|Replication: 5432<br/>NetworkPolicy: Ingress/Egress| PG2
-    PG1 -->|DNS: 53<br/>NetworkPolicy: Egress| DNS
-    PG2 -->|DNS: 53<br/>NetworkPolicy: Egress| DNS
-    
-    PG1 -.->|Backup: 443<br/>NetworkPolicy: Egress<br/>Optional| S3
-    PG2 -.->|Backup: 443<br/>NetworkPolicy: Egress<br/>Optional| S3
-    
-    CNPGOp -->|Management: 5432, 8000<br/>NetworkPolicy: Ingress| PG1
-    CNPGOp -->|Management: 5432, 8000<br/>NetworkPolicy: Ingress| PG2
-    
-    Prometheus -.->|Metrics: 8080<br/>NetworkPolicy: Ingress<br/>Optional| VW
-    Prometheus -.->|Metrics: 9187<br/>NetworkPolicy: Ingress<br/>Optional| PG1
-    Prometheus -.->|Metrics: 9187<br/>NetworkPolicy: Ingress<br/>Optional| PG2
+    Users -->|HTTPS: 443| Traefik
+    Traefik -->|HTTPS: 8443<br/>NetworkPolicy: Ingress| CodX
+    CodX -->|Valkey: 6379<br/>NetworkPolicy: Egress| Valkey
+    CodX -->|mTLS: 9443<br/>NetworkPolicy: Egress| Workspaces
+    CodX -.->|Envoy stats: 9901<br/>NetworkPolicy: Egress| Workspaces
+    CodX -->|OIDC: 443<br/>NetworkPolicy: Egress| OIDC
+    Workspaces -->|Registries: 443<br/>NetworkPolicy: Egress| Registries
+    CodX -->|DNS: 53<br/>NetworkPolicy: Egress| DNS
+    Prometheus -.->|Metrics: 9443<br/>NetworkPolicy: Ingress<br/>Optional| CodX
 
     classDef codxStyle fill:#326CE5,stroke:#fff,stroke-width:2px,color:#fff
-    classDef postgresStyle fill:#336791,stroke:#fff,stroke-width:2px,color:#fff
+    classDef valkeyStyle fill:#7A0099,stroke:#fff,stroke-width:2px,color:#fff
+    classDef workspaceStyle fill:#28A745,stroke:#fff,stroke-width:2px,color:#fff
     classDef ingressStyle fill:#00D9FF,stroke:#fff,stroke-width:2px,color:#000
     classDef monitoringStyle fill:#E6522C,stroke:#fff,stroke-width:2px,color:#fff
     classDef externalStyle fill:#FF6B6B,stroke:#fff,stroke-width:2px,color:#fff
     classDef systemStyle fill:#4CAF50,stroke:#fff,stroke-width:2px,color:#fff
 
-    class VW,VWPod codxStyle
-    class PG1,PG2,CNPGCluster postgresStyle
-    class Ingress,IngressNS ingressStyle
+    class CodX,CodXPod codxStyle
+    class Valkey valkeyStyle
+    class Workspaces workspaceStyle
+    class Traefik,IngressNS ingressStyle
     class Prometheus,MonitoringNS monitoringStyle
-    class Users,SMTP,ExtServices,S3,Internet externalStyle
-    class DNS,SystemNS,CNPGOp,CNPGNS systemStyle
+    class Users,OIDC,Registries,Internet externalStyle
+    class DNS,SystemNS systemStyle
 ```
 
 ### Network Flow Legend
@@ -89,26 +71,34 @@ graph TB
 
 ### Key Components
 
-1. **codx Application**
-   - Receives traffic from Ingress Controller on port 8080
-   - Connects to PostgreSQL database on port 5432
-   - Sends emails via SMTP servers
-   - Accesses external services for push notifications and updates
+1. **CodX server**
+   - Serves the web UI and API on HTTPS 8443, behind the Traefik ingress
+   - Authenticates users against the OIDC provider (HTTPS 443)
+   - Stores sessions and the inactivity tracking context in Valkey (6379)
+   - Proxies the authenticated user to their workspace over mutual TLS
+     (Envoy sidecar 9443) and polls the Envoy admin interface (9901) for
+     the inactivity watcher
 
-2. **CloudNativePG Cluster**
-   - Managed by CNPG operator
-   - Supports high availability with primary/replica instances
-   - Replication between instances on port 5432
-   - Optional backup to Object Storage (S3-compatible)
+2. **Valkey**
+   - Session store shared by the CodX replicas
+   - Persistence of the inactivity tracking context and of the last-login
+     records of the users
 
-3. **Network Policies**
-   - Control ingress and egress traffic for both codx and PostgreSQL
-   - Disabled by default for compatibility
-   - Enable with `networkPolicy.codx.enabled` and `networkPolicy.postgresql.enabled`
+3. **Workspace pods** (created at runtime, one per user)
+   - code-server container with the user's PVC mounted at /home/coder
+   - Envoy TLS termination sidecar (9443) with an admin interface (9901)
 
-4. **Monitoring (Optional)**
-   - Prometheus can scrape metrics from both codx and PostgreSQL
-   - Requires enabling monitoring in NetworkPolicy configuration
+4. **Network Policies**
+   - Control ingress and egress traffic for the CodX server and the workspace
+     pods
+   - Disabled by default for the CodX server; enable with
+     `networkPolicy.codx.enabled` (the workspace policy is enabled by default)
+
+5. **Monitoring (Optional)**
+   - Prometheus scrapes the CodX metrics endpoint (9443) and the Valkey
+     exporter when `metrics.serviceMonitor.enabled` is set
+   - Requires allowing the monitoring namespace in the NetworkPolicy
+     configuration
 
 ## TL;DR
 
@@ -122,53 +112,6 @@ $ helm install my-release oci://registry-1.docker.io/captnbp/codx
 - Helm 3.2.0+
 - PV provisioner support in the underlying infrastructure
 - [cert-manager](https://cert-manager.io/)
-- [CloudNativePG Operator](https://cloudnative-pg.io/documentation/current/) (if using PostgreSQL) 1.29+
-
-## Migration from Bitnami PostgreSQL to CloudNativePG
-
-This chart now uses [CloudNativePG](https://cloudnative-pg.io/) instead of Bitnami PostgreSQL for PostgreSQL database support. CloudNativePG is a Kubernetes operator that provides native PostgreSQL management capabilities.
-
-### Key Changes
-
-1. **Operator-based management**: CNPG uses a Kubernetes operator pattern for managing PostgreSQL clusters
-2. **Native Kubernetes integration**: Better integration with Kubernetes APIs and resource management
-3. **Enhanced features**: Support for high availability, backups, monitoring, and more
-
-### Migration Steps
-
-1. **Install CloudNativePG Operator**: Before deploying this chart, ensure the CNPG operator is installed in your cluster:
-
-```bash
-kubectl apply -f https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.29/releases/cnpg-1.29.0.yaml
-```
-
-2. **Update your values**: The PostgreSQL configuration has changed. Update your `values.yaml`:
-
-```yaml
-postgresql:
-  enabled: true
-  instances: 1
-  storage:
-    size: 10Gi
-  auth:
-    username: codx
-    database: codx
-```
-
-3. **Backup your data**: If migrating from an existing Bitnami PostgreSQL installation, ensure you have a backup of your database.
-
-4. **Deploy**: Deploy the chart as usual. The CNPG operator will automatically create and manage the PostgreSQL cluster.
-
-### Benefits of CNPG
-
-- **Native Kubernetes integration**: Uses Kubernetes Custom Resource Definitions (CRDs)
-- **Automated management**: Automatic failover, backups, and monitoring
-- **Scalability**: Easy to scale PostgreSQL instances
-- **High availability**: Built-in support for HA configurations
-- **Backup and recovery**: Integrated backup solutions
-
-> **Note**: If you were using external PostgreSQL, no changes are needed. The external database configuration remains the same.
-=======
 
 ## Installing the Chart
 
@@ -284,7 +227,7 @@ $ helm delete --purge my-release
 | `service.sessionAffinity`          | Control where client requests go, to the same pod or round-robin                                                                                                                                                                                                                                                | `None`                   |
 | `service.sessionAffinityConfig`    | Additional settings for the sessionAffinity                                                                                                                                                                                                                                                                     | `{}`                     |
 | `service.clusterIP`                | codx service clusterIP IP                                                                                                                                                                                                                                                                                       | `""`                     |
-| `service.loadBalancerIP`           | loadBalancerIP for the SuiteCRM Service (optional, cloud specific)                                                                                                                                                                                                                                              | `""`                     |
+| `service.loadBalancerIP`           | loadBalancerIP for the CodX service (optional, cloud specific)                                                                                                                                                                                                                                              | `""`                     |
 | `service.loadBalancerSourceRanges` | Address that are allowed when service is LoadBalancer                                                                                                                                                                                                                                                           | `[]`                     |
 | `service.externalTrafficPolicy`    | Enable client source IP preservation                                                                                                                                                                                                                                                                            | `Cluster`                |
 | `service.annotations`              | Additional custom annotations for codx service                                                                                                                                                                                                                                                                  | `{}`                     |
@@ -322,9 +265,9 @@ $ helm delete --purge my-release
 
 | Name                                                             | Description                                                                                | Value             |
 | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ----------------- |
-| `tls.enabled`                                                    | Enable internal TLS between Ingress controller and unifi                                   | `true`            |
+| `tls.enabled`                                                    | Enable the chart-internal TLS: the self-signed CA issuer and the cert-manager certificates (CodX server, client certificate for the workspace mTLS proxy, Valkey)                                   | `true`            |
 | `tls.autoGenerated`                                              | Create cert-manager signed TLS certificates.                                               | `true`            |
-| `tls.existingSecret`                                             | Existing secret containing the certificates for Unifi                                      | `""`              |
+| `tls.existingSecret`                                             | Existing secret named "<fullname>-server-tls" with the certificates for the CodX server (skips the cert-manager Certificate creation)                                      | `""`              |
 | `tls.subject.organizationalUnits`                                | Subject's organizational units                                                             | `codx`            |
 | `tls.subject.organizations`                                      | Subject's organization                                                                     | `codx`            |
 | `tls.subject.countries`                                          | Subject's country                                                                          | `fr`              |
