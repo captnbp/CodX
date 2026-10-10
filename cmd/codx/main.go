@@ -124,15 +124,32 @@ func run(configPath string) error {
 		checkInterval = 60 * time.Second
 	}
 
+	// The inactivity tracking context (last activity per workspace) is
+	// persisted in Redis/Valkey so a restarted leader resumes the
+	// tracking of the running workspaces instead of starting blind. If
+	// Redis/Valkey lost its data, the tracking restarts from zero.
+	activityStore := session.NewRedisActivityStore(session.RedisOptions{
+		Addr:       cfg.Redis.Host,
+		Password:   cfg.Redis.Password,
+		DB:         cfg.Redis.DB,
+		TLS:        cfg.Redis.TLS,
+		CAFilePath: cfg.Redis.CAFilePath,
+		KeyPrefix:  cfg.InstanceName,
+	})
+	defer activityStore.Close()
+
 	// The connection-count source polls the Envoy admin /stats endpoint of
 	// every workspace pod for active HTTPS connections.
-	activitySource := inactivity.NewConnectionCountActivity(workspacePodLister{wm: wm}, log, nil)
+	activitySource := inactivity.NewConnectionCountActivity(workspacePodLister{wm: wm}, log, nil).WithStore(activityStore)
 	watcher := inactivity.NewWatcher(activitySource, wm.StopWorkspace, checkInterval, log).WithAuditLogger(log)
 	reconciler := inactivity.NewRegistrationReconciler(watcher, workspaceDelayLister{wm: wm, profiles: profileStore}, log)
 
 	// startInactivityLoops starts the three inactivity loops; stop cancels
-	// them. With leader election the loops run only on the lease holder.
+	// them. With leader election the loops run only on the lease holder,
+	// and the persisted tracking context is restored when the lease is
+	// acquired (on every leadership term).
 	startInactivityLoops := func(ctx context.Context) {
+		activitySource.Restore(ctx)
 		go activitySource.Run(ctx, checkInterval)
 		log.Info("inactivity activity source: envoy connection-count",
 			"adminPort", inactivity.DefaultEnvoyAdminPort,

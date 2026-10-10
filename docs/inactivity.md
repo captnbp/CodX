@@ -89,6 +89,33 @@ With a single replica (`replicas: 1`), leader election can be disabled
 (`inactivity.leaderElection.enabled: false`): the inactivity loops then run
 directly, like before.
 
+### Persisting the tracking context across restarts
+
+The watcher needs the last activity timestamp of every workspace to decide
+when to stop them. That context lives in the leader's memory, but it is also
+persisted in Redis/Valkey so that a restarted leader - a new pod after a
+crash or a deployment, or the replica acquiring the lease after a failover -
+**resumes the tracking of the running workspaces instead of starting
+blind**:
+
+- On every poll, the activity source writes the last-activity timestamps to
+  the store (keys `<instanceName>:inactivity:<slug>`, best-effort: a Redis
+  error only skips that poll's persistence). Workspaces whose pod
+  disappeared are removed from the store too.
+- When a replica acquires the lease (at startup without leader election,
+  and on **every** leadership term), it loads the persisted records and
+  replaces its in-memory context with them. A workspace that was already
+  idle when the leader restarted is therefore stopped after its remaining
+  inactivity delay, exactly as if the leader had never stopped.
+- If Redis/Valkey lost its data (restart without persistence), the restore
+  finds an empty store and the tracking **restarts from zero**: no workspace
+  is stopped before fresh activity has been recorded once and then a full
+  delay has elapsed - the same grace a freshly started workspace gets. The
+  same applies when Redis is unreachable at restore time.
+
+No configuration is needed: the persistence uses the existing Redis/Valkey
+connection settings of the session store.
+
 ## How activity is detected
 
 Activity is defined at the network level, not by code-server usage: a
@@ -234,6 +261,7 @@ actions):
 | Stop happens much later than the delay | Expected slack: activity is polled and checked at `checkInterval`, so a workspace can run up to one interval past its deadline. |
 | `workspace_stop_failed` in the audit log | The pod deletion failed (Kubernetes API error in the event); the watcher retries every tick. |
 | Pod recreated right after being stopped | A user (or admin) restarted the workspace; the watcher resets its stopped flag on the new registration. |
+| After a leader restart, an already-idle workspace ran a full extra delay | Redis/Valkey lost its context (restart without persistence) or was unreachable at restore time: the tracking restarted from zero and the workspace got the fresh-workspace grace. Keep Valkey persistence (AOF/RDB) enabled to avoid it. |
 
 ## Related documents
 
