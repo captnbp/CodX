@@ -69,6 +69,20 @@ data:
       maxLength: {{ .Values.slug.maxLength }}
     inactivity:
       checkInterval: {{ .Values.inactivity.checkInterval | quote }}
+      leaderElection:
+        enabled: {{ .Values.inactivity.leaderElection.enabled }}
+        {{- if .Values.inactivity.leaderElection.leaseName }}
+        leaseName: {{ .Values.inactivity.leaderElection.leaseName | quote }}
+        {{- end }}
+        {{- if .Values.inactivity.leaderElection.leaseNamespace }}
+        leaseNamespace: {{ .Values.inactivity.leaderElection.leaseNamespace | quote }}
+        {{- end }}
+        leaseDuration: {{ .Values.inactivity.leaderElection.leaseDuration | quote }}
+        renewDeadline: {{ .Values.inactivity.leaderElection.renewDeadline | quote }}
+        retryPeriod: {{ .Values.inactivity.leaderElection.retryPeriod | quote }}
+        {{- if hasKey .Values.inactivity.leaderElection "releaseOnCancel" }}
+        releaseOnCancel: {{ .Values.inactivity.leaderElection.releaseOnCancel }}
+        {{- end }}
     workspaceService:
       {{- if .Values.workspaceService.annotations }}
       annotations:

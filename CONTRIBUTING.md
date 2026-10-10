@@ -32,6 +32,7 @@ helm lint charts/codx -f charts/codx/values-test.yaml
 | `internal/web` | HTTP server: auth, UI, admin, SSE endpoints |
 | `internal/k8s` | workspace objects, usage, metrics clients |
 | `internal/inactivity` | activity detection and idle workspace stop |
+| `internal/leader` | Lease-based leader election of the inactivity monitor |
 | `internal/oidc`, `internal/session` | OIDC login and the Redis session store |
 | `internal/proxy` | mTLS reverse proxy to workspace Envoy sidecars |
 | `internal/config` | ConfigMap configuration model |

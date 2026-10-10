@@ -824,9 +824,24 @@ slug:
 ## Workspaces are considered active when their Envoy sidecar reports active HTTPS connections:
 ## the CodX watcher polls the Envoy admin /stats endpoint (port 9901) of every workspace pod.
 ## @param inactivity.checkInterval How often the watcher polls connections and checks for idle workspaces (Go duration, e.g. 60s).
+## @param inactivity.leaderElection.enabled Elect a single inactivity monitor via a Kubernetes Lease. Must be enabled with more than one CodX replica.
+## @param inactivity.leaderElection.leaseName Name of the Lease object used for the election. Defaults to "<instanceName>-inactivity".
+## @param inactivity.leaderElection.leaseNamespace Namespace of the Lease object. Defaults to the namespace CodX runs in.
+## @param inactivity.leaderElection.leaseDuration How long a non-leader waits before taking over an unresponsive leader (Go duration).
+## @param inactivity.leaderElection.renewDeadline How long the leader retries renewing the lease before giving up (Go duration).
+## @param inactivity.leaderElection.retryPeriod Interval between lease (re)acquisition attempts (Go duration).
+## @param inactivity.leaderElection.releaseOnCancel Release the lease immediately on graceful shutdown.
 ##
 inactivity:
   checkInterval: 60s
+  leaderElection:
+    enabled: true
+    # leaseName: codx-inactivity
+    # leaseNamespace: codx
+    leaseDuration: 15s
+    renewDeadline: 10s
+    retryPeriod: 2s
+    releaseOnCancel: true
 
 ## @section Workspace Service
 ## WorkspaceService configures the per-user workspace Service objects.

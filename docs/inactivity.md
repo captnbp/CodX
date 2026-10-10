@@ -33,6 +33,62 @@ Three loops run inside the CodX server, all ticking at the same
 | Watcher | Compares the last activity timestamp of every registered workspace against its delay and stops the pod when it has been idle too long. |
 | Registration reconciler | Keeps the watcher's registrations in sync with the workspaces that actually exist and their profile-configured delays. |
 
+## Leader election: a single inactivity monitor
+
+CodX is a stateless server and can run with several replicas (sessions are
+shared via Redis), but the inactivity monitor must run on **exactly one
+replica at a time**: two concurrent watchers would poll every workspace
+twice and race to stop the same idle pods. When
+`inactivity.leaderElection.enabled` is `true` (the Helm chart default), the
+replicas therefore compete for a Kubernetes `Lease`
+(`coordination.k8s.io/v1`):
+
+- Each replica runs a leader election loop (`internal/leader`) using the
+  standard client-go `leaderelection` package with a `LeaseLock` on the
+  object `<leaseNamespace>/<leaseName>` (defaults: the release namespace
+  and `<instanceName>-inactivity`).
+- The replica holding the lease becomes the leader: it starts the activity
+  source, the watcher and the registration reconciler. Its leadership is
+  renewed in the background (`retryPeriod`, default `2s`).
+- The other replicas stand by and re-check the lease; they do not monitor
+  anything.
+- If the leader dies or loses API connectivity, the lease expires after
+  `leaseDuration` (default `15s`) and another replica acquires it, then
+  starts its own inactivity loops. A failover therefore adds up to roughly
+  `leaseDuration` of dead time to the inactivity checks - workspaces are
+  never stopped early, at most a little late.
+- On graceful shutdown the leader releases the lease immediately
+  (`releaseOnCancel`, default `true`) so the failover is fast during
+  rolling deployments.
+
+The leader identity is `<pod name>_<pod UID>` (exposed to the container by
+the downward API), and the election records `LeaderElection` events on the
+Lease object for observability. The RBAC rules for `leases` (get, create,
+update) and `events` (create) are included in the chart's Role.
+
+The rest of the server (HTTPS API, admin UI, metrics) keeps running on
+**every** replica; only the inactivity loops are elected.
+
+### Configuration
+
+| Config key | Default | Description |
+|------------|---------|-------------|
+| `inactivity.leaderElection.enabled` | `true` (chart) | Elect the inactivity monitor via a Lease. Must be enabled when running more than one replica. |
+| `inactivity.leaderElection.leaseName` | `<instanceName>-inactivity` | Name of the Lease object. |
+| `inactivity.leaderElection.leaseNamespace` | pod namespace | Namespace of the Lease object. |
+| `inactivity.leaderElection.leaseDuration` | `15s` | How long a non-leader waits before taking over an unresponsive leader. |
+| `inactivity.leaderElection.renewDeadline` | `10s` | How long the leader retries renewing the lease before giving up. |
+| `inactivity.leaderElection.retryPeriod` | `2s` | Interval between lease (re)acquisition attempts. |
+| `inactivity.leaderElection.releaseOnCancel` | `true` | Release the lease immediately on graceful shutdown. |
+
+The server refuses to start when leader election is enabled with an invalid
+configuration (missing lease name, malformed durations, or
+`leaseDuration <= renewDeadline`).
+
+With a single replica (`replicas: 1`), leader election can be disabled
+(`inactivity.leaderElection.enabled: false`): the inactivity loops then run
+directly, like before.
+
 ## How activity is detected
 
 Activity is defined at the network level, not by code-server usage: a
