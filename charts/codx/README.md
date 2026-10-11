@@ -500,5 +500,15 @@ This Helm chart was created and is being maintained by @captnbp.
 
 ### Credits
 
-- The `codxo` project can be found [here](https://github.com/captnbp/codx)
-codxcodx
+- The `codx` project can be found [here](https://github.com/captnbp/codx)
+
+CodX builds on excellent open-source projects:
+
+- [code-server](https://github.com/coder/code-server) (MIT) - the VS Code in
+  the browser running in every user workspace
+- [Traefik](https://github.com/traefik/traefik) (MIT) - the ingress
+  terminating TLS and forwarding the client certificates of the mTLS admin
+  fallback (`passTLSClientCert`)
+- [Envoy](https://github.com/envoyproxy/envoy) (Apache License 2.0) - the
+  TLS termination sidecar of every workspace pod
+
