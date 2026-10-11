@@ -187,6 +187,12 @@ disabled by default so the Envoy sidecar never sees service-linked env vars.
 Every failed variant (`workspace_start_failed`, `workspace_stop_failed`, ...)
 is recorded with the error.
 
+Navigating to the URL of a **stopped** workspace (`/user/<slug>/`, e.g. an
+old bookmark) does not return a proxy error: the user is redirected to the
+main UI with a warning to start the workspace again. Only the page entry
+point redirects - the requests the workspace page itself loads (assets,
+websocket) are proxied as usual.
+
 ## Configuration reference
 
 | Config key | Default | Description |

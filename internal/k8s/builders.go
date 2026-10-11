@@ -13,6 +13,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/record"
 )
 
 // Common labels for all workspace objects.
@@ -431,6 +433,27 @@ type Clientset struct {
 	CertManager CertManagerClient
 	Profile     ProfileClient
 	MetricsV1   MetricsV1Client
+	// leaderElectionClient is the standard clientset used by the
+	// Lease-based leader election of the inactivity monitor. It is
+	// optional: nil when leader election is not configured.
+	leaderElectionClient kubernetes.Interface
+	// leaderElectionRecorder records the leader election Events on the
+	// Lease object. Optional, like leaderElectionClient.
+	leaderElectionRecorder record.EventRecorder
+}
+
+// LeaderElectionClient returns the standard Kubernetes clientset used by
+// the Lease-based leader election, or nil when leader election is not
+// wired up (tests, single-replica setups without a real cluster).
+func (c *Clientset) LeaderElectionClient() kubernetes.Interface {
+	return c.leaderElectionClient
+}
+
+// LeaderElectionRecorder returns the EventRecorder used by the leader
+// election to record Events on the Lease object, or nil when leader
+// election is not wired up.
+func (c *Clientset) LeaderElectionRecorder() record.EventRecorder {
+	return c.leaderElectionRecorder
 }
 
 func boolPtr(v bool) *bool { return &v }

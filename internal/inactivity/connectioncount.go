@@ -76,14 +76,34 @@ func (o *ConnectionCountOptions) withDefaults() *ConnectionCountOptions {
 	return &opts
 }
 
+// ActivityStore persists the last-activity timestamps of the workspaces so
+// that a restarted leader resumes the inactivity tracking of the running
+// workspaces instead of starting blind. It is implemented by the caller
+// (Redis/Valkey, see internal/session) so this package stays independent of
+// the storage backend. Implementations must be safe for concurrent use.
+type ActivityStore interface {
+	// Save records the last activity time of one workspace.
+	Save(ctx context.Context, slug string, ts time.Time) error
+
+	// Delete forgets one workspace (its pod no longer exists).
+	Delete(ctx context.Context, slug string) error
+
+	// Load returns all known last-activity timestamps. An empty map (the
+	// store lost its context, e.g. after a Redis/Valkey restart) makes the
+	// caller restart the tracking from zero.
+	Load(ctx context.Context) (map[string]time.Time, error)
+}
+
 // ConnectionCountActivity implements ActivitySource by polling the Envoy admin
 // /stats endpoint of every workspace pod. When the watched stat (the number of
 // active downstream HTTPS connections) is strictly greater than
 // DefaultMinActiveConnections, the current time is recorded as the workspace's
 // last activity.
 //
-// The poll loop must be started explicitly with Run; without it the source
-// never records activity.
+// When an ActivityStore is attached (WithStore), the activity records are
+// persisted on every poll and can be reloaded with Restore after a leader
+// restart. The poll loop must be started explicitly with Run; without it the
+// source never records activity.
 type ConnectionCountActivity struct {
 	mu        sync.Mutex
 	records   map[string]time.Time
@@ -92,6 +112,7 @@ type ConnectionCountActivity struct {
 	log       logr.Logger
 	adminPort int
 	statName  string
+	store     ActivityStore
 }
 
 // NewConnectionCountActivity creates a new ConnectionCountActivity. opts may
@@ -111,6 +132,39 @@ func NewConnectionCountActivity(lister WorkspacePodLister, log logr.Logger, opts
 	}
 }
 
+// WithStore attaches an ActivityStore: activity records are persisted on
+// every poll so a restarted leader can Restore them.
+func (a *ConnectionCountActivity) WithStore(store ActivityStore) *ConnectionCountActivity {
+	a.store = store
+	return a
+}
+
+// Restore reloads the persisted activity records into memory, replacing the
+// current ones. It is called by the leader when it acquires the lease (or at
+// startup without leader election). An empty store - or a load error - leaves
+// the tracking starting from zero, which only delays the first automatic
+// stops by one inactivity delay at most.
+func (a *ConnectionCountActivity) Restore(ctx context.Context) {
+	if a.store == nil {
+		return
+	}
+	records, err := a.store.Load(ctx)
+	if err != nil {
+		a.log.Error(err, "failed to load persisted activity records; restarting inactivity tracking from zero")
+		records = make(map[string]time.Time)
+	}
+
+	a.mu.Lock()
+	a.records = records
+	a.mu.Unlock()
+
+	if len(records) > 0 {
+		a.log.Info("restored inactivity tracking context", "workspaces", len(records))
+	} else {
+		a.log.Info("no persisted inactivity context; tracking starts from zero")
+	}
+}
+
 // Run starts the poll loop. It blocks until the context is cancelled.
 func (a *ConnectionCountActivity) Run(ctx context.Context, interval time.Duration) {
 	ticker := time.NewTicker(interval)
@@ -127,7 +181,9 @@ func (a *ConnectionCountActivity) Run(ctx context.Context, interval time.Duratio
 }
 
 // Poll lists the workspace pods once and records activity for every workspace
-// whose Envoy reports active downstream connections.
+// whose Envoy reports active downstream connections. Recorded and forgotten
+// slugs are persisted to the ActivityStore (best-effort) so a restarted
+// leader can restore the tracking context.
 func (a *ConnectionCountActivity) Poll(ctx context.Context) {
 	pods, err := a.lister.ListWorkspacePods(ctx)
 	if err != nil {
@@ -135,6 +191,7 @@ func (a *ConnectionCountActivity) Poll(ctx context.Context) {
 		return
 	}
 
+	now := time.Now()
 	seen := make(map[string]bool, len(pods))
 	for _, pod := range pods {
 		seen[pod.Slug] = true
@@ -145,7 +202,12 @@ func (a *ConnectionCountActivity) Poll(ctx context.Context) {
 			continue
 		}
 		if count > DefaultMinActiveConnections {
-			a.RecordActivity(pod.Slug, time.Now())
+			a.RecordActivity(pod.Slug, now)
+			if a.store != nil {
+				if err := a.store.Save(ctx, pod.Slug, now); err != nil {
+					a.log.V(1).Error(err, "failed to persist activity record", "slug", pod.Slug)
+				}
+			}
 		}
 	}
 
@@ -153,6 +215,11 @@ func (a *ConnectionCountActivity) Poll(ctx context.Context) {
 	for _, slug := range a.TrackedSlugs() {
 		if !seen[slug] {
 			a.Forget(slug)
+			if a.store != nil {
+				if err := a.store.Delete(ctx, slug); err != nil {
+					a.log.V(1).Error(err, "failed to delete persisted activity record", "slug", slug)
+				}
+			}
 		}
 	}
 }

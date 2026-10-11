@@ -197,3 +197,132 @@ func TestConnectionCountDefaultOptions(t *testing.T) {
 		t.Errorf("timeout = %v, want %v", a.client.Timeout, DefaultConnectionTimeout)
 	}
 }
+
+// fakeActivityStore is an in-memory ActivityStore for tests.
+type fakeActivityStore struct {
+	mu      sync.Mutex
+	records map[string]time.Time
+	err     error
+}
+
+func newFakeActivityStore() *fakeActivityStore {
+	return &fakeActivityStore{records: make(map[string]time.Time)}
+}
+
+func (f *fakeActivityStore) Save(ctx context.Context, slug string, ts time.Time) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.err != nil {
+		return f.err
+	}
+	f.records[slug] = ts
+	return nil
+}
+
+func (f *fakeActivityStore) Delete(ctx context.Context, slug string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.err != nil {
+		return f.err
+	}
+	delete(f.records, slug)
+	return nil
+}
+
+func (f *fakeActivityStore) Load(ctx context.Context) (map[string]time.Time, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.err != nil {
+		return nil, f.err
+	}
+	out := make(map[string]time.Time, len(f.records))
+	for slug, ts := range f.records {
+		out[slug] = ts
+	}
+	return out, nil
+}
+
+func TestConnectionCountPersistsActivityRecords(t *testing.T) {
+	srv := envoyStatsServer(t, 11)
+	a, lister := newTestActivity(t, srv.URL, "john-doe")
+	store := newFakeActivityStore()
+	a.WithStore(store)
+
+	before := time.Now().Truncate(time.Second)
+	a.Poll(context.Background())
+
+	saved, ok := store.records["john-doe"]
+	if !ok {
+		t.Fatal("activity record not persisted to the store")
+	}
+	if saved.Before(before) || time.Since(saved) > time.Minute {
+		t.Errorf("persisted record = %v, want a recent timestamp", saved)
+	}
+
+	// A workspace whose pod disappears is forgotten from the store too.
+	lister.set(nil)
+	a.Poll(context.Background())
+	if _, ok := store.records["john-doe"]; ok {
+		t.Error("activity record should be deleted from the store when the pod is gone")
+	}
+}
+
+func TestConnectionCountRestoreResumesTracking(t *testing.T) {
+	srv := envoyStatsServer(t, 11)
+	a, _ := newTestActivity(t, srv.URL, "john-doe")
+	store := newFakeActivityStore()
+	a.WithStore(store)
+
+	// The previous leader recorded activity 10 minutes ago.
+	previous := time.Now().Add(-10 * time.Minute)
+	store.records["john-doe"] = previous
+	// The new leader also has a stale in-memory record that the restore
+	// must replace.
+	a.RecordActivity("stale", time.Now())
+
+	a.Restore(context.Background())
+
+	if ts := a.LastActivity("john-doe"); !ts.Equal(previous) {
+		t.Errorf("restored last activity = %v, want %v", ts, previous)
+	}
+	if ts := a.LastActivity("stale"); !ts.IsZero() {
+		t.Errorf("restore should replace the in-memory records, stale record = %v", ts)
+	}
+}
+
+func TestConnectionCountRestoreFromEmptyStoreStartsFromZero(t *testing.T) {
+	srv := envoyStatsServer(t, 11)
+	a, _ := newTestActivity(t, srv.URL, "john-doe")
+	a.WithStore(newFakeActivityStore())
+
+	// Empty store (Valkey restarted and lost its data).
+	a.Restore(context.Background())
+	if ts := a.LastActivity("john-doe"); !ts.IsZero() {
+		t.Errorf("last activity = %v, want zero after an empty restore", ts)
+	}
+
+	// A failing store also restarts the tracking from zero.
+	store := newFakeActivityStore()
+	store.err = fmt.Errorf("connection refused")
+	a.WithStore(store)
+	a.RecordActivity("john-doe", time.Now())
+	a.Restore(context.Background())
+	if ts := a.LastActivity("john-doe"); !ts.IsZero() {
+		t.Errorf("last activity = %v, want zero after a failed restore", ts)
+	}
+}
+
+func TestConnectionCountRestoreWithoutStore(t *testing.T) {
+	// No store attached (unit tests, custom deployments): Restore is a
+	// no-op and must not clear the in-memory records.
+	srv := envoyStatsServer(t, 11)
+	a, _ := newTestActivity(t, srv.URL, "john-doe")
+	ts := time.Now()
+	a.RecordActivity("john-doe", ts)
+
+	a.Restore(context.Background())
+
+	if got := a.LastActivity("john-doe"); !got.Equal(ts) {
+		t.Errorf("last activity = %v, want %v (no store: no-op)", got, ts)
+	}
+}

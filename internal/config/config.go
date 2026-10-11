@@ -306,6 +306,57 @@ type InactivityConfig struct {
 	// +optional
 	// +default="60s"
 	CheckInterval string `yaml:"checkInterval"`
+
+	// LeaderElection configures the Kubernetes Lease-based leader election
+	// that guarantees a single inactivity monitor across CodX replicas.
+	// +optional
+	LeaderElection LeaderElectionConfig `yaml:"leaderElection"`
+}
+
+// LeaderElectionConfig configures the Lease-based leader election used to
+// elect the single replica that runs the inactivity loops.
+type LeaderElectionConfig struct {
+	// Enabled turns leader election on. With more than one CodX replica it
+	// must be enabled so that exactly one replica monitors workspace
+	// inactivity; with a single replica it may be disabled.
+	// +optional
+	Enabled bool `yaml:"enabled"`
+
+	// LeaseName is the name of the Lease object used for the election.
+	// Defaults to "<instanceName>-inactivity".
+	// +optional
+	LeaseName string `yaml:"leaseName"`
+
+	// LeaseNamespace is the namespace of the Lease object. Defaults to the
+	// namespace the CodX pod runs in.
+	// +optional
+	LeaseNamespace string `yaml:"leaseNamespace"`
+
+	// LeaseDuration is the time a non-leader replica waits before it can
+	// take over an unresponsive leader. A Go duration string. Defaults to
+	// "15s".
+	// +optional
+	// +default="15s"
+	LeaseDuration string `yaml:"leaseDuration"`
+
+	// RenewDeadline is the time the leading replica retries renewing the
+	// lease before giving up its leadership. A Go duration string.
+	// Defaults to "10s".
+	// +optional
+	// +default="10s"
+	RenewDeadline string `yaml:"renewDeadline"`
+
+	// RetryPeriod is the interval between lease (re)acquisition attempts.
+	// A Go duration string. Defaults to "2s".
+	// +optional
+	// +default="2s"
+	RetryPeriod string `yaml:"retryPeriod"`
+
+	// ReleaseOnCancel releases the lease immediately when the CodX process
+	// shuts down gracefully, instead of letting it expire. Defaults to
+	// true. Set to false when shutdown may interrupt an in-flight stop.
+	// +optional
+	ReleaseOnCancel *bool `yaml:"releaseOnCancel"`
 }
 
 // WorkspaceServiceConfig configures the per-user workspace Service objects.
@@ -460,6 +511,19 @@ func applyDefaults(cfg *Config) {
 		cfg.Inactivity.CheckInterval = "60s"
 	}
 
+	if cfg.Inactivity.LeaderElection.LeaseName == "" && cfg.InstanceName != "" {
+		cfg.Inactivity.LeaderElection.LeaseName = cfg.InstanceName + "-inactivity"
+	}
+	if cfg.Inactivity.LeaderElection.LeaseDuration == "" {
+		cfg.Inactivity.LeaderElection.LeaseDuration = "15s"
+	}
+	if cfg.Inactivity.LeaderElection.RenewDeadline == "" {
+		cfg.Inactivity.LeaderElection.RenewDeadline = "10s"
+	}
+	if cfg.Inactivity.LeaderElection.RetryPeriod == "" {
+		cfg.Inactivity.LeaderElection.RetryPeriod = "2s"
+	}
+
 	// WorkspaceService defaults.
 	if len(cfg.WorkspaceService.IPFamilies) == 0 {
 		cfg.WorkspaceService.IPFamilies = []string{"IPv6", "IPv4"}
@@ -515,6 +579,29 @@ func Validate(cfg *Config) error {
 
 	if cfg.Redis.Host == "" {
 		errs = append(errs, "redis.host is required")
+	}
+	if le := cfg.Inactivity.LeaderElection; le.Enabled {
+		if le.LeaseName == "" {
+			errs = append(errs, "inactivity.leaderElection.leaseName is required when inactivity.leaderElection.enabled is true")
+		}
+		leaseDuration, leaseDurationErr := time.ParseDuration(le.LeaseDuration)
+		if leaseDurationErr != nil {
+			errs = append(errs, fmt.Sprintf("inactivity.leaderElection.leaseDuration %q is not a valid duration: %v", le.LeaseDuration, leaseDurationErr))
+		}
+		renewDeadline, renewDeadlineErr := time.ParseDuration(le.RenewDeadline)
+		if renewDeadlineErr != nil {
+			errs = append(errs, fmt.Sprintf("inactivity.leaderElection.renewDeadline %q is not a valid duration: %v", le.RenewDeadline, renewDeadlineErr))
+		}
+		retryPeriod, retryPeriodErr := time.ParseDuration(le.RetryPeriod)
+		if retryPeriodErr != nil {
+			errs = append(errs, fmt.Sprintf("inactivity.leaderElection.retryPeriod %q is not a valid duration: %v", le.RetryPeriod, retryPeriodErr))
+		}
+		if retryPeriodErr == nil && retryPeriod <= 0 {
+			errs = append(errs, "inactivity.leaderElection.retryPeriod must be positive")
+		}
+		if leaseDurationErr == nil && renewDeadlineErr == nil && leaseDuration > 0 && renewDeadline > 0 && leaseDuration <= renewDeadline {
+			errs = append(errs, fmt.Sprintf("inactivity.leaderElection.leaseDuration %q must be greater than renewDeadline %q", le.LeaseDuration, le.RenewDeadline))
+		}
 	}
 
 	if cfg.CertManager.IssuerName == "" {

@@ -27,6 +27,16 @@ import (
 // SessionCookieName is the name of the cookie storing the session ID.
 const SessionCookieName = "codx-session"
 
+// ActivityStore reads the inactivity tracking context persisted by the
+// inactivity leader (the last-activity timestamp per workspace), so the
+// admin UI can report each workspace's idle time from any replica. It is
+// satisfied by the Redis/Valkey-backed store (session.ActivityStore).
+type ActivityStore interface {
+	// Load returns all known last-activity timestamps, keyed by workspace
+	// slug. An empty map means no known context.
+	Load(ctx context.Context) (map[string]time.Time, error)
+}
+
 // Server is the CodX HTTP server.
 type Server struct {
 	cfg          *config.Config
@@ -37,6 +47,7 @@ type Server struct {
 	proxyFactory ProxyFactory
 	log          logr.Logger
 	audit        logr.Logger
+	activity     ActivityStore
 }
 
 // ProxyFactory creates a WorkspaceProxy for a given workspace FQDN.
@@ -81,6 +92,13 @@ func (s *Server) WithLogger(log logr.Logger) *Server {
 // to a dedicated output.
 func (s *Server) WithAuditLogger(log logr.Logger) *Server {
 	s.audit = log.WithName("audit")
+	return s
+}
+
+// WithActivityStore attaches the inactivity tracking context store, used to
+// report each workspace's idle time in the admin UI.
+func (s *Server) WithActivityStore(store ActivityStore) *Server {
+	s.activity = store
 	return s
 }
 
@@ -263,7 +281,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
         <button id="logs-workspace" class="btn btn-outline-secondary d-none" onclick="loadWorkspaceLogs()">View logs</button>
         <button id="stop-workspace" class="btn btn-danger d-none" onclick="stopWorkspace()">Stop my workspace</button>
       </div>
-      <div id="status" class="mt-3"></div>
+      <div id="status" class="mt-3">%s</div>
     </div>
   </div>
 </div>
@@ -456,7 +474,7 @@ function restartWorkspace() {
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
 </body>
-</html>`)
+</html>`, workspaceStoppedAlert(r.URL.Query().Get("workspace") == "stopped"))
 }
 
 func (s *Server) handleProfile(w http.ResponseWriter, r *http.Request) {
@@ -550,6 +568,15 @@ func adminNavLink(isAdmin bool) string {
 		return `<a href="/admin" class="btn btn-outline-warning btn-sm me-2">Admin</a>`
 	}
 	return ""
+}
+
+// workspaceStoppedAlert returns the alert shown on the index page after a
+// redirect from the URL of a stopped workspace, or an empty string.
+func workspaceStoppedAlert(stopped bool) string {
+	if !stopped {
+		return ""
+	}
+	return `<div class="alert alert-warning">Your workspace is stopped. Pick a profile and press Start to run it again.</div>`
 }
 
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
@@ -981,6 +1008,20 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 	if pathSlug != sess.Slug {
 		s.audit.Info("proxy_access_denied", "user", sess.Username, "target", pathSlug, "remote", clientIP(r))
 		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
+	// A stopped workspace cannot serve anything: on browser navigation to
+	// the workspace page, redirect to the user UI instead of a proxy
+	// error, so the user can start the workspace again. Only the page
+	// itself is checked (the assets and websocket it loads are proxied as
+	// usual), keeping the per-page state check off the hot path.
+	if rest == sess.Slug+"/" && !s.workspaces.IsWorkspaceRunning(r.Context(), sess.Slug) {
+		s.log.V(1).Info("redirecting stopped workspace request to the UI",
+			"user", sess.Username,
+			"slug", sess.Slug,
+		)
+		http.Redirect(w, r, "/?workspace=stopped", http.StatusSeeOther)
 		return
 	}
 

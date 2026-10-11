@@ -526,8 +526,14 @@ func TestProxyForbidsOtherUser(t *testing.T) {
 }
 
 func TestProxyOwnWorkspace(t *testing.T) {
-	srv, store, _ := testServer(t)
+	srv, store, _, cs := testServerWithClientset(t)
 	handler := srv.Handler()
+
+	// The workspace must be running for the proxy to serve it.
+	cs.CoreV1.(*fake.CoreV1Client).PodMap["codx-john-doe"] = &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "codx-john-doe"},
+		Status:     corev1.PodStatus{Phase: corev1.PodRunning},
+	}
 
 	cookie := createSessionCookie(t, store, "john.doe", "john-doe", []string{"developers"}, false)
 	rr := doRequest(t, handler, "GET", "/user/john-doe/", cookie)
@@ -537,6 +543,57 @@ func TestProxyOwnWorkspace(t *testing.T) {
 	}
 	if !strings.Contains(rr.Body.String(), "proxied") {
 		t.Errorf("proxy body = %q, want to contain 'proxied'", rr.Body.String())
+	}
+}
+
+// TestProxyStoppedWorkspaceRedirectsToUI verifies that navigating to the URL
+// of a stopped workspace redirects to the user UI (where the workspace can
+// be started again) instead of returning a proxy error. Deeper paths are
+// still proxied: only the page entry point redirects.
+func TestProxyStoppedWorkspaceRedirectsToUI(t *testing.T) {
+	srv, store, _, cs := testServerWithClientset(t)
+	handler := srv.Handler()
+
+	// No running pod: the workspace is stopped.
+	if _, ok := cs.CoreV1.(*fake.CoreV1Client).PodMap["codx-john-doe"]; ok {
+		t.Fatal("test precondition: john-doe's workspace should not be running")
+	}
+
+	cookie := createSessionCookie(t, store, "john.doe", "john-doe", []string{"developers"}, false)
+	rr := doRequest(t, handler, "GET", "/user/john-doe/", cookie)
+
+	if rr.Code != http.StatusSeeOther {
+		t.Fatalf("stopped workspace root: got %d, want %d (redirect)", rr.Code, http.StatusSeeOther)
+	}
+	if loc := rr.Header().Get("Location"); loc != "/?workspace=stopped" {
+		t.Errorf("stopped workspace redirect: Location = %q, want /?workspace=stopped", loc)
+	}
+
+	// Deeper paths (assets, websocket) are proxied as usual.
+	rr = doRequest(t, handler, "GET", "/user/john-doe/some/path", cookie)
+	if rr.Code != http.StatusOK {
+		t.Errorf("stopped workspace subpath: got %d, want %d (proxied)", rr.Code, http.StatusOK)
+	}
+}
+
+func TestIndexShowsStoppedWorkspaceAlert(t *testing.T) {
+	srv, store, _ := testServer(t)
+	handler := srv.Handler()
+
+	cookie := createSessionCookie(t, store, "john.doe", "john-doe", []string{"developers"}, false)
+
+	rr := doRequest(t, handler, "GET", "/?workspace=stopped", cookie)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("index with stopped param: got %d, want %d", rr.Code, http.StatusOK)
+	}
+	if !strings.Contains(rr.Body.String(), "Your workspace is stopped") {
+		t.Errorf("index should show the stopped-workspace alert: %q", rr.Body.String())
+	}
+
+	// Without the parameter (regular navigation) the alert is absent.
+	rr = doRequest(t, handler, "GET", "/", cookie)
+	if strings.Contains(rr.Body.String(), "Your workspace is stopped") {
+		t.Error("index should not show the stopped-workspace alert without the parameter")
 	}
 }
 

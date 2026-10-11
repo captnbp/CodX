@@ -18,8 +18,10 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
+	kscheme "k8s.io/client-go/kubernetes/scheme"
 	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/record"
 )
 
 // profileGVR is the GroupVersionResource for the Profile CRD.
@@ -53,10 +55,19 @@ func NewInClusterClientset() (*Clientset, error) {
 		return nil, fmt.Errorf("build dynamic clientset: %w", err)
 	}
 
+	// The leader election uses the standard typed clientset and a
+	// broadcaster-backed EventRecorder to record Events on the Lease.
+	recorder := record.NewBroadcaster().NewRecorder(
+		kscheme.Scheme,
+		corev1.EventSource{Component: "codx-leader-election"},
+	)
+
 	return &Clientset{
-		CoreV1:      &realCoreV1{inner: coreClient.CoreV1()},
-		CertManager: &realCertManager{inner: cmClient.CertmanagerV1()},
-		Profile:     &realProfileClient{client: dynClient},
+		leaderElectionClient:   coreClient,
+		leaderElectionRecorder: recorder,
+		CoreV1:                 &realCoreV1{inner: coreClient.CoreV1()},
+		CertManager:            &realCertManager{inner: cmClient.CertmanagerV1()},
+		Profile:                &realProfileClient{client: dynClient},
 		// Pod metrics are fetched with raw requests against the
 		// metrics.k8s.io API (served by metrics-server); reuse the corev1
 		// REST client of the typed clientset (it already carries auth,

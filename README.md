@@ -6,6 +6,13 @@ workspace profile, and get their own pod, their own TLS-terminated endpoint
 and their own persistent home directory - without ever seeing the
 Kubernetes API or each other.
 
+## Screenshots
+
+<a href="images/workspace-creation.png"><img src="images/workspace-creation.png" width="400" alt="The profile picker and the workspace start steps streamed live"></a>
+<a href="images/code-server.png"><img src="images/code-server.png" width="400" alt="The user workspace: code-server running in the browser"></a>
+<a href="images/workspace-logs.png"><img src="images/workspace-logs.png" width="400" alt="Live workspace logs streamed from the user UI"></a>
+<a href="images/admin.png"><img src="images/admin.png" width="400" alt="The admin UI: online status, creation and last-login dates, idle time, CPU/RAM usage and actions"></a>
+
 ## What CodX is for
 
 **Uniform environments for computer science classes** (the original use
@@ -97,3 +104,13 @@ Copyright (c) 2026 Benoit Pourre.
 
 CodX is vibe-coded with love using [Mistral Vibe GLM5.3](https://mistral.ai)
 under the author's supervision.
+
+CodX builds on excellent open-source projects:
+
+- [code-server](https://github.com/coder/code-server) (MIT) - the VS Code in
+  the browser running in every user workspace
+- [Traefik](https://github.com/traefik/traefik) (MIT) - the ingress
+  terminating TLS and forwarding the client certificates of the mTLS admin
+  fallback (`passTLSClientCert`)
+- [Envoy](https://github.com/envoyproxy/envoy) (Apache License 2.0) - the
+  TLS termination sidecar of every workspace pod

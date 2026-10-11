@@ -47,6 +47,14 @@ rules:
   - apiGroups: ["metrics.k8s.io"]
     resources: ["pods"]
     verbs: ["get"]
+  # Leader election Lease: get, create, update (single inactivity monitor)
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "create", "update"]
+  # Leader election Events on the Lease
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

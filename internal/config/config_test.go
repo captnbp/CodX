@@ -654,3 +654,71 @@ certManager:
 		t.Errorf("error should mention session.ttl: %v", err)
 	}
 }
+
+func TestLoadLeaderElectionDefaults(t *testing.T) {
+	yaml := `
+instanceName: "codx-prod"
+http:
+  tlsCertFile: "/tls/tls.crt"
+  tlsKeyFile: "/tls/tls.key"
+oidc:
+  issuer: "https://keycloak.example.com/realms/myrealm"
+  clientId: "codx"
+  redirectUrl: "https://codx.example.com/auth/callback"
+  adminGroup: "codx-admins"
+redis:
+  host: "valkey:6379"
+certManager:
+  issuerName: "codx-workspace-issuer"
+inactivity:
+  leaderElection:
+    enabled: true
+`
+	cfg, err := Load([]byte(yaml))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	le := cfg.Inactivity.LeaderElection
+	if !le.Enabled {
+		t.Error("leaderElection.enabled should be true")
+	}
+	if want := "codx-prod-inactivity"; le.LeaseName != want {
+		t.Errorf("LeaseName = %q, want %q", le.LeaseName, want)
+	}
+	if le.LeaseDuration != "15s" || le.RenewDeadline != "10s" || le.RetryPeriod != "2s" {
+		t.Errorf("unexpected duration defaults: %q %q %q", le.LeaseDuration, le.RenewDeadline, le.RetryPeriod)
+	}
+}
+
+func TestValidateLeaderElection(t *testing.T) {
+	base := `
+instanceName: "codx-prod"
+http:
+  tlsCertFile: "/tls/tls.crt"
+  tlsKeyFile: "/tls/tls.key"
+oidc:
+  issuer: "https://keycloak.example.com/realms/myrealm"
+  clientId: "codx"
+  redirectUrl: "https://codx.example.com/auth/callback"
+  adminGroup: "codx-admins"
+redis:
+  host: "valkey:6379"
+certManager:
+  issuerName: "codx-workspace-issuer"
+inactivity:
+  leaderElection:
+    enabled: true
+    leaseDuration: %q
+    renewDeadline: %q
+`
+	if _, err := Load([]byte(fmt.Sprintf(base, "10s", "15s"))); err == nil {
+		t.Error("expected validation error when leaseDuration <= renewDeadline")
+	} else if !contains(err.Error(), "leaseDuration") {
+		t.Errorf("error should mention leaseDuration: %v", err)
+	}
+	if _, err := Load([]byte(fmt.Sprintf(base, "not-a-duration", "5s"))); err == nil {
+		t.Error("expected validation error for invalid leaseDuration")
+	} else if !contains(err.Error(), "leaseDuration") {
+		t.Errorf("error should mention leaseDuration: %v", err)
+	}
+}

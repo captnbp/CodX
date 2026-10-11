@@ -78,7 +78,7 @@ func (s *Server) handleAdminUI(w http.ResponseWriter, r *http.Request) {
   <div class="table-responsive">
     <table class="table table-striped table-hover align-middle">
       <thead class="table-dark">
-        <tr><th>Username</th><th>Slug</th><th>Online</th><th>Created</th><th>Last login</th><th>CPU</th><th>RAM</th><th>Actions</th></tr>
+        <tr><th>Username</th><th>Slug</th><th>Online</th><th>Created</th><th>Last login</th><th>Idle</th><th>CPU</th><th>RAM</th><th>Actions</th></tr>
       </thead>
       <tbody id="users"></tbody>
     </table>
@@ -109,6 +109,16 @@ function formatCores(c) {
     if (c === 0) { return "0"; }
     if (c < 1) { return Math.round(c * 1000) + "m"; }
     return c.toFixed(2);
+}
+function formatIdle(s) {
+    var d = Math.floor(s / 86400);
+    var h = Math.floor((s %% 86400) / 3600);
+    var m = Math.floor((s %% 3600) / 60);
+    var parts = [];
+    if (d) { parts.push(d + "d"); }
+    if (d || h) { parts.push(h + "h"); }
+    if (d || h || m) { parts.push(m + "m"); }
+    return parts.join(" ");
 }
 function resourceBar(used, limit, request, fmt) {
     var pct = 0;
@@ -141,6 +151,9 @@ function loadUsers() {
             var lastLogin = u.lastLogin
                 ? new Date(u.lastLogin).toLocaleString()
                 : '<span class="text-muted">never</span>';
+            var idle = (u.idleSeconds !== undefined && u.idleSeconds !== null)
+                ? formatIdle(u.idleSeconds)
+                : '<span class="text-muted">&mdash;</span>';
             var logsBtn = u.online
                 ? '<button class="btn btn-sm btn-outline-secondary me-1" onclick="openLogs(\'' + u.slug + '\')">Logs</button>'
                 : '';
@@ -149,6 +162,7 @@ function loadUsers() {
                 "<td>" + onlineBadge + "</td>" +
                 "<td>" + created + "</td>" +
                 "<td>" + lastLogin + "</td>" +
+                "<td>" + idle + "</td>" +
                 "<td>" + (u.usage ? resourceBar(u.usage.cpu.usedCores, u.usage.cpu.limitCores, u.usage.cpu.requestCores, formatCores) : '<span class="text-muted">&mdash;</span>') + "</td>" +
                 "<td>" + (u.usage ? resourceBar(u.usage.memory.usedBytes, u.usage.memory.limitBytes, u.usage.memory.requestBytes, formatBytes) : '<span class="text-muted">&mdash;</span>') + "</td>" +
                 "<td>" +
@@ -242,6 +256,11 @@ type userInfo struct {
 	// the last-login annotation on the workspace PVC.
 	LastLogin string `json:"lastLogin,omitempty"`
 
+	// IdleSeconds is the time since the workspace's last HTTPS activity,
+	// from the inactivity context persisted by the leader. Nil when
+	// unknown (no activity ever recorded, or the context was lost).
+	IdleSeconds *int64 `json:"idleSeconds,omitempty"`
+
 	// Usage is the current CPU/RAM usage of the code-server container,
 	// only reported for running workspaces.
 	Usage *usageInfo `json:"usage,omitempty"`
@@ -269,6 +288,18 @@ func (s *Server) listWorkspaceUsers(r *http.Request) []userInfo {
 		return []userInfo{}
 	}
 
+	// Last activity per workspace, from the inactivity context persisted
+	// by the leader in Redis/Valkey (readable from any replica). Missing
+	// or lost context simply leaves the idle time unknown.
+	var lastActivity map[string]time.Time
+	if s.activity != nil {
+		if records, err := s.activity.Load(r.Context()); err != nil {
+			s.log.V(1).Error(err, "failed to load inactivity context for the admin UI")
+		} else {
+			lastActivity = records
+		}
+	}
+
 	users := make([]userInfo, 0, len(svcList))
 	for _, svc := range svcList {
 		slug := svc.Labels[k8s.LabelInstance]
@@ -280,6 +311,15 @@ func (s *Server) listWorkspaceUsers(r *http.Request) []userInfo {
 			Username: slug,
 			Slug:     slug,
 			Online:   s.workspaces.IsWorkspaceRunning(r.Context(), slug),
+		}
+
+		// Idle time: seconds since the workspace's last HTTPS activity.
+		if ts, ok := lastActivity[slug]; ok {
+			idle := int64(time.Since(ts).Seconds())
+			if idle < 0 {
+				idle = 0
+			}
+			info.IdleSeconds = &idle
 		}
 
 		// Creation date of the user's workspace: the PVC is created on

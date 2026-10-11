@@ -14,6 +14,7 @@ import (
 	"github.com/captnbp/CodX/internal/config"
 	"github.com/captnbp/CodX/internal/inactivity"
 	"github.com/captnbp/CodX/internal/k8s"
+	"github.com/captnbp/CodX/internal/leader"
 	"github.com/captnbp/CodX/internal/metrics"
 	"github.com/captnbp/CodX/internal/oidc"
 	"github.com/captnbp/CodX/internal/session"
@@ -123,21 +124,70 @@ func run(configPath string) error {
 		checkInterval = 60 * time.Second
 	}
 
+	// The inactivity tracking context (last activity per workspace) is
+	// persisted in Redis/Valkey so a restarted leader resumes the
+	// tracking of the running workspaces instead of starting blind. If
+	// Redis/Valkey lost its data, the tracking restarts from zero.
+	activityStore := session.NewRedisActivityStore(session.RedisOptions{
+		Addr:       cfg.Redis.Host,
+		Password:   cfg.Redis.Password,
+		DB:         cfg.Redis.DB,
+		TLS:        cfg.Redis.TLS,
+		CAFilePath: cfg.Redis.CAFilePath,
+		KeyPrefix:  cfg.InstanceName,
+	})
+	defer activityStore.Close()
+
 	// The connection-count source polls the Envoy admin /stats endpoint of
 	// every workspace pod for active HTTPS connections.
-	activitySource := inactivity.NewConnectionCountActivity(workspacePodLister{wm: wm}, log, nil)
-	go activitySource.Run(ctx, checkInterval)
-	log.Info("inactivity activity source: envoy connection-count",
-		"adminPort", inactivity.DefaultEnvoyAdminPort,
-		"stat", inactivity.DefaultConnectionStatName,
-	)
-
+	activitySource := inactivity.NewConnectionCountActivity(workspacePodLister{wm: wm}, log, nil).WithStore(activityStore)
 	watcher := inactivity.NewWatcher(activitySource, wm.StopWorkspace, checkInterval, log).WithAuditLogger(log)
-	go watcher.Run(ctx)
+	reconciler := inactivity.NewRegistrationReconciler(watcher, workspaceDelayLister{wm: wm, profiles: profileStore}, log)
 
-	// Keep the watcher's registrations in sync with the running workspaces
-	// and their profile's inactivity stop delay.
-	go inactivity.NewRegistrationReconciler(watcher, workspaceDelayLister{wm: wm, profiles: profileStore}, log).Run(ctx, checkInterval)
+	// startInactivityLoops starts the three inactivity loops; stop cancels
+	// them. With leader election the loops run only on the lease holder,
+	// and the persisted tracking context is restored when the lease is
+	// acquired (on every leadership term).
+	startInactivityLoops := func(ctx context.Context) {
+		activitySource.Restore(ctx)
+		go activitySource.Run(ctx, checkInterval)
+		log.Info("inactivity activity source: envoy connection-count",
+			"adminPort", inactivity.DefaultEnvoyAdminPort,
+			"stat", inactivity.DefaultConnectionStatName,
+		)
+		go watcher.Run(ctx)
+		// Keep the watcher's registrations in sync with the running
+		// workspaces and their profile's inactivity stop delay.
+		go reconciler.Run(ctx, checkInterval)
+	}
+
+	if cfg.Inactivity.LeaderElection.Enabled {
+		leaseDuration, _ := time.ParseDuration(cfg.Inactivity.LeaderElection.LeaseDuration)
+		renewDeadline, _ := time.ParseDuration(cfg.Inactivity.LeaderElection.RenewDeadline)
+		retryPeriod, _ := time.ParseDuration(cfg.Inactivity.LeaderElection.RetryPeriod)
+		releaseOnCancel := cfg.Inactivity.LeaderElection.ReleaseOnCancel == nil || *cfg.Inactivity.LeaderElection.ReleaseOnCancel
+		leaseNamespace := leader.EnsureLeaseNamespaceDefault(cfg.Inactivity.LeaderElection.LeaseNamespace)
+
+		election := leader.NewElection(
+			leaseNamespace,
+			cfg.Inactivity.LeaderElection.LeaseName,
+			leader.PodIdentity(),
+			leaseDuration, renewDeadline, retryPeriod,
+			releaseOnCancel,
+			log,
+		)
+
+		// The inactivity loops run only while this replica holds the
+		// lease: onStartedLeading starts them with a context cancelled as
+		// soon as leadership is lost.
+		go func() {
+			if err := election.Run(ctx, clientset.LeaderElectionClient(), clientset.LeaderElectionRecorder(), startInactivityLoops, func() {}); err != nil {
+				log.Error(err, "inactivity leader election failed")
+			}
+		}()
+	} else {
+		startInactivityLoops(ctx)
+	}
 
 	// Start the metrics server (optional dedicated /metrics endpoint).
 	var metricsServer *http.Server
@@ -200,7 +250,9 @@ func run(configPath string) error {
 
 	// Set up the web server (handler wrapped with the otelhttp middleware
 	// for server spans and W3C trace context extraction).
-	webServer := web.New(cfg, auth, store, profileStore, wm, nil).WithLogger(log)
+	webServer := web.New(cfg, auth, store, profileStore, wm, nil).
+		WithLogger(log).
+		WithActivityStore(activityStore)
 
 	server := &http.Server{
 		Addr:         cfg.HTTP.ListenAddr,

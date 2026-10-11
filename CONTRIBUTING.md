@@ -18,6 +18,10 @@ cd codx
 go build ./...
 go test -race -covermode=atomic ./...
 
+# Scan the Go modules for known CVEs (same gate as the CI image scan;
+# requires trivy on PATH)
+make scan-cves
+
 # Render and lint the Helm chart
 helm template codx charts/codx
 helm lint charts/codx -f charts/codx/values-test.yaml
@@ -32,6 +36,7 @@ helm lint charts/codx -f charts/codx/values-test.yaml
 | `internal/web` | HTTP server: auth, UI, admin, SSE endpoints |
 | `internal/k8s` | workspace objects, usage, metrics clients |
 | `internal/inactivity` | activity detection and idle workspace stop |
+| `internal/leader` | Lease-based leader election of the inactivity monitor |
 | `internal/oidc`, `internal/session` | OIDC login and the Redis session store |
 | `internal/proxy` | mTLS reverse proxy to workspace Envoy sidecars |
 | `internal/config` | ConfigMap configuration model |
@@ -82,8 +87,13 @@ chore: ...
 1. Open an issue first for anything non-trivial, so the approach can be
    discussed.
 2. Branch from `main`, keep the diff minimal, add tests and doc updates.
-3. Make sure `go test -race ./...`, `helm lint` and `helm template` pass.
+3. Make sure `go test -race ./...`, `make scan-cves`, `helm lint` and
+   `helm template` pass.
 4. Open a pull request with a description of *what* changed and *why*.
+
+Pull requests are automatically assigned to the repository's code owners
+for review (see [.github/CODEOWNERS](.github/CODEOWNERS)); no change
+merges without their approval.
 
 ## License
 
