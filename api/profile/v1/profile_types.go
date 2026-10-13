@@ -64,34 +64,18 @@ type ProfileSpec struct {
 }
 
 // ProfilePodSpec describes the pod spec for a workspace. It is a subset of
-// corev1.PodSpec that lets admins customize the image, command, args, env,
+// corev1.PodSpec that lets admins customize the code-server container,
 // volumes, sidecars and init containers, security context, labels and
 // annotations.
 //
 // +kubebuilder:object:generate=true
 type ProfilePodSpec struct {
-	// Image is the container image for the code-server main container.
-	Image string `json:"image"`
-
-	// Command overrides the container entrypoint.
-	// +optional
-	Command []string `json:"command,omitempty"`
-
-	// Args overrides the container command arguments.
-	// +optional
-	Args []string `json:"args,omitempty"`
-
-	// Env adds extra environment variables to the main container.
-	// +optional
-	Env []corev1.EnvVar `json:"env,omitempty"`
+	// CodeServer configures the code-server main container.
+	CodeServer ProfileCodeServer `json:"codeServer"`
 
 	// Volumes adds extra volumes to the pod.
 	// +optional
 	Volumes []corev1.Volume `json:"volumes,omitempty"`
-
-	// VolumeMounts adds extra volume mounts to the main container.
-	// +optional
-	VolumeMounts []corev1.VolumeMount `json:"volumeMounts,omitempty"`
 
 	// Sidecars adds extra sidecar containers to the pod (in addition to the
 	// mandatory Envoy TLS termination sidecar injected by CodX).
@@ -134,10 +118,6 @@ type ProfilePodSpec struct {
 	// +optional
 	Annotations map[string]string `json:"annotations,omitempty"`
 
-	// Resources sets resource requests and limits for the main container.
-	// +optional
-	Resources corev1.ResourceRequirements `json:"resources,omitempty"`
-
 	// EnableServiceLinks controls whether Kubernetes injects service-linked
 	// environment variables (e.g. *_SERVICE_HOST, *_SERVICE_PORT) into the
 	// code-server container. Defaults to false to keep the workspace
@@ -147,17 +127,52 @@ type ProfilePodSpec struct {
 	// +kubebuilder:default:=false
 	EnableServiceLinks *bool `json:"enableServiceLinks,omitempty"`
 
-	// CodeServerReadinessProbe overrides the readiness probe of the
-	// code-server main container. When unset, a default HTTP GET probe
-	// on /healthz port 8080 is applied.
-	// +optional
-	CodeServerReadinessProbe *corev1.Probe `json:"codeServerReadinessProbe,omitempty"`
-
 	// EnvoyReadinessProbe overrides the readiness probe of the Envoy TLS
 	// sidecar. When unset, a default HTTP GET probe on the Envoy admin
 	// endpoint /ready port 9901 is applied.
 	// +optional
 	EnvoyReadinessProbe *corev1.Probe `json:"envoyReadinessProbe,omitempty"`
+}
+
+// ProfileCodeServer configures the code-server main container of the
+// workspace pod.
+//
+// +kubebuilder:object:generate=true
+type ProfileCodeServer struct {
+	// Image is the container image for the code-server main container.
+	Image string `json:"image"`
+
+	// Command overrides the container entrypoint.
+	// +optional
+	Command []string `json:"command,omitempty"`
+
+	// Args overrides the container command arguments.
+	// +optional
+	Args []string `json:"args,omitempty"`
+
+	// Env adds extra environment variables to the main container.
+	// +optional
+	Env []corev1.EnvVar `json:"env,omitempty"`
+
+	// VolumeMounts adds extra volume mounts to the main container.
+	// +optional
+	VolumeMounts []corev1.VolumeMount `json:"volumeMounts,omitempty"`
+
+	// Resources sets resource requests and limits for the main container.
+	// +optional
+	Resources corev1.ResourceRequirements `json:"resources,omitempty"`
+
+	// SecurityContext sets the container-level security context of the
+	// code-server main container. If set, its fields override the
+	// equivalent fields of the pod-level SecurityContext.
+	// +optional
+	SecurityContext *corev1.SecurityContext `json:"securityContext,omitempty"`
+
+	// ReadinessProbe overrides the readiness probe of the code-server main
+	// container. When unset, a default HTTP GET probe on /healthz port 8080
+	// is applied.
+	// +optional
+	ReadinessProbe *corev1.Probe `json:"readinessProbe,omitempty"`
 }
 
 // ProfilePVC defines the default settings for the user's home directory PVC.

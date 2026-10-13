@@ -244,20 +244,22 @@ func resolveEnableServiceLinks(profile *profilev1.Profile) *bool {
 // the Envoy sidecar, plus any extra sidecars from the profile.
 func buildContainers(profile *profilev1.Profile, objName, userSlug string, cfg *config.Config) []corev1.Container {
 	containers := make([]corev1.Container, 0, 2+len(profile.Spec.PodSpec.Sidecars))
+	cs := profile.Spec.PodSpec.CodeServer
 
 	// Main code-server container.
 	main := corev1.Container{
-		Name:         CodeServerContainerName,
-		Image:        profile.Spec.PodSpec.Image,
-		Resources:    profile.Spec.PodSpec.Resources,
-		VolumeMounts: profile.Spec.PodSpec.VolumeMounts,
-		Env:          profile.Spec.PodSpec.Env,
+		Name:            CodeServerContainerName,
+		Image:           cs.Image,
+		Resources:       cs.Resources,
+		VolumeMounts:    cs.VolumeMounts,
+		Env:             cs.Env,
+		SecurityContext: cs.SecurityContext,
 	}
-	if len(profile.Spec.PodSpec.Command) > 0 {
-		main.Command = profile.Spec.PodSpec.Command
+	if len(cs.Command) > 0 {
+		main.Command = cs.Command
 	}
-	if len(profile.Spec.PodSpec.Args) > 0 {
-		main.Args = profile.Spec.PodSpec.Args
+	if len(cs.Args) > 0 {
+		main.Args = cs.Args
 	}
 	// Add CODX_USERNAME env var so code-server knows the user.
 	main.Env = append(main.Env, corev1.EnvVar{
@@ -311,7 +313,7 @@ func buildContainers(profile *profilev1.Profile, objName, userSlug string, cfg *
 // container: the profile override when set, otherwise a default HTTP GET
 // probe on /healthz port 8080.
 func codeServerReadinessProbe(profile *profilev1.Profile) *corev1.Probe {
-	if probe := profile.Spec.PodSpec.CodeServerReadinessProbe; probe != nil {
+	if probe := profile.Spec.PodSpec.CodeServer.ReadinessProbe; probe != nil {
 		return probe.DeepCopy()
 	}
 	return &corev1.Probe{

@@ -143,6 +143,50 @@ func TestEnsureWorkspaceEnableServiceLinksTrue(t *testing.T) {
 	}
 }
 
+func TestEnsureWorkspaceCodeServerSecurityContext(t *testing.T) {
+	cs := newTestClientset()
+	cfg := testConfig()
+	mgr := NewWorkspaceManager(cs, cfg)
+	profile := testProfile("python-dev", "Python Dev", nil)
+	falseVal := false
+	profile.Spec.PodSpec.CodeServer.SecurityContext = &corev1.SecurityContext{
+		AllowPrivilegeEscalation: &falseVal,
+		ReadOnlyRootFilesystem:   &falseVal,
+		RunAsNonRoot:             &falseVal,
+	}
+
+	_, err := mgr.EnsureWorkspace(context.Background(), profile, "john-doe")
+	if err != nil {
+		t.Fatalf("EnsureWorkspace: %v", err)
+	}
+
+	pod, err := cs.CoreV1.(*fakeCoreV1Client).Pods("").Get(context.Background(), "codx-john-doe", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("Pod not found: %v", err)
+	}
+
+	var main *corev1.Container
+	for i := range pod.Spec.Containers {
+		if pod.Spec.Containers[i].Name == CodeServerContainerName {
+			main = &pod.Spec.Containers[i]
+			break
+		}
+	}
+	if main == nil {
+		t.Fatalf("container %q not found", CodeServerContainerName)
+	}
+	sc := main.SecurityContext
+	if sc == nil {
+		t.Fatal("code-server SecurityContext is nil")
+	}
+	if sc.AllowPrivilegeEscalation == nil || *sc.AllowPrivilegeEscalation {
+		t.Error("AllowPrivilegeEscalation not set to false")
+	}
+	if sc.ReadOnlyRootFilesystem == nil || *sc.ReadOnlyRootFilesystem {
+		t.Error("ReadOnlyRootFilesystem not set to false")
+	}
+}
+
 func TestEnsureWorkspaceIdempotent(t *testing.T) {
 	cs := newTestClientset()
 	cfg := testConfig()
@@ -569,7 +613,7 @@ func TestBuildPodReadinessProbeDefaults(t *testing.T) {
 
 func TestBuildPodReadinessProbeOverrides(t *testing.T) {
 	profile := testProfile("python-dev", "Python Dev", nil)
-	profile.Spec.PodSpec.CodeServerReadinessProbe = &corev1.Probe{
+	profile.Spec.PodSpec.CodeServer.ReadinessProbe = &corev1.Probe{
 		ProbeHandler: corev1.ProbeHandler{
 			TCPSocket: &corev1.TCPSocketAction{Port: intstr.FromInt(9999)},
 		},

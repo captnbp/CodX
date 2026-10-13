@@ -144,7 +144,7 @@ The Pod runs the code-server container plus an Envoy TLS termination sidecar:
 
 | Container | Details |
 |-----------|---------|
-| `code-server` | Image, command, args, env, resources, extra volume mounts from the profile (`spec.podSpec`). The `CODX_USERNAME` env var carries the user slug. The PVC is always mounted at `/home/coder`. Readiness: profile override (`spec.podSpec.codeServerReadinessProbe`) or default HTTP probe on `/healthz:8080`. |
+| `code-server` | Image, command, args, env, resources, extra volume mounts from the profile (`spec.podSpec.codeServer`). The `CODX_USERNAME` env var carries the user slug. The PVC is always mounted at `/home/coder`. Readiness: profile override (`spec.podSpec.codeServer.readinessProbe`) or default HTTP probe on `/healthz:8080`. |
 | `envoy-tls` | Image `workspace.envoyImage` (default `envoyproxy/envoy:distroless-v1.39-latest`). Listens on 9443, terminates TLS with the workspace certificate, forwards plain HTTP to code-server on `localhost:8080`. Readiness: profile override (`envoyReadinessProbe`) or default HTTP probe on `/ready:9901`. Runs non-root, read-only root filesystem, all capabilities dropped. |
 | extra sidecars | `spec.podSpec.sidecars`, verbatim. |
 

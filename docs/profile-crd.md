@@ -65,22 +65,16 @@ PodSpec describes the workspace pod and its containers.
 |-------|------|----------|---------|-------------|
 | `affinity` | `object` | No | `-` | Affinity sets the scheduling constraints (node and pod affinity) of the workspace pod. |
 | `annotations` | `map[string]string` | No | `-` | Annotations adds extra annotations to the workspace pod. |
-| `args` | `[]string` | No | `-` | Args overrides the container command arguments. |
-| `codeServerReadinessProbe` | `object` | No | `-` | CodeServerReadinessProbe overrides the readiness probe of the code-server main container. When unset, a default HTTP GET probe on /healthz port 8080 is applied. |
-| `command` | `[]string` | No | `-` | Command overrides the container entrypoint. |
+| `codeServer` | `object` | Yes | `-` | CodeServer configures the code-server main container. |
 | `enableServiceLinks` | `boolean` | No | `false` | EnableServiceLinks controls whether Kubernetes injects service-linked environment variables (e.g. *_SERVICE_HOST, *_SERVICE_PORT) into the code-server container. Defaults to false to keep the workspace environment clean and avoid leaking cluster service discovery into user workspaces. Set to true to enable the legacy injection behavior. |
-| `env` | `[]object` | No | `-` | Env adds extra environment variables to the main container. See Kubernetes [`EnvVar`](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#envvar-v1-core) (corev1). |
 | `envoyReadinessProbe` | `object` | No | `-` | EnvoyReadinessProbe overrides the readiness probe of the Envoy TLS sidecar. When unset, a default HTTP GET probe on the Envoy admin endpoint /ready port 9901 is applied. |
-| `image` | `string` | Yes | `-` | Image is the container image for the code-server main container. |
 | `imagePullSecrets` | `[]object` | No | `-` | ImagePullSecrets sets the image pull secrets of the workspace pod, to pull images (code-server, sidecars) from private registries. |
 | `initContainers` | `[]object` | No | `-` | InitContainers adds extra init containers to the pod. See Kubernetes [`Container`](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#container-v1-core) (corev1). |
 | `labels` | `map[string]string` | No | `-` | Labels adds extra labels to the workspace pod. |
 | `nodeSelector` | `map[string]string` | No | `-` | NodeSelector sets the labels a node must have for the workspace pod to be scheduled on it. It is a simple alternative to affinity. |
-| `resources` | `object` | No | `-` | Resources sets resource requests and limits for the main container. See Kubernetes [`ResourceRequirements`](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#resourcerequirements-v1-core) (corev1). |
 | `securityContext` | `object` | No | `-` | SecurityContext sets the pod-level security context. See Kubernetes [`PodSecurityContext`](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#podsecuritycontext-v1-core) (corev1). |
 | `sidecars` | `[]object` | No | `-` | Sidecars adds extra sidecar containers to the pod (in addition to the mandatory Envoy TLS termination sidecar injected by CodX). See Kubernetes [`Container`](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#container-v1-core) (corev1). |
 | `tolerations` | `[]object` | No | `-` | Tolerations sets the tolerations of the workspace pod, allowing it to be scheduled on nodes with matching taints. |
-| `volumeMounts` | `[]object` | No | `-` | VolumeMounts adds extra volume mounts to the main container. See Kubernetes [`VolumeMount`](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#volumemount-v1-core) (corev1). |
 | `volumes` | `[]object` | No | `-` | Volumes adds extra volumes to the pod. See Kubernetes [`Volume`](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#volume-v1-core) (corev1). |
 
 
