@@ -261,6 +261,18 @@ func buildContainers(profile *profilev1.Profile, objName, userSlug string, cfg *
 	if len(cs.Args) > 0 {
 		main.Args = cs.Args
 	}
+	main.ImagePullPolicy = cs.ImagePullPolicy
+	main.WorkingDir = cs.WorkingDir
+	main.EnvFrom = cs.EnvFrom
+	main.VolumeDevices = cs.VolumeDevices
+	main.LivenessProbe = cs.LivenessProbe
+	main.Lifecycle = cs.Lifecycle
+	main.ResizePolicy = cs.ResizePolicy
+	if cs.RestartPolicy != "" {
+		restartPolicy := cs.RestartPolicy
+		main.RestartPolicy = &restartPolicy
+	}
+	main.RestartPolicyRules = cs.RestartPolicyRules
 	// Add CODX_USERNAME env var so code-server knows the user.
 	main.Env = append(main.Env, corev1.EnvVar{
 		Name:  "CODX_USERNAME",

@@ -187,6 +187,68 @@ func TestEnsureWorkspaceCodeServerSecurityContext(t *testing.T) {
 	}
 }
 
+func TestEnsureWorkspaceCodeServerContainerOptions(t *testing.T) {
+	cs := newTestClientset()
+	cfg := testConfig()
+	mgr := NewWorkspaceManager(cs, cfg)
+	profile := testProfile("python-dev", "Python Dev", nil)
+	profile.Spec.PodSpec.CodeServer.ImagePullPolicy = corev1.PullIfNotPresent
+	profile.Spec.PodSpec.CodeServer.WorkingDir = "/home/coder/project"
+	profile.Spec.PodSpec.CodeServer.EnvFrom = []corev1.EnvFromSource{
+		{ConfigMapRef: &corev1.ConfigMapEnvSource{LocalObjectReference: corev1.LocalObjectReference{Name: "ws-env"}}},
+	}
+	profile.Spec.PodSpec.CodeServer.LivenessProbe = &corev1.Probe{
+		ProbeHandler: corev1.ProbeHandler{
+			Exec: &corev1.ExecAction{Command: []string{"true"}},
+		},
+	}
+	profile.Spec.PodSpec.CodeServer.Lifecycle = &corev1.Lifecycle{
+		PreStop: &corev1.LifecycleHandler{
+			Exec: &corev1.ExecAction{Command: []string{"echo", "bye"}},
+		},
+	}
+	profile.Spec.PodSpec.CodeServer.RestartPolicy = corev1.ContainerRestartPolicyAlways
+
+	_, err := mgr.EnsureWorkspace(context.Background(), profile, "john-doe")
+	if err != nil {
+		t.Fatalf("EnsureWorkspace: %v", err)
+	}
+
+	pod, err := cs.CoreV1.(*fakeCoreV1Client).Pods("").Get(context.Background(), "codx-john-doe", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("Pod not found: %v", err)
+	}
+
+	var main *corev1.Container
+	for i := range pod.Spec.Containers {
+		if pod.Spec.Containers[i].Name == CodeServerContainerName {
+			main = &pod.Spec.Containers[i]
+			break
+		}
+	}
+	if main == nil {
+		t.Fatalf("container %q not found", CodeServerContainerName)
+	}
+	if main.ImagePullPolicy != corev1.PullIfNotPresent {
+		t.Errorf("ImagePullPolicy = %q, want IfNotPresent", main.ImagePullPolicy)
+	}
+	if main.WorkingDir != "/home/coder/project" {
+		t.Errorf("WorkingDir = %q, want /home/coder/project", main.WorkingDir)
+	}
+	if len(main.EnvFrom) != 1 || main.EnvFrom[0].ConfigMapRef.Name != "ws-env" {
+		t.Errorf("EnvFrom = %v, want [configMapRef ws-env]", main.EnvFrom)
+	}
+	if main.LivenessProbe == nil || main.LivenessProbe.Exec == nil {
+		t.Error("LivenessProbe not propagated")
+	}
+	if main.Lifecycle == nil || main.Lifecycle.PreStop == nil {
+		t.Error("Lifecycle not propagated")
+	}
+	if main.RestartPolicy == nil || *main.RestartPolicy != corev1.ContainerRestartPolicyAlways {
+		t.Error("RestartPolicy not propagated")
+	}
+}
+
 func TestEnsureWorkspaceIdempotent(t *testing.T) {
 	cs := newTestClientset()
 	cfg := testConfig()

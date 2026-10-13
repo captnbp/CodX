@@ -59,12 +59,24 @@ func (in *ProfileCodeServer) DeepCopyInto(out *ProfileCodeServer) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
+	if in.EnvFrom != nil {
+		in, out := &in.EnvFrom, &out.EnvFrom
+		*out = make([]v1.EnvFromSource, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
 	if in.VolumeMounts != nil {
 		in, out := &in.VolumeMounts, &out.VolumeMounts
 		*out = make([]v1.VolumeMount, len(*in))
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
+	}
+	if in.VolumeDevices != nil {
+		in, out := &in.VolumeDevices, &out.VolumeDevices
+		*out = make([]v1.VolumeDevice, len(*in))
+		copy(*out, *in)
 	}
 	in.Resources.DeepCopyInto(&out.Resources)
 	if in.SecurityContext != nil {
@@ -76,6 +88,28 @@ func (in *ProfileCodeServer) DeepCopyInto(out *ProfileCodeServer) {
 		in, out := &in.ReadinessProbe, &out.ReadinessProbe
 		*out = new(v1.Probe)
 		(*in).DeepCopyInto(*out)
+	}
+	if in.LivenessProbe != nil {
+		in, out := &in.LivenessProbe, &out.LivenessProbe
+		*out = new(v1.Probe)
+		(*in).DeepCopyInto(*out)
+	}
+	if in.Lifecycle != nil {
+		in, out := &in.Lifecycle, &out.Lifecycle
+		*out = new(v1.Lifecycle)
+		(*in).DeepCopyInto(*out)
+	}
+	if in.ResizePolicy != nil {
+		in, out := &in.ResizePolicy, &out.ResizePolicy
+		*out = make([]v1.ContainerResizePolicy, len(*in))
+		copy(*out, *in)
+	}
+	if in.RestartPolicyRules != nil {
+		in, out := &in.RestartPolicyRules, &out.RestartPolicyRules
+		*out = make([]v1.ContainerRestartRule, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
 	}
 }
 

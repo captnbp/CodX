@@ -154,9 +154,25 @@ type ProfileCodeServer struct {
 	// +optional
 	Env []corev1.EnvVar `json:"env,omitempty"`
 
+	// EnvFrom adds sources of environment variables to the main container.
+	// +optional
+	EnvFrom []corev1.EnvFromSource `json:"envFrom,omitempty"`
+
+	// ImagePullPolicy is the pull policy for the code-server image.
+	// +optional
+	ImagePullPolicy corev1.PullPolicy `json:"imagePullPolicy,omitempty"`
+
+	// WorkingDir is the container's working directory.
+	// +optional
+	WorkingDir string `json:"workingDir,omitempty"`
+
 	// VolumeMounts adds extra volume mounts to the main container.
 	// +optional
 	VolumeMounts []corev1.VolumeMount `json:"volumeMounts,omitempty"`
+
+	// VolumeDevices adds extra block volume devices to the main container.
+	// +optional
+	VolumeDevices []corev1.VolumeDevice `json:"volumeDevices,omitempty"`
 
 	// Resources sets resource requests and limits for the main container.
 	// +optional
@@ -173,6 +189,32 @@ type ProfileCodeServer struct {
 	// is applied.
 	// +optional
 	ReadinessProbe *corev1.Probe `json:"readinessProbe,omitempty"`
+
+	// LivenessProbe overrides the liveness probe of the code-server main
+	// container. When unset, no liveness probe is applied.
+	// +optional
+	LivenessProbe *corev1.Probe `json:"livenessProbe,omitempty"`
+
+	// Lifecycle sets the lifecycle handlers (postStart, preStop) of the
+	// code-server main container.
+	// +optional
+	Lifecycle *corev1.Lifecycle `json:"lifecycle,omitempty"`
+
+	// ResizePolicy sets the resource resize policies of the code-server
+	// main container.
+	// +optional
+	ResizePolicy []corev1.ContainerResizePolicy `json:"resizePolicy,omitempty"`
+
+	// RestartPolicy is the restart policy of the code-server main container.
+	// The only allowed value for a regular container is "Always" (native
+	// sidecar behavior).
+	// +optional
+	RestartPolicy corev1.ContainerRestartPolicy `json:"restartPolicy,omitempty"`
+
+	// RestartPolicyRules sets the rules that trigger an in-place container
+	// restart of the code-server main container.
+	// +optional
+	RestartPolicyRules []corev1.ContainerRestartRule `json:"restartPolicyRules,omitempty"`
 }
 
 // ProfilePVC defines the default settings for the user's home directory PVC.

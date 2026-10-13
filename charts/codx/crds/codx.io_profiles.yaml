@@ -1165,10 +1165,475 @@ spec:
                           - name
                           type: object
                         type: array
+                      envFrom:
+                        description: EnvFrom adds sources of environment variables
+                          to the main container.
+                        items:
+                          description: EnvFromSource represents the source of a set
+                            of ConfigMaps or Secrets
+                          properties:
+                            configMapRef:
+                              description: The ConfigMap to select from
+                              properties:
+                                name:
+                                  default: ""
+                                  description: |-
+                                    Name of the referent.
+                                    This field is effectively required, but due to backwards compatibility is
+                                    allowed to be empty. Instances of this type with an empty value here are
+                                    almost certainly wrong.
+                                    More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                  type: string
+                                optional:
+                                  description: Specify whether the ConfigMap must
+                                    be defined
+                                  type: boolean
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            prefix:
+                              description: |-
+                                Optional text to prepend to the name of each environment variable.
+                                May consist of any printable ASCII characters except '='.
+                              type: string
+                            secretRef:
+                              description: The Secret to select from
+                              properties:
+                                name:
+                                  default: ""
+                                  description: |-
+                                    Name of the referent.
+                                    This field is effectively required, but due to backwards compatibility is
+                                    allowed to be empty. Instances of this type with an empty value here are
+                                    almost certainly wrong.
+                                    More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                  type: string
+                                optional:
+                                  description: Specify whether the Secret must be
+                                    defined
+                                  type: boolean
+                              type: object
+                              x-kubernetes-map-type: atomic
+                          type: object
+                        type: array
                       image:
                         description: Image is the container image for the code-server
                           main container.
                         type: string
+                      imagePullPolicy:
+                        description: ImagePullPolicy is the pull policy for the code-server
+                          image.
+                        type: string
+                      lifecycle:
+                        description: |-
+                          Lifecycle sets the lifecycle handlers (postStart, preStop) of the
+                          code-server main container.
+                        properties:
+                          postStart:
+                            description: |-
+                              PostStart is called immediately after a container is created. If the handler fails,
+                              the container is terminated and restarted according to its restart policy.
+                              Other management of the container blocks until the hook completes.
+                              More info: https://kubernetes.io/docs/concepts/containers/container-lifecycle-hooks/#container-hooks
+                            properties:
+                              exec:
+                                description: Exec specifies a command to execute in
+                                  the container.
+                                properties:
+                                  command:
+                                    description: |-
+                                      Command is the command line to execute inside the container, the working directory for the
+                                      command  is root ('/') in the container's filesystem. The command is simply exec'd, it is
+                                      not run inside a shell, so traditional shell instructions ('|', etc) won't work. To use
+                                      a shell, you need to explicitly call out to that shell.
+                                      Exit status of 0 is treated as live/healthy and non-zero is unhealthy.
+                                    items:
+                                      type: string
+                                    type: array
+                                    x-kubernetes-list-type: atomic
+                                type: object
+                              httpGet:
+                                description: HTTPGet specifies an HTTP GET request
+                                  to perform.
+                                properties:
+                                  host:
+                                    description: |-
+                                      Host name to connect to, defaults to the pod IP. You probably want to set
+                                      "Host" in httpHeaders instead.
+                                    type: string
+                                  httpHeaders:
+                                    description: Custom headers to set in the request.
+                                      HTTP allows repeated headers.
+                                    items:
+                                      description: HTTPHeader describes a custom header
+                                        to be used in HTTP probes
+                                      properties:
+                                        name:
+                                          description: |-
+                                            The header field name.
+                                            This will be canonicalized upon output, so case-variant names will be understood as the same header.
+                                          type: string
+                                        value:
+                                          description: The header field value
+                                          type: string
+                                      required:
+                                      - name
+                                      - value
+                                      type: object
+                                    type: array
+                                    x-kubernetes-list-type: atomic
+                                  path:
+                                    description: Path to access on the HTTP server.
+                                    type: string
+                                  port:
+                                    anyOf:
+                                    - type: integer
+                                    - type: string
+                                    description: |-
+                                      Name or number of the port to access on the container.
+                                      Number must be in the range 1 to 65535.
+                                      Name must be an IANA_SVC_NAME.
+                                    x-kubernetes-int-or-string: true
+                                  protocol:
+                                    description: |-
+                                      Protocol selects the wire protocol for the probe connection.
+                                      Nil defaults to HTTP/1.1.
+                                    type: string
+                                  scheme:
+                                    description: |-
+                                      Scheme to use for connecting to the host.
+                                      Defaults to HTTP.
+                                    type: string
+                                required:
+                                - port
+                                type: object
+                              sleep:
+                                description: Sleep represents a duration that the
+                                  container should sleep.
+                                properties:
+                                  seconds:
+                                    description: Seconds is the number of seconds
+                                      to sleep.
+                                    format: int64
+                                    type: integer
+                                required:
+                                - seconds
+                                type: object
+                              tcpSocket:
+                                description: |-
+                                  Deprecated. TCPSocket is NOT supported as a LifecycleHandler and kept
+                                  for backward compatibility. There is no validation of this field and
+                                  lifecycle hooks will fail at runtime when it is specified.
+                                properties:
+                                  host:
+                                    description: 'Optional: Host name to connect to,
+                                      defaults to the pod IP.'
+                                    type: string
+                                  port:
+                                    anyOf:
+                                    - type: integer
+                                    - type: string
+                                    description: |-
+                                      Number or name of the port to access on the container.
+                                      Number must be in the range 1 to 65535.
+                                      Name must be an IANA_SVC_NAME.
+                                    x-kubernetes-int-or-string: true
+                                required:
+                                - port
+                                type: object
+                            type: object
+                          preStop:
+                            description: |-
+                              PreStop is called immediately before a container is terminated due to an
+                              API request or management event such as liveness/startup probe failure,
+                              preemption, resource contention, etc. The handler is not called if the
+                              container crashes or exits. The Pod's termination grace period countdown begins before the
+                              PreStop hook is executed. Regardless of the outcome of the handler, the
+                              container will eventually terminate within the Pod's termination grace
+                              period (unless delayed by finalizers). Other management of the container blocks until the hook completes
+                              or until the termination grace period is reached.
+                              More info: https://kubernetes.io/docs/concepts/containers/container-lifecycle-hooks/#container-hooks
+                            properties:
+                              exec:
+                                description: Exec specifies a command to execute in
+                                  the container.
+                                properties:
+                                  command:
+                                    description: |-
+                                      Command is the command line to execute inside the container, the working directory for the
+                                      command  is root ('/') in the container's filesystem. The command is simply exec'd, it is
+                                      not run inside a shell, so traditional shell instructions ('|', etc) won't work. To use
+                                      a shell, you need to explicitly call out to that shell.
+                                      Exit status of 0 is treated as live/healthy and non-zero is unhealthy.
+                                    items:
+                                      type: string
+                                    type: array
+                                    x-kubernetes-list-type: atomic
+                                type: object
+                              httpGet:
+                                description: HTTPGet specifies an HTTP GET request
+                                  to perform.
+                                properties:
+                                  host:
+                                    description: |-
+                                      Host name to connect to, defaults to the pod IP. You probably want to set
+                                      "Host" in httpHeaders instead.
+                                    type: string
+                                  httpHeaders:
+                                    description: Custom headers to set in the request.
+                                      HTTP allows repeated headers.
+                                    items:
+                                      description: HTTPHeader describes a custom header
+                                        to be used in HTTP probes
+                                      properties:
+                                        name:
+                                          description: |-
+                                            The header field name.
+                                            This will be canonicalized upon output, so case-variant names will be understood as the same header.
+                                          type: string
+                                        value:
+                                          description: The header field value
+                                          type: string
+                                      required:
+                                      - name
+                                      - value
+                                      type: object
+                                    type: array
+                                    x-kubernetes-list-type: atomic
+                                  path:
+                                    description: Path to access on the HTTP server.
+                                    type: string
+                                  port:
+                                    anyOf:
+                                    - type: integer
+                                    - type: string
+                                    description: |-
+                                      Name or number of the port to access on the container.
+                                      Number must be in the range 1 to 65535.
+                                      Name must be an IANA_SVC_NAME.
+                                    x-kubernetes-int-or-string: true
+                                  protocol:
+                                    description: |-
+                                      Protocol selects the wire protocol for the probe connection.
+                                      Nil defaults to HTTP/1.1.
+                                    type: string
+                                  scheme:
+                                    description: |-
+                                      Scheme to use for connecting to the host.
+                                      Defaults to HTTP.
+                                    type: string
+                                required:
+                                - port
+                                type: object
+                              sleep:
+                                description: Sleep represents a duration that the
+                                  container should sleep.
+                                properties:
+                                  seconds:
+                                    description: Seconds is the number of seconds
+                                      to sleep.
+                                    format: int64
+                                    type: integer
+                                required:
+                                - seconds
+                                type: object
+                              tcpSocket:
+                                description: |-
+                                  Deprecated. TCPSocket is NOT supported as a LifecycleHandler and kept
+                                  for backward compatibility. There is no validation of this field and
+                                  lifecycle hooks will fail at runtime when it is specified.
+                                properties:
+                                  host:
+                                    description: 'Optional: Host name to connect to,
+                                      defaults to the pod IP.'
+                                    type: string
+                                  port:
+                                    anyOf:
+                                    - type: integer
+                                    - type: string
+                                    description: |-
+                                      Number or name of the port to access on the container.
+                                      Number must be in the range 1 to 65535.
+                                      Name must be an IANA_SVC_NAME.
+                                    x-kubernetes-int-or-string: true
+                                required:
+                                - port
+                                type: object
+                            type: object
+                          stopSignal:
+                            description: |-
+                              StopSignal defines which signal will be sent to a container when it is being stopped.
+                              If not specified, the default is defined by the container runtime in use.
+                              StopSignal can only be set for Pods with a non-empty .spec.os.name
+                            type: string
+                        type: object
+                      livenessProbe:
+                        description: |-
+                          LivenessProbe overrides the liveness probe of the code-server main
+                          container. When unset, no liveness probe is applied.
+                        properties:
+                          exec:
+                            description: Exec specifies a command to execute in the
+                              container.
+                            properties:
+                              command:
+                                description: |-
+                                  Command is the command line to execute inside the container, the working directory for the
+                                  command  is root ('/') in the container's filesystem. The command is simply exec'd, it is
+                                  not run inside a shell, so traditional shell instructions ('|', etc) won't work. To use
+                                  a shell, you need to explicitly call out to that shell.
+                                  Exit status of 0 is treated as live/healthy and non-zero is unhealthy.
+                                items:
+                                  type: string
+                                type: array
+                                x-kubernetes-list-type: atomic
+                            type: object
+                          failureThreshold:
+                            description: |-
+                              Minimum consecutive failures for the probe to be considered failed after having succeeded.
+                              Defaults to 3. Minimum value is 1.
+                            format: int32
+                            type: integer
+                          grpc:
+                            description: GRPC specifies a GRPC HealthCheckRequest.
+                            properties:
+                              mode:
+                                description: |-
+                                  mode specifies the connection mode for the gRPC health probe.
+                                  Set to "TLS" to use TLS without certificate verification.
+                                  Set to "Plaintext" to use a plaintext (insecure) connection explicitly.
+                                  If not specified, the probe uses a plaintext (insecure) connection.
+                                type: string
+                              port:
+                                description: Port number of the gRPC service. Number
+                                  must be in the range 1 to 65535.
+                                format: int32
+                                type: integer
+                              service:
+                                default: ""
+                                description: |-
+                                  Service is the name of the service to place in the gRPC HealthCheckRequest
+                                  (see https://github.com/grpc/grpc/blob/master/doc/health-checking.md).
+
+                                  If this is not specified, the default behavior is defined by gRPC.
+                                type: string
+                            required:
+                            - port
+                            type: object
+                          httpGet:
+                            description: HTTPGet specifies an HTTP GET request to
+                              perform.
+                            properties:
+                              host:
+                                description: |-
+                                  Host name to connect to, defaults to the pod IP. You probably want to set
+                                  "Host" in httpHeaders instead.
+                                type: string
+                              httpHeaders:
+                                description: Custom headers to set in the request.
+                                  HTTP allows repeated headers.
+                                items:
+                                  description: HTTPHeader describes a custom header
+                                    to be used in HTTP probes
+                                  properties:
+                                    name:
+                                      description: |-
+                                        The header field name.
+                                        This will be canonicalized upon output, so case-variant names will be understood as the same header.
+                                      type: string
+                                    value:
+                                      description: The header field value
+                                      type: string
+                                  required:
+                                  - name
+                                  - value
+                                  type: object
+                                type: array
+                                x-kubernetes-list-type: atomic
+                              path:
+                                description: Path to access on the HTTP server.
+                                type: string
+                              port:
+                                anyOf:
+                                - type: integer
+                                - type: string
+                                description: |-
+                                  Name or number of the port to access on the container.
+                                  Number must be in the range 1 to 65535.
+                                  Name must be an IANA_SVC_NAME.
+                                x-kubernetes-int-or-string: true
+                              protocol:
+                                description: |-
+                                  Protocol selects the wire protocol for the probe connection.
+                                  Nil defaults to HTTP/1.1.
+                                type: string
+                              scheme:
+                                description: |-
+                                  Scheme to use for connecting to the host.
+                                  Defaults to HTTP.
+                                type: string
+                            required:
+                            - port
+                            type: object
+                          initialDelaySeconds:
+                            description: |-
+                              Number of seconds after the container has started before liveness probes are initiated.
+                              More info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#container-probes
+                            format: int32
+                            type: integer
+                          periodSeconds:
+                            description: |-
+                              How often (in seconds) to perform the probe.
+                              Default to 10 seconds. Minimum value is 1.
+                            format: int32
+                            type: integer
+                          successThreshold:
+                            description: |-
+                              Minimum consecutive successes for the probe to be considered successful after having failed.
+                              Defaults to 1. Must be 1 for liveness and startup. Minimum value is 1.
+                            format: int32
+                            type: integer
+                          tcpSocket:
+                            description: TCPSocket specifies a connection to a TCP
+                              port.
+                            properties:
+                              host:
+                                description: 'Optional: Host name to connect to, defaults
+                                  to the pod IP.'
+                                type: string
+                              port:
+                                anyOf:
+                                - type: integer
+                                - type: string
+                                description: |-
+                                  Number or name of the port to access on the container.
+                                  Number must be in the range 1 to 65535.
+                                  Name must be an IANA_SVC_NAME.
+                                x-kubernetes-int-or-string: true
+                            required:
+                            - port
+                            type: object
+                          terminationGracePeriodSeconds:
+                            description: |-
+                              Optional duration in seconds the pod needs to terminate gracefully upon probe failure.
+                              The grace period is the duration in seconds after the processes running in the pod are sent
+                              a termination signal and the time when the processes are forcibly halted with a kill signal.
+                              Set this value longer than the expected cleanup time for your process.
+                              If this value is nil, the pod's terminationGracePeriodSeconds will be used. Otherwise, this
+                              value overrides the value provided by the pod spec.
+                              Value must be non-negative integer. The value zero indicates stop immediately via
+                              the kill signal (no opportunity to shut down).
+                              This is a beta field and requires enabling ProbeTerminationGracePeriod feature gate.
+                              Minimum value is 1. spec.terminationGracePeriodSeconds is used if unset.
+                            format: int64
+                            type: integer
+                          timeoutSeconds:
+                            description: |-
+                              Number of seconds after which the probe times out.
+                              Defaults to 1 second. Minimum value is 1.
+                              More info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#container-probes
+                            format: int32
+                            type: integer
+                        type: object
                       readinessProbe:
                         description: |-
                           ReadinessProbe overrides the readiness probe of the code-server main
@@ -1338,6 +1803,29 @@ spec:
                             format: int32
                             type: integer
                         type: object
+                      resizePolicy:
+                        description: |-
+                          ResizePolicy sets the resource resize policies of the code-server
+                          main container.
+                        items:
+                          description: ContainerResizePolicy represents resource resize
+                            policy for the container.
+                          properties:
+                            resourceName:
+                              description: |-
+                                Name of the resource to which this resource resize policy applies.
+                                Supported values: cpu, memory.
+                              type: string
+                            restartPolicy:
+                              description: |-
+                                Restart policy to apply when specified resource is resized.
+                                If not specified, it defaults to NotRequired.
+                              type: string
+                          required:
+                          - resourceName
+                          - restartPolicy
+                          type: object
+                        type: array
                       resources:
                         description: Resources sets resource requests and limits for
                           the main container.
@@ -1398,6 +1886,55 @@ spec:
                               More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
                             type: object
                         type: object
+                      restartPolicy:
+                        description: |-
+                          RestartPolicy is the restart policy of the code-server main container.
+                          The only allowed value for a regular container is "Always" (native
+                          sidecar behavior).
+                        type: string
+                      restartPolicyRules:
+                        description: |-
+                          RestartPolicyRules sets the rules that trigger an in-place container
+                          restart of the code-server main container.
+                        items:
+                          description: ContainerRestartRule describes how a container
+                            exit is handled.
+                          properties:
+                            action:
+                              description: |-
+                                Specifies the action taken on a container exit if the requirements
+                                are satisfied. The only possible value is "Restart" to restart the
+                                container.
+                              type: string
+                            exitCodes:
+                              description: Represents the exit codes to check on container
+                                exits.
+                              properties:
+                                operator:
+                                  description: |-
+                                    Represents the relationship between the container exit code(s) and the
+                                    specified values. Possible values are:
+                                    - In: the requirement is satisfied if the container exit code is in the
+                                      set of specified values.
+                                    - NotIn: the requirement is satisfied if the container exit code is
+                                      not in the set of specified values.
+                                  type: string
+                                values:
+                                  description: |-
+                                    Specifies the set of values to check for container exit codes.
+                                    At most 255 elements are allowed.
+                                  items:
+                                    format: int32
+                                    type: integer
+                                  type: array
+                                  x-kubernetes-list-type: set
+                              required:
+                              - operator
+                              type: object
+                          required:
+                          - action
+                          type: object
+                        type: array
                       securityContext:
                         description: |-
                           SecurityContext sets the container-level security context of the
@@ -1592,6 +2129,26 @@ spec:
                                 type: string
                             type: object
                         type: object
+                      volumeDevices:
+                        description: VolumeDevices adds extra block volume devices
+                          to the main container.
+                        items:
+                          description: volumeDevice describes a mapping of a raw block
+                            device within a container.
+                          properties:
+                            devicePath:
+                              description: devicePath is the path inside of the container
+                                that the device will be mapped to.
+                              type: string
+                            name:
+                              description: name must match the name of a persistentVolumeClaim
+                                in the pod
+                              type: string
+                          required:
+                          - devicePath
+                          - name
+                          type: object
+                        type: array
                       volumeMounts:
                         description: VolumeMounts adds extra volume mounts to the
                           main container.
@@ -1668,6 +2225,9 @@ spec:
                           - name
                           type: object
                         type: array
+                      workingDir:
+                        description: WorkingDir is the container's working directory.
+                        type: string
                     required:
                     - image
                     type: object
