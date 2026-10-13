@@ -11,7 +11,7 @@ Return the proper codx image name
 Return the proper Docker Image Registry Secret Names
 */}}
 {{- define "codx.imagePullSecrets" -}}
-{{- include "common.images.pullSecrets" (dict "images" .Values.image "global" .Values.global) -}}
+{{- include "common.images.pullSecrets" (dict "images" (list .Values.image) "global" .Values.global) -}}
 {{- end -}}
 
 {{/*

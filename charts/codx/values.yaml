@@ -520,6 +520,13 @@ valkey:
   ##
   valkeyConfig: ""
 
+  ## @param valkey.extraVolumes Additional volumes (e.g. hostPath, emptyDir) to add to the Valkey pod
+  ##
+  extraVolumes: []
+  ## @param valkey.extraVolumeMounts Additional volume mounts to add to the Valkey container
+  ##
+  extraVolumeMounts: []
+
   auth:
     ## @param valkey.auth.enabled Enable ACL-based authentication.
     ## IMPORTANT: When authentication is enabled, the 'default' user MUST be defined in either
@@ -972,7 +979,7 @@ profiles:
     inactivityStopDelaySeconds: 120
     oidcGroups: []
     podSpec:
-      image: docker.io/captnbp/code-server:4.140.0
+      image: docker.io/captnbp/code-server:4.141.0
       securityContext:
         runAsUser: 1000
         runAsGroup: 1000

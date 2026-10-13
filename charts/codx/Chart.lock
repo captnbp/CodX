@@ -1,9 +1,9 @@
 dependencies:
 - name: common
-  repository: https://charts.bitnami.com/bitnami
+  repository: oci://registry-1.docker.io/bitnamicharts
   version: 2.41.0
 - name: valkey
   repository: oci://ghcr.io/valkey-io/valkey-helm
   version: 0.12.0
-digest: sha256:6242cd91d740c2b5899dd5f12cbd42a9bb38484b41b1ccf1e21381e6bbc6dc95
-generated: "2026-09-15T08:04:08.446832+02:00"
+digest: sha256:bdfd5df0224e07bb230f7efdd218dbe959a02dbc9c7f3fad52b19295cfb559d4
+generated: "2026-10-13T15:21:42.428651669+02:00"
