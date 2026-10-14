@@ -43,7 +43,7 @@ func adminTestServer(t *testing.T) (*Server, *session.MemoryStore, *k8s.Workspac
 		ObjectMeta: metav1.ObjectMeta{Name: "default"},
 		Spec: profilev1.ProfileSpec{
 			Title:   "Default",
-			PodSpec: profilev1.ProfilePodSpec{Image: "codercom/code-server:latest"},
+			PodSpec: profilev1.ProfilePodSpec{CodeServer: profilev1.ProfileCodeServer{Image: "codercom/code-server:latest"}},
 			PVC:     profilev1.ProfilePVC{Size: "10Gi"},
 		},
 	})

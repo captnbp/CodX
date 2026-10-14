@@ -32,7 +32,7 @@ func testProfile(name, title string, groups []string) *profilev1.Profile {
 			Title:      title,
 			OIDCGroups: groups,
 			PodSpec: profilev1.ProfilePodSpec{
-				Image: "codercom/code-server:latest",
+				CodeServer: profilev1.ProfileCodeServer{Image: "codercom/code-server:latest"},
 			},
 			PVC: profilev1.ProfilePVC{Size: "10Gi"},
 		},

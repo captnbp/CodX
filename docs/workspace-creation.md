@@ -47,7 +47,7 @@ All per-user objects share the name `<instance>-<slug>`, truncated again to
 | Object | Name |
 |--------|------|
 | Service | `<instance>-<slug>` |
-| PVC | `<instance>-<slug>` |
+| PVC | `<pvcPrefix>-<slug>` when `workspace.pvcPrefix` is set (JupyterHub migration), else `<instance>-<slug>` |
 | cert-manager Certificate | `<instance>-<slug>` |
 | Pod | `<instance>-<slug>` |
 | TLS Secret (created by cert-manager) | `<instance>-<slug>-tls` |
@@ -144,12 +144,13 @@ The Pod runs the code-server container plus an Envoy TLS termination sidecar:
 
 | Container | Details |
 |-----------|---------|
-| `code-server` | Image, command, args, env, resources, extra volume mounts from the profile (`spec.podSpec`). The `CODX_USERNAME` env var carries the user slug. The PVC is always mounted at `/home/coder`. Readiness: profile override (`spec.podSpec.codeServerReadinessProbe`) or default HTTP probe on `/healthz:8080`. |
+| `code-server` | Image, command, args, env, resources, extra volume mounts from the profile (`spec.podSpec.codeServer`). The `CODX_USERNAME` env var carries the user slug. The PVC is always mounted at `/home/coder`. Readiness: profile override (`spec.podSpec.codeServer.readinessProbe`) or default HTTP probe on `/healthz:8080`. |
 | `envoy-tls` | Image `workspace.envoyImage` (default `envoyproxy/envoy:distroless-v1.39-latest`). Listens on 9443, terminates TLS with the workspace certificate, forwards plain HTTP to code-server on `localhost:8080`. Readiness: profile override (`envoyReadinessProbe`) or default HTTP probe on `/ready:9901`. Runs non-root, read-only root filesystem, all capabilities dropped. |
 | extra sidecars | `spec.podSpec.sidecars`, verbatim. |
 
 Volumes: the PVC (`home`), the TLS secret (`tls`, at `/tls`), the Envoy
-configuration ConfigMap `codx-envoy` (`envoy-config`), a writable `/tmp`
+configuration ConfigMap (`envoy-config`; defaults to `codx-envoy`, or
+`spec.podSpec.envoyConfigMapName` when set), a writable `/tmp`
 EmptyDir for Envoy (`envoy-tmp`), plus any extra volumes from the profile.
 
 The rest of the PodSpec - security context, init containers, affinity, node

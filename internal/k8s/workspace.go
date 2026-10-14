@@ -37,6 +37,15 @@ type WorkspaceStep struct {
 	Message string
 }
 
+// pvcName returns the workspace PVC name: <workspace.pvcPrefix>-<slug> when
+// a prefix override is configured, else <instanceName>-<slug>.
+func (m *WorkspaceManager) pvcName(userSlug string) string {
+	if prefix := m.cfg.Workspace.PVCNamePrefix; prefix != "" {
+		return prefix + "-" + userSlug
+	}
+	return slug.ObjectName(m.cfg.InstanceName, userSlug, m.maxNameLen)
+}
+
 // EnsureWorkspace idempotently creates all workspace objects for a user and
 // returns the created steps. It does not wait for the pod to be ready.
 func (m *WorkspaceManager) EnsureWorkspace(ctx context.Context, profile *profilev1.Profile, userSlug string) ([]WorkspaceStep, error) {
@@ -54,7 +63,7 @@ func (m *WorkspaceManager) EnsureWorkspace(ctx context.Context, profile *profile
 	steps = append(steps, WorkspaceStep{Name: "service", Message: "Service created"})
 
 	// 2. PVC.
-	pvc, err := BuildPVC(instance, userSlug, namespace, profile)
+	pvc, err := BuildPVC(instance, m.cfg.Workspace.PVCNamePrefix, userSlug, namespace, profile)
 	if err != nil {
 		return steps, fmt.Errorf("build PVC: %w", err)
 	}
@@ -130,7 +139,7 @@ func (m *WorkspaceManager) DeleteWorkspace(ctx context.Context, userSlug string)
 	}
 
 	// Delete PVC.
-	if err := m.clients.CoreV1.PersistentVolumeClaims(namespace).Delete(ctx, objName, metav1.DeleteOptions{}); err != nil {
+	if err := m.clients.CoreV1.PersistentVolumeClaims(namespace).Delete(ctx, m.pvcName(userSlug), metav1.DeleteOptions{}); err != nil {
 		if !apierrors.IsNotFound(err) {
 			return fmt.Errorf("delete PVC: %w", err)
 		}
@@ -156,7 +165,7 @@ const LastLoginAnnotation = "codx.captnbp.io/last-login"
 // the error (users without a workspace yet have no PVC to annotate).
 func (m *WorkspaceManager) TouchWorkspaceLastLogin(ctx context.Context, userSlug string) error {
 	namespace := m.cfg.Namespace
-	objName := slug.ObjectName(m.cfg.InstanceName, userSlug, m.maxNameLen)
+	objName := m.pvcName(userSlug)
 
 	pvc, err := m.clients.CoreV1.PersistentVolumeClaims(namespace).Get(ctx, objName, metav1.GetOptions{})
 	if err != nil {
@@ -178,7 +187,7 @@ func (m *WorkspaceManager) TouchWorkspaceLastLogin(ctx context.Context, userSlug
 // workspace PVC (zero when never logged in or no workspace yet).
 func (m *WorkspaceManager) GetWorkspaceLastLogin(ctx context.Context, userSlug string) (time.Time, error) {
 	namespace := m.cfg.Namespace
-	objName := slug.ObjectName(m.cfg.InstanceName, userSlug, m.maxNameLen)
+	objName := m.pvcName(userSlug)
 
 	pvc, err := m.clients.CoreV1.PersistentVolumeClaims(namespace).Get(ctx, objName, metav1.GetOptions{})
 	if err != nil {
@@ -202,7 +211,7 @@ func (m *WorkspaceManager) GetWorkspaceLastLogin(ctx context.Context, userSlug s
 // arrival better than the pod.
 func (m *WorkspaceManager) GetWorkspaceCreationTime(ctx context.Context, userSlug string) (time.Time, error) {
 	namespace := m.cfg.Namespace
-	objName := slug.ObjectName(m.cfg.InstanceName, userSlug, m.maxNameLen)
+	objName := m.pvcName(userSlug)
 
 	pvc, err := m.clients.CoreV1.PersistentVolumeClaims(namespace).Get(ctx, objName, metav1.GetOptions{})
 	if err != nil {
@@ -214,7 +223,7 @@ func (m *WorkspaceManager) GetWorkspaceCreationTime(ctx context.Context, userSlu
 // ExtendPVC updates the PVC storage size.
 func (m *WorkspaceManager) ExtendPVC(ctx context.Context, userSlug, newSize string) error {
 	namespace := m.cfg.Namespace
-	objName := slug.ObjectName(m.cfg.InstanceName, userSlug, m.maxNameLen)
+	objName := m.pvcName(userSlug)
 
 	pvc, err := m.clients.CoreV1.PersistentVolumeClaims(namespace).Get(ctx, objName, metav1.GetOptions{})
 	if err != nil {

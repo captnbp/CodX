@@ -102,7 +102,7 @@ func BuildService(instance, slug, namespace string, profile *profilev1.Profile, 
 }
 
 // BuildPVC creates a PVC for the user's home directory.
-func BuildPVC(instance, slug, namespace string, profile *profilev1.Profile) (*corev1.PersistentVolumeClaim, error) {
+func BuildPVC(instance, pvcPrefix, slug, namespace string, profile *profilev1.Profile) (*corev1.PersistentVolumeClaim, error) {
 	size := profile.Spec.PVC.Size
 	if size == "" {
 		size = "10Gi"
@@ -115,7 +115,7 @@ func BuildPVC(instance, slug, namespace string, profile *profilev1.Profile) (*co
 
 	pvc := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      objectName(instance, slug),
+			Name:      pvcName(pvcPrefix, instance, slug),
 			Namespace: namespace,
 			Labels:    mergeLabels(workspaceLabels(instance, slug), profile.Spec.PVC.Labels),
 		},
@@ -203,7 +203,7 @@ func BuildPod(instance, slug, namespace, fqdn string, profile *profilev1.Profile
 			SecurityContext:    profile.Spec.PodSpec.SecurityContext,
 			InitContainers:     profile.Spec.PodSpec.InitContainers,
 			Containers:         buildContainers(profile, objName, slug, cfg),
-			Volumes:            buildVolumes(profile, objName),
+			Volumes:            buildVolumes(profile, objName, pvcName(cfg.Workspace.PVCNamePrefix, instance, slug)),
 			ImagePullSecrets:   resolveImagePullSecrets(profile, cfg),
 			Affinity:           profile.Spec.PodSpec.Affinity,
 			NodeSelector:       profile.Spec.PodSpec.NodeSelector,
@@ -244,21 +244,35 @@ func resolveEnableServiceLinks(profile *profilev1.Profile) *bool {
 // the Envoy sidecar, plus any extra sidecars from the profile.
 func buildContainers(profile *profilev1.Profile, objName, userSlug string, cfg *config.Config) []corev1.Container {
 	containers := make([]corev1.Container, 0, 2+len(profile.Spec.PodSpec.Sidecars))
+	cs := profile.Spec.PodSpec.CodeServer
 
 	// Main code-server container.
 	main := corev1.Container{
-		Name:         CodeServerContainerName,
-		Image:        profile.Spec.PodSpec.Image,
-		Resources:    profile.Spec.PodSpec.Resources,
-		VolumeMounts: profile.Spec.PodSpec.VolumeMounts,
-		Env:          profile.Spec.PodSpec.Env,
+		Name:            CodeServerContainerName,
+		Image:           cs.Image,
+		Resources:       cs.Resources,
+		VolumeMounts:    cs.VolumeMounts,
+		Env:             cs.Env,
+		SecurityContext: cs.SecurityContext,
 	}
-	if len(profile.Spec.PodSpec.Command) > 0 {
-		main.Command = profile.Spec.PodSpec.Command
+	if len(cs.Command) > 0 {
+		main.Command = cs.Command
 	}
-	if len(profile.Spec.PodSpec.Args) > 0 {
-		main.Args = profile.Spec.PodSpec.Args
+	if len(cs.Args) > 0 {
+		main.Args = cs.Args
 	}
+	main.ImagePullPolicy = cs.ImagePullPolicy
+	main.WorkingDir = cs.WorkingDir
+	main.EnvFrom = cs.EnvFrom
+	main.VolumeDevices = cs.VolumeDevices
+	main.LivenessProbe = cs.LivenessProbe
+	main.Lifecycle = cs.Lifecycle
+	main.ResizePolicy = cs.ResizePolicy
+	if cs.RestartPolicy != "" {
+		restartPolicy := cs.RestartPolicy
+		main.RestartPolicy = &restartPolicy
+	}
+	main.RestartPolicyRules = cs.RestartPolicyRules
 	// Add CODX_USERNAME env var so code-server knows the user.
 	main.Env = append(main.Env, corev1.EnvVar{
 		Name:  "CODX_USERNAME",
@@ -311,7 +325,7 @@ func buildContainers(profile *profilev1.Profile, objName, userSlug string, cfg *
 // container: the profile override when set, otherwise a default HTTP GET
 // probe on /healthz port 8080.
 func codeServerReadinessProbe(profile *profilev1.Profile) *corev1.Probe {
-	if probe := profile.Spec.PodSpec.CodeServerReadinessProbe; probe != nil {
+	if probe := profile.Spec.PodSpec.CodeServer.ReadinessProbe; probe != nil {
 		return probe.DeepCopy()
 	}
 	return &corev1.Probe{
@@ -347,8 +361,9 @@ func envoyReadinessProbe(profile *profilev1.Profile) *corev1.Probe {
 
 // buildVolumes builds the volume list: the PVC volume, the TLS secret volume,
 // the Envoy config volume, the Envoy tmp volume, plus any extra volumes from
-// the profile.
-func buildVolumes(profile *profilev1.Profile, objName string) []corev1.Volume {
+// the profile. pvcName is the name of the workspace PVC (objName unless a
+// pvcPrefix override is configured).
+func buildVolumes(profile *profilev1.Profile, objName, pvcName string) []corev1.Volume {
 	volumes := make([]corev1.Volume, 0, 4+len(profile.Spec.PodSpec.Volumes))
 
 	// PVC for /home/coder.
@@ -356,7 +371,7 @@ func buildVolumes(profile *profilev1.Profile, objName string) []corev1.Volume {
 		Name: "home",
 		VolumeSource: corev1.VolumeSource{
 			PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-				ClaimName: objName,
+				ClaimName: pvcName,
 			},
 		},
 	})
@@ -371,13 +386,17 @@ func buildVolumes(profile *profilev1.Profile, objName string) []corev1.Volume {
 		},
 	})
 
-	// Envoy config from ConfigMap.
+	// Envoy config from ConfigMap: profile override or default.
+	envoyConfigMapName := profile.Spec.PodSpec.EnvoyConfigMapName
+	if envoyConfigMapName == "" {
+		envoyConfigMapName = "codx-envoy"
+	}
 	volumes = append(volumes, corev1.Volume{
 		Name: "envoy-config",
 		VolumeSource: corev1.VolumeSource{
 			ConfigMap: &corev1.ConfigMapVolumeSource{
 				LocalObjectReference: corev1.LocalObjectReference{
-					Name: "codx-envoy",
+					Name: envoyConfigMapName,
 				},
 			},
 		},
@@ -401,6 +420,15 @@ func buildVolumes(profile *profilev1.Profile, objName string) []corev1.Volume {
 // objectName returns <instance>-<slug>.
 func objectName(instance, slug string) string {
 	return instance + "-" + slug
+}
+
+// pvcName returns the workspace PVC name: <pvcPrefix>-<slug> when pvcPrefix
+// is set, else <instance>-<slug>.
+func pvcName(pvcPrefix, instance, slug string) string {
+	if pvcPrefix != "" {
+		return pvcPrefix + "-" + slug
+	}
+	return objectName(instance, slug)
 }
 
 // mergeLabels merges base labels with extra labels (extra wins on conflict).

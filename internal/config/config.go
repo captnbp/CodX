@@ -392,6 +392,15 @@ type WorkspaceConfig struct {
 	// +optional
 	ImagePullSecrets []string `yaml:"imagePullSecrets,omitempty"`
 
+	// PVCNamePrefix overrides the prefix of the workspace PVC names. By
+	// default workspace PVCs are named <instanceName>-<slug>; when set,
+	// they are named <pvcPrefix>-<slug> instead (only the PVCs, the other
+	// workspace objects keep the instanceName prefix). Useful to migrate
+	// existing home-directory volumes from another platform (e.g.
+	// JupyterHub's claim-<username> PVCs).
+	// +optional
+	PVCNamePrefix string `yaml:"pvcPrefix,omitempty"`
+
 	// Tracing configures OpenTelemetry tracing in the Envoy sidecar.
 	// +optional
 	Tracing TracingConfig `yaml:"tracing,omitempty"`

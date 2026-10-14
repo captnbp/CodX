@@ -27,20 +27,32 @@ func TestProfileRoundTrip(t *testing.T) {
 			OIDCGroups:                 []string{"developers", "students"},
 			InactivityStopDelaySeconds: 3600,
 			PodSpec: ProfilePodSpec{
-				Image:   "ghcr.io/codx/python:3.12",
-				Command: []string{"/usr/bin/code-server"},
-				Args:    []string{"--auth", "none"},
-				Env: []corev1.EnvVar{
-					{Name: "PYTHONUNBUFFERED", Value: "1"},
+				CodeServer: ProfileCodeServer{
+					Image:   "ghcr.io/codx/python:3.12",
+					Command: []string{"/usr/bin/code-server"},
+					Args:    []string{"--auth", "none"},
+					Env: []corev1.EnvVar{
+						{Name: "PYTHONUNBUFFERED", Value: "1"},
+					},
+					VolumeMounts: []corev1.VolumeMount{
+						{Name: "tmp", MountPath: "/tmp"},
+					},
+					Resources: corev1.ResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("500m"),
+							corev1.ResourceMemory: resource.MustParse("1Gi"),
+						},
+						Limits: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("2"),
+							corev1.ResourceMemory: resource.MustParse("4Gi"),
+						},
+					},
 				},
 				ImagePullSecrets: []corev1.LocalObjectReference{
 					{Name: "private-registry-pull"},
 				},
 				Volumes: []corev1.Volume{
 					{Name: "tmp", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
-				},
-				VolumeMounts: []corev1.VolumeMount{
-					{Name: "tmp", MountPath: "/tmp"},
 				},
 				SecurityContext: &corev1.PodSecurityContext{
 					RunAsNonRoot: boolPtr(true),
@@ -65,16 +77,6 @@ func TestProfileRoundTrip(t *testing.T) {
 				},
 				Labels:      map[string]string{"tier": "dev"},
 				Annotations: map[string]string{"codx.io/default": "true"},
-				Resources: corev1.ResourceRequirements{
-					Requests: corev1.ResourceList{
-						corev1.ResourceCPU:    resource.MustParse("500m"),
-						corev1.ResourceMemory: resource.MustParse("1Gi"),
-					},
-					Limits: corev1.ResourceList{
-						corev1.ResourceCPU:    resource.MustParse("2"),
-						corev1.ResourceMemory: resource.MustParse("4Gi"),
-					},
-				},
 			},
 			PVC: ProfilePVC{
 				Size:             "20Gi",
@@ -106,7 +108,7 @@ func TestProfileEmptyOIDCGroupsMeansAllUsers(t *testing.T) {
 	p := &Profile{
 		Spec: ProfileSpec{
 			Title:   "Default",
-			PodSpec: ProfilePodSpec{Image: "ghcr.io/codx/base:latest"},
+			PodSpec: ProfilePodSpec{CodeServer: ProfileCodeServer{Image: "ghcr.io/codx/base:latest"}},
 		},
 	}
 	if len(p.Spec.OIDCGroups) != 0 {
@@ -120,7 +122,7 @@ func TestDeepCopy(t *testing.T) {
 			Title:      "Test",
 			OIDCGroups: []string{"a", "b"},
 			PodSpec: ProfilePodSpec{
-				Image:  "img",
+				CodeServer: ProfileCodeServer{Image: "img"},
 				Labels: map[string]string{"k": "v"},
 				Sidecars: []corev1.Container{
 					{Name: "helper", Image: "helper:1.0"},
@@ -152,8 +154,8 @@ func TestDeepCopy(t *testing.T) {
 func TestProfileListDeepCopy(t *testing.T) {
 	list := &ProfileList{
 		Items: []Profile{
-			{Spec: ProfileSpec{Title: "A", PodSpec: ProfilePodSpec{Image: "a"}}},
-			{Spec: ProfileSpec{Title: "B", PodSpec: ProfilePodSpec{Image: "b"}}},
+			{Spec: ProfileSpec{Title: "A", PodSpec: ProfilePodSpec{CodeServer: ProfileCodeServer{Image: "a"}}}},
+			{Spec: ProfileSpec{Title: "B", PodSpec: ProfilePodSpec{CodeServer: ProfileCodeServer{Image: "b"}}}},
 		},
 	}
 	copy := list.DeepCopy()

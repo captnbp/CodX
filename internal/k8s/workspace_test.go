@@ -9,6 +9,7 @@ import (
 	cmv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	cmmeta "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
@@ -140,6 +141,214 @@ func TestEnsureWorkspaceEnableServiceLinksTrue(t *testing.T) {
 	}
 	if !*pod.Spec.EnableServiceLinks {
 		t.Error("EnableServiceLinks = false, want true")
+	}
+}
+
+func TestEnsureWorkspaceCodeServerSecurityContext(t *testing.T) {
+	cs := newTestClientset()
+	cfg := testConfig()
+	mgr := NewWorkspaceManager(cs, cfg)
+	profile := testProfile("python-dev", "Python Dev", nil)
+	falseVal := false
+	profile.Spec.PodSpec.CodeServer.SecurityContext = &corev1.SecurityContext{
+		AllowPrivilegeEscalation: &falseVal,
+		ReadOnlyRootFilesystem:   &falseVal,
+		RunAsNonRoot:             &falseVal,
+	}
+
+	_, err := mgr.EnsureWorkspace(context.Background(), profile, "john-doe")
+	if err != nil {
+		t.Fatalf("EnsureWorkspace: %v", err)
+	}
+
+	pod, err := cs.CoreV1.(*fakeCoreV1Client).Pods("").Get(context.Background(), "codx-john-doe", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("Pod not found: %v", err)
+	}
+
+	var main *corev1.Container
+	for i := range pod.Spec.Containers {
+		if pod.Spec.Containers[i].Name == CodeServerContainerName {
+			main = &pod.Spec.Containers[i]
+			break
+		}
+	}
+	if main == nil {
+		t.Fatalf("container %q not found", CodeServerContainerName)
+	}
+	sc := main.SecurityContext
+	if sc == nil {
+		t.Fatal("code-server SecurityContext is nil")
+	}
+	if sc.AllowPrivilegeEscalation == nil || *sc.AllowPrivilegeEscalation {
+		t.Error("AllowPrivilegeEscalation not set to false")
+	}
+	if sc.ReadOnlyRootFilesystem == nil || *sc.ReadOnlyRootFilesystem {
+		t.Error("ReadOnlyRootFilesystem not set to false")
+	}
+}
+
+func TestEnsureWorkspaceCodeServerContainerOptions(t *testing.T) {
+	cs := newTestClientset()
+	cfg := testConfig()
+	mgr := NewWorkspaceManager(cs, cfg)
+	profile := testProfile("python-dev", "Python Dev", nil)
+	profile.Spec.PodSpec.CodeServer.ImagePullPolicy = corev1.PullIfNotPresent
+	profile.Spec.PodSpec.CodeServer.WorkingDir = "/home/coder/project"
+	profile.Spec.PodSpec.CodeServer.EnvFrom = []corev1.EnvFromSource{
+		{ConfigMapRef: &corev1.ConfigMapEnvSource{LocalObjectReference: corev1.LocalObjectReference{Name: "ws-env"}}},
+	}
+	profile.Spec.PodSpec.CodeServer.LivenessProbe = &corev1.Probe{
+		ProbeHandler: corev1.ProbeHandler{
+			Exec: &corev1.ExecAction{Command: []string{"true"}},
+		},
+	}
+	profile.Spec.PodSpec.CodeServer.Lifecycle = &corev1.Lifecycle{
+		PreStop: &corev1.LifecycleHandler{
+			Exec: &corev1.ExecAction{Command: []string{"echo", "bye"}},
+		},
+	}
+	profile.Spec.PodSpec.CodeServer.RestartPolicy = corev1.ContainerRestartPolicyAlways
+
+	_, err := mgr.EnsureWorkspace(context.Background(), profile, "john-doe")
+	if err != nil {
+		t.Fatalf("EnsureWorkspace: %v", err)
+	}
+
+	pod, err := cs.CoreV1.(*fakeCoreV1Client).Pods("").Get(context.Background(), "codx-john-doe", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("Pod not found: %v", err)
+	}
+
+	var main *corev1.Container
+	for i := range pod.Spec.Containers {
+		if pod.Spec.Containers[i].Name == CodeServerContainerName {
+			main = &pod.Spec.Containers[i]
+			break
+		}
+	}
+	if main == nil {
+		t.Fatalf("container %q not found", CodeServerContainerName)
+	}
+	if main.ImagePullPolicy != corev1.PullIfNotPresent {
+		t.Errorf("ImagePullPolicy = %q, want IfNotPresent", main.ImagePullPolicy)
+	}
+	if main.WorkingDir != "/home/coder/project" {
+		t.Errorf("WorkingDir = %q, want /home/coder/project", main.WorkingDir)
+	}
+	if len(main.EnvFrom) != 1 || main.EnvFrom[0].ConfigMapRef.Name != "ws-env" {
+		t.Errorf("EnvFrom = %v, want [configMapRef ws-env]", main.EnvFrom)
+	}
+	if main.LivenessProbe == nil || main.LivenessProbe.Exec == nil {
+		t.Error("LivenessProbe not propagated")
+	}
+	if main.Lifecycle == nil || main.Lifecycle.PreStop == nil {
+		t.Error("Lifecycle not propagated")
+	}
+	if main.RestartPolicy == nil || *main.RestartPolicy != corev1.ContainerRestartPolicyAlways {
+		t.Error("RestartPolicy not propagated")
+	}
+}
+
+func TestEnsureWorkspaceEnvoyConfigMap(t *testing.T) {
+	cs := newTestClientset()
+	cfg := testConfig()
+	mgr := NewWorkspaceManager(cs, cfg)
+
+	// Default: codx-envoy.
+	profile := testProfile("python-dev", "Python Dev", nil)
+	if _, err := mgr.EnsureWorkspace(context.Background(), profile, "john-doe"); err != nil {
+		t.Fatalf("EnsureWorkspace: %v", err)
+	}
+	pod, err := cs.CoreV1.(*fakeCoreV1Client).Pods("").Get(context.Background(), "codx-john-doe", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("Pod not found: %v", err)
+	}
+	if cm := envoyConfigVolume(pod).ConfigMap; cm == nil || cm.Name != "codx-envoy" {
+		t.Errorf("default envoy ConfigMap = %+v, want codx-envoy", cm)
+	}
+
+	// Profile override.
+	profile.Spec.PodSpec.EnvoyConfigMapName = "profile-envoy"
+	if _, err := mgr.EnsureWorkspace(context.Background(), profile, "jane-doe"); err != nil {
+		t.Fatalf("EnsureWorkspace: %v", err)
+	}
+	pod, err = cs.CoreV1.(*fakeCoreV1Client).Pods("").Get(context.Background(), "codx-jane-doe", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("Pod not found: %v", err)
+	}
+	if cm := envoyConfigVolume(pod).ConfigMap; cm == nil || cm.Name != "profile-envoy" {
+		t.Errorf("profile envoy ConfigMap = %+v, want profile-envoy", cm)
+	}
+}
+
+func envoyConfigVolume(pod *corev1.Pod) *corev1.Volume {
+	for i := range pod.Spec.Volumes {
+		if pod.Spec.Volumes[i].Name == "envoy-config" {
+			return &pod.Spec.Volumes[i]
+		}
+	}
+	return nil
+}
+
+func TestEnsureWorkspacePVCPrefix(t *testing.T) {
+	cs := newTestClientset()
+	cfg := testConfig()
+	cfg.Workspace.PVCNamePrefix = "claim"
+	mgr := NewWorkspaceManager(cs, cfg)
+	profile := testProfile("python-dev", "Python Dev", nil)
+
+	if _, err := mgr.EnsureWorkspace(context.Background(), profile, "john-doe"); err != nil {
+		t.Fatalf("EnsureWorkspace: %v", err)
+	}
+	coreV1 := cs.CoreV1.(*fakeCoreV1Client)
+
+	// The PVC uses the prefix.
+	pvc, err := coreV1.PersistentVolumeClaims("").Get(context.Background(), "claim-john-doe", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("PVC not found: %v", err)
+	}
+	if pvc.Labels[LabelManagedBy] != "codx" {
+		t.Errorf("PVC managed-by label = %q, want codx (instanceName)", pvc.Labels[LabelManagedBy])
+	}
+
+	// The other objects keep the instanceName prefix.
+	pod, err := coreV1.Pods("").Get(context.Background(), "codx-john-doe", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("Pod not found: %v", err)
+	}
+	if _, err := coreV1.Services("").Get(context.Background(), "codx-john-doe", metav1.GetOptions{}); err != nil {
+		t.Errorf("Service not found: %v", err)
+	}
+
+	// The pod home volume points to the prefixed PVC.
+	var home *corev1.Volume
+	for i := range pod.Spec.Volumes {
+		if pod.Spec.Volumes[i].Name == "home" {
+			home = &pod.Spec.Volumes[i]
+			break
+		}
+	}
+	if home == nil || home.PersistentVolumeClaim == nil || home.PersistentVolumeClaim.ClaimName != "claim-john-doe" {
+		t.Errorf("home volume = %+v, want claim claim-john-doe", home)
+	}
+
+	// Manager PVC operations use the prefix.
+	if err := mgr.TouchWorkspaceLastLogin(context.Background(), "john-doe"); err != nil {
+		t.Errorf("TouchWorkspaceLastLogin: %v", err)
+	}
+	pvc, err = coreV1.PersistentVolumeClaims("").Get(context.Background(), "claim-john-doe", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("PVC not found: %v", err)
+	}
+	if _, ok := pvc.Annotations[LastLoginAnnotation]; !ok {
+		t.Error("last-login annotation missing on prefixed PVC")
+	}
+	if err := mgr.DeleteWorkspace(context.Background(), "john-doe"); err != nil {
+		t.Fatalf("DeleteWorkspace: %v", err)
+	}
+	if _, err := coreV1.PersistentVolumeClaims("").Get(context.Background(), "claim-john-doe", metav1.GetOptions{}); !apierrors.IsNotFound(err) {
+		t.Errorf("prefixed PVC not deleted: %v", err)
 	}
 }
 
@@ -569,7 +778,7 @@ func TestBuildPodReadinessProbeDefaults(t *testing.T) {
 
 func TestBuildPodReadinessProbeOverrides(t *testing.T) {
 	profile := testProfile("python-dev", "Python Dev", nil)
-	profile.Spec.PodSpec.CodeServerReadinessProbe = &corev1.Probe{
+	profile.Spec.PodSpec.CodeServer.ReadinessProbe = &corev1.Probe{
 		ProbeHandler: corev1.ProbeHandler{
 			TCPSocket: &corev1.TCPSocketAction{Port: intstr.FromInt(9999)},
 		},

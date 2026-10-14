@@ -1,6 +1,8 @@
 {{- /*
 Render Profile custom resources (profiles.codx.io/v1) from .Values.profiles.
 Each entry is a map: key -> Profile spec. An empty map renders nothing.
+Unless the profile sets podSpec.envoyConfigMapName itself, it defaults to the
+chart-generated Envoy ConfigMap (<fullname>-envoy).
 */ -}}
 {{- range $name, $spec := .Values.profiles }}
 ---
@@ -18,5 +20,11 @@ metadata:
   annotations: {{- include "common.tplvalues.render" ( dict "value" $.Values.commonAnnotations "context" $ ) | nindent 4 }}
   {{- end }}
 spec:
-  {{- toYaml $spec | nindent 2 }}
+  {{- $s := deepCopy $spec }}
+  {{- $ps := $s.podSpec | default dict }}
+  {{- if not (index $ps "envoyConfigMapName") }}
+  {{- $_ := set $ps "envoyConfigMapName" (printf "%s-envoy" (include "common.names.fullname" $)) }}
+  {{- end }}
+  {{- $_ := set $s "podSpec" $ps }}
+  {{- toYaml $s | nindent 2 }}
 {{- end }}

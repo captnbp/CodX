@@ -59,7 +59,7 @@ func testServerWithClientset(t *testing.T) (*Server, *session.MemoryStore, *k8s.
 			Title:       "Python Developer",
 			Description: "Python 3.12 workspace",
 			OIDCGroups:  []string{"developers"},
-			PodSpec:     profilev1.ProfilePodSpec{Image: "codercom/code-server:latest"},
+			PodSpec:     profilev1.ProfilePodSpec{CodeServer: profilev1.ProfileCodeServer{Image: "codercom/code-server:latest"}},
 		},
 	})
 	profiles.Upsert(&profilev1.Profile{
@@ -68,7 +68,7 @@ func testServerWithClientset(t *testing.T) (*Server, *session.MemoryStore, *k8s.
 			Title:       "Default",
 			Description: "Default workspace",
 			OIDCGroups:  nil, // all users
-			PodSpec:     profilev1.ProfilePodSpec{Image: "codercom/code-server:latest"},
+			PodSpec:     profilev1.ProfilePodSpec{CodeServer: profilev1.ProfileCodeServer{Image: "codercom/code-server:latest"}},
 		},
 	})
 

@@ -33,6 +33,7 @@ spec:
       {{- if .Values.schedulerName }}
       schedulerName: {{ .Values.schedulerName }}
       {{- end }}
+      {{- include "codx.imagePullSecrets" . | nindent 6 }}
       serviceAccountName: {{ template "codx.serviceAccountName" . }}
       {{- if .Values.affinity }}
       affinity: {{- include "common.tplvalues.render" (dict "value" .Values.affinity "context" $) | nindent 8 }}
@@ -64,6 +65,9 @@ spec:
         - name: codx
           image: {{ include "codx.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy | quote }}
+          {{- if .Values.containerSecurityContext.enabled }}
+          securityContext: {{- omit .Values.containerSecurityContext "enabled" | toYaml | nindent 12 }}
+          {{- end }}
           {{- if .Values.diagnosticMode.enabled }}
           command: {{- include "common.tplvalues.render" (dict "value" .Values.diagnosticMode.command "context" $) | nindent 12 }}
           {{- else if .Values.command }}
@@ -81,11 +85,11 @@ spec:
             {{- include "common.tplvalues.render" (dict "value" .Values.extraEnvVars "context" $) | nindent 12 }}
             {{- end }}
             - name: CODX_OIDC_CLIENT_SECRET
-              {{- if .Values.oidc.clientSecret }}
+              {{- if or .Values.oidc.clientSecret .Values.oidc.existingSecret }}
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "common.names.fullname" . }}-oidc
-                  key: clientSecret
+                  name: {{ .Values.oidc.existingSecret | default (printf "%s-oidc" (include "common.names.fullname" .)) }}
+                  key: {{ .Values.oidc.existingSecretKey | default "clientSecret" }}
               {{- end }}
             - name: CODX_REDIS_PASSWORD
               {{- if .Values.redis.password }}
@@ -147,6 +151,9 @@ spec:
           lifecycle: {{- include "common.tplvalues.render" (dict "value" .Values.lifecycleHooks "context" $) | nindent 12 }}
           {{- end }}
           volumeMounts:
+          {{- if .Values.extraVolumeMounts }}
+          {{- include "common.tplvalues.render" (dict "value" .Values.extraVolumeMounts "context" $) | nindent 12 }}
+          {{- end }}
             - name: config
               mountPath: /etc/codx
               readOnly: true

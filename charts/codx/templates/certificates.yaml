@@ -30,9 +30,10 @@ spec:
   secretName: {{ include "common.names.fullname" . }}-server-tls
   duration: 4320h0m0s # 180d
   renewBefore: 2160h0m0s # 90d
-  commonName: "{{ printf "%s.%s.svc.%s" $serviceName $releaseNamespace $clusterDomain }}"
+  commonName: "{{ include "common.names.fullname" . }}"
   dnsNames:
     - "{{ printf "%s.%s.svc.%s" $serviceName $releaseNamespace $clusterDomain }}"
+    - "{{ include "common.names.fullname" . }}"
     - "localhost"
   ipAddresses:
     - "127.0.0.1"
@@ -108,9 +109,10 @@ spec:
   secretName: {{ include "common.names.fullname" . }}-valkey-tls
   duration: 4320h0m0s # 180d
   renewBefore: 2160h0m0s # 90d
-  commonName: "{{ printf "%s.%s.svc.%s" $serviceName $releaseNamespace $clusterDomain }}"
+  commonName: "{{ include "common.names.fullname" . }}"
   dnsNames:
     - "{{ printf "%s-valkey.%s.svc.%s" $serviceName $releaseNamespace $clusterDomain }}"
+    - "{{ include "common.names.fullname" . }}"
     - "localhost"
   ipAddresses:
     - "127.0.0.1"
