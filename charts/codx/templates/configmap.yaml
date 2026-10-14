@@ -103,6 +103,9 @@ data:
       {{- if .Values.workspace.envoyImage }}
       envoyImage: {{ .Values.workspace.envoyImage | quote }}
       {{- end }}
+      {{- if .Values.workspace.pvcPrefix }}
+      pvcPrefix: {{ .Values.workspace.pvcPrefix | quote }}
+      {{- end }}
       tracing:
         enabled: {{ .Values.workspace.tracing.enabled }}
         {{- if .Values.workspace.tracing.otlpEndpoint }}

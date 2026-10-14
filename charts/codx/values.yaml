@@ -894,6 +894,9 @@ workspace:
   ## @param workspace.envoyImage Image for the Envoy TLS termination sidecar in workspace pods
   ##
   envoyImage: envoyproxy/envoy:distroless-v1.39-latest
+  ## @param workspace.pvcPrefix Override the prefix of the workspace PVC names. By default PVCs are named <instanceName>-<slug>; when set, only the PVCs are renamed to <pvcPrefix>-<slug> (pods, Services and Certificates keep the instanceName prefix). Useful to reuse existing home-directory volumes, e.g. JupyterHub claim-<username> PVCs.
+  ##
+  pvcPrefix: ""
   ## OpenTelemetry tracing for the workspace Envoy sidecar (envoy.tracers.opentelemetry,
   ## OTLP gRPC exporter). Traces are reported to the collector at otlpEndpoint.
   ## @param workspace.tracing.enabled Enable OpenTelemetry tracing in the workspace Envoy sidecar

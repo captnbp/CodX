@@ -434,12 +434,13 @@ $ helm delete --purge my-release
 
 ### Workspace
 
-| Name                             | Description                                                   | Value                                      |
-| -------------------------------- | ------------------------------------------------------------- | ------------------------------------------ |
-| `workspace.envoyImage`           | Image for the Envoy TLS termination sidecar in workspace pods | `envoyproxy/envoy:distroless-v1.39-latest` |
-| `workspace.tracing.enabled`      | Enable OpenTelemetry tracing in the workspace Envoy sidecar   | `false`                                    |
-| `workspace.tracing.otlpEndpoint` | OpenTelemetry collector endpoint (OTLP gRPC, host:port)       | `""`                                       |
-| `workspace.tracing.serviceName`  | OpenTelemetry service name reported for workspace requests    | `codx-workspace`                           |
+| Name                             | Description                                                                                                                                                                                                                                                                                                        | Value                                      |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------ |
+| `workspace.envoyImage`           | Image for the Envoy TLS termination sidecar in workspace pods                                                                                                                                                                                                                                                      | `envoyproxy/envoy:distroless-v1.39-latest` |
+| `workspace.pvcPrefix`            | Override the prefix of the workspace PVC names. By default PVCs are named <instanceName>-<slug>; when set, only the PVCs are renamed to <pvcPrefix>-<slug> (pods, Services and Certificates keep the instanceName prefix). Useful to reuse existing home-directory volumes, e.g. JupyterHub claim-<username> PVCs. | `""`                                       |
+| `workspace.tracing.enabled`      | Enable OpenTelemetry tracing in the workspace Envoy sidecar                                                                                                                                                                                                                                                        | `false`                                    |
+| `workspace.tracing.otlpEndpoint` | OpenTelemetry collector endpoint (OTLP gRPC, host:port)                                                                                                                                                                                                                                                            | `""`                                       |
+| `workspace.tracing.serviceName`  | OpenTelemetry service name reported for workspace requests                                                                                                                                                                                                                                                         | `codx-workspace`                           |
 
 ### Tracing
 

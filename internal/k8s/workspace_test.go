@@ -9,6 +9,7 @@ import (
 	cmv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	cmmeta "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
@@ -288,6 +289,67 @@ func envoyConfigVolume(pod *corev1.Pod) *corev1.Volume {
 		}
 	}
 	return nil
+}
+
+func TestEnsureWorkspacePVCPrefix(t *testing.T) {
+	cs := newTestClientset()
+	cfg := testConfig()
+	cfg.Workspace.PVCNamePrefix = "claim"
+	mgr := NewWorkspaceManager(cs, cfg)
+	profile := testProfile("python-dev", "Python Dev", nil)
+
+	if _, err := mgr.EnsureWorkspace(context.Background(), profile, "john-doe"); err != nil {
+		t.Fatalf("EnsureWorkspace: %v", err)
+	}
+	coreV1 := cs.CoreV1.(*fakeCoreV1Client)
+
+	// The PVC uses the prefix.
+	pvc, err := coreV1.PersistentVolumeClaims("").Get(context.Background(), "claim-john-doe", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("PVC not found: %v", err)
+	}
+	if pvc.Labels[LabelManagedBy] != "codx" {
+		t.Errorf("PVC managed-by label = %q, want codx (instanceName)", pvc.Labels[LabelManagedBy])
+	}
+
+	// The other objects keep the instanceName prefix.
+	pod, err := coreV1.Pods("").Get(context.Background(), "codx-john-doe", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("Pod not found: %v", err)
+	}
+	if _, err := coreV1.Services("").Get(context.Background(), "codx-john-doe", metav1.GetOptions{}); err != nil {
+		t.Errorf("Service not found: %v", err)
+	}
+
+	// The pod home volume points to the prefixed PVC.
+	var home *corev1.Volume
+	for i := range pod.Spec.Volumes {
+		if pod.Spec.Volumes[i].Name == "home" {
+			home = &pod.Spec.Volumes[i]
+			break
+		}
+	}
+	if home == nil || home.PersistentVolumeClaim == nil || home.PersistentVolumeClaim.ClaimName != "claim-john-doe" {
+		t.Errorf("home volume = %+v, want claim claim-john-doe", home)
+	}
+
+	// Manager PVC operations use the prefix.
+	if err := mgr.TouchWorkspaceLastLogin(context.Background(), "john-doe"); err != nil {
+		t.Errorf("TouchWorkspaceLastLogin: %v", err)
+	}
+	pvc, err = coreV1.PersistentVolumeClaims("").Get(context.Background(), "claim-john-doe", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("PVC not found: %v", err)
+	}
+	if _, ok := pvc.Annotations[LastLoginAnnotation]; !ok {
+		t.Error("last-login annotation missing on prefixed PVC")
+	}
+	if err := mgr.DeleteWorkspace(context.Background(), "john-doe"); err != nil {
+		t.Fatalf("DeleteWorkspace: %v", err)
+	}
+	if _, err := coreV1.PersistentVolumeClaims("").Get(context.Background(), "claim-john-doe", metav1.GetOptions{}); !apierrors.IsNotFound(err) {
+		t.Errorf("prefixed PVC not deleted: %v", err)
+	}
 }
 
 func TestEnsureWorkspaceIdempotent(t *testing.T) {

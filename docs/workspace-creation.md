@@ -47,7 +47,7 @@ All per-user objects share the name `<instance>-<slug>`, truncated again to
 | Object | Name |
 |--------|------|
 | Service | `<instance>-<slug>` |
-| PVC | `<instance>-<slug>` |
+| PVC | `<pvcPrefix>-<slug>` when `workspace.pvcPrefix` is set (JupyterHub migration), else `<instance>-<slug>` |
 | cert-manager Certificate | `<instance>-<slug>` |
 | Pod | `<instance>-<slug>` |
 | TLS Secret (created by cert-manager) | `<instance>-<slug>-tls` |

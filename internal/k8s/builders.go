@@ -102,7 +102,7 @@ func BuildService(instance, slug, namespace string, profile *profilev1.Profile, 
 }
 
 // BuildPVC creates a PVC for the user's home directory.
-func BuildPVC(instance, slug, namespace string, profile *profilev1.Profile) (*corev1.PersistentVolumeClaim, error) {
+func BuildPVC(instance, pvcPrefix, slug, namespace string, profile *profilev1.Profile) (*corev1.PersistentVolumeClaim, error) {
 	size := profile.Spec.PVC.Size
 	if size == "" {
 		size = "10Gi"
@@ -115,7 +115,7 @@ func BuildPVC(instance, slug, namespace string, profile *profilev1.Profile) (*co
 
 	pvc := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      objectName(instance, slug),
+			Name:      pvcName(pvcPrefix, instance, slug),
 			Namespace: namespace,
 			Labels:    mergeLabels(workspaceLabels(instance, slug), profile.Spec.PVC.Labels),
 		},
@@ -203,7 +203,7 @@ func BuildPod(instance, slug, namespace, fqdn string, profile *profilev1.Profile
 			SecurityContext:    profile.Spec.PodSpec.SecurityContext,
 			InitContainers:     profile.Spec.PodSpec.InitContainers,
 			Containers:         buildContainers(profile, objName, slug, cfg),
-			Volumes:            buildVolumes(profile, objName),
+			Volumes:            buildVolumes(profile, objName, pvcName(cfg.Workspace.PVCNamePrefix, instance, slug)),
 			ImagePullSecrets:   resolveImagePullSecrets(profile, cfg),
 			Affinity:           profile.Spec.PodSpec.Affinity,
 			NodeSelector:       profile.Spec.PodSpec.NodeSelector,
@@ -361,8 +361,9 @@ func envoyReadinessProbe(profile *profilev1.Profile) *corev1.Probe {
 
 // buildVolumes builds the volume list: the PVC volume, the TLS secret volume,
 // the Envoy config volume, the Envoy tmp volume, plus any extra volumes from
-// the profile.
-func buildVolumes(profile *profilev1.Profile, objName string) []corev1.Volume {
+// the profile. pvcName is the name of the workspace PVC (objName unless a
+// pvcPrefix override is configured).
+func buildVolumes(profile *profilev1.Profile, objName, pvcName string) []corev1.Volume {
 	volumes := make([]corev1.Volume, 0, 4+len(profile.Spec.PodSpec.Volumes))
 
 	// PVC for /home/coder.
@@ -370,7 +371,7 @@ func buildVolumes(profile *profilev1.Profile, objName string) []corev1.Volume {
 		Name: "home",
 		VolumeSource: corev1.VolumeSource{
 			PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-				ClaimName: objName,
+				ClaimName: pvcName,
 			},
 		},
 	})
@@ -419,6 +420,15 @@ func buildVolumes(profile *profilev1.Profile, objName string) []corev1.Volume {
 // objectName returns <instance>-<slug>.
 func objectName(instance, slug string) string {
 	return instance + "-" + slug
+}
+
+// pvcName returns the workspace PVC name: <pvcPrefix>-<slug> when pvcPrefix
+// is set, else <instance>-<slug>.
+func pvcName(pvcPrefix, instance, slug string) string {
+	if pvcPrefix != "" {
+		return pvcPrefix + "-" + slug
+	}
+	return objectName(instance, slug)
 }
 
 // mergeLabels merges base labels with extra labels (extra wins on conflict).
