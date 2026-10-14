@@ -352,14 +352,16 @@ $ helm delete --purge my-release
 
 ### OIDC Authentication
 
-| Name                     | Description                                                                                 | Value                |
-| ------------------------ | ------------------------------------------------------------------------------------------- | -------------------- |
-| `oidc.issuer`            | OIDC issuer URL (e.g. https://keycloak.example.com/realms/myrealm).                         | `""`                 |
-| `oidc.clientId`          | OAuth2 client ID registered with the OIDC provider.                                         | `""`                 |
-| `oidc.clientSecret`      | OAuth2 client secret. Can also be set via the CODX_OIDC_CLIENT_SECRET environment variable. | `""`                 |
-| `oidc.groupClaimName`    | Name of the custom claim in the ID token that contains the user's group memberships.        | `groups`             |
-| `oidc.adminGroup`        | OIDC group whose members get admin privileges.                                              | `codx-admins`        |
-| `oidc.usernameClaimName` | ID token claim used as the username source for slug generation.                             | `preferred_username` |
+| Name                     | Description                                                                                                                          | Value                |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ | -------------------- |
+| `oidc.issuer`            | OIDC issuer URL (e.g. https://keycloak.example.com/realms/myrealm).                                                                  | `""`                 |
+| `oidc.clientId`          | OAuth2 client ID registered with the OIDC provider.                                                                                  | `""`                 |
+| `oidc.clientSecret`      | OAuth2 client secret. Can also be set via the CODX_OIDC_CLIENT_SECRET environment variable. Ignored when oidc.existingSecret is set. | `""`                 |
+| `oidc.existingSecret`    | Name of an existing Secret containing the OIDC client secret. Skips the chart-managed Secret creation.                               | `""`                 |
+| `oidc.existingSecretKey` | Key inside oidc.existingSecret holding the client secret (defaults to "clientSecret").                                               | `clientSecret`       |
+| `oidc.groupClaimName`    | Name of the custom claim in the ID token that contains the user's group memberships.                                                 | `groups`             |
+| `oidc.adminGroup`        | OIDC group whose members get admin privileges.                                                                                       | `codx-admins`        |
+| `oidc.usernameClaimName` | ID token claim used as the username source for slug generation.                                                                      | `preferred_username` |
 
 ### Session
 

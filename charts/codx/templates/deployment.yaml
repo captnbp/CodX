@@ -85,11 +85,11 @@ spec:
             {{- include "common.tplvalues.render" (dict "value" .Values.extraEnvVars "context" $) | nindent 12 }}
             {{- end }}
             - name: CODX_OIDC_CLIENT_SECRET
-              {{- if .Values.oidc.clientSecret }}
+              {{- if or .Values.oidc.clientSecret .Values.oidc.existingSecret }}
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "common.names.fullname" . }}-oidc
-                  key: clientSecret
+                  name: {{ .Values.oidc.existingSecret | default (printf "%s-oidc" (include "common.names.fullname" .)) }}
+                  key: {{ .Values.oidc.existingSecretKey | default "clientSecret" }}
               {{- end }}
             - name: CODX_REDIS_PASSWORD
               {{- if .Values.redis.password }}

@@ -735,7 +735,9 @@ grafanaDashboards:
 ## OIDC configures the OIDC authentication provider.
 ## @param oidc.issuer OIDC issuer URL (e.g. https://keycloak.example.com/realms/myrealm).
 ## @param oidc.clientId OAuth2 client ID registered with the OIDC provider.
-## @param oidc.clientSecret OAuth2 client secret. Can also be set via the CODX_OIDC_CLIENT_SECRET environment variable.
+## @param oidc.clientSecret OAuth2 client secret. Can also be set via the CODX_OIDC_CLIENT_SECRET environment variable. Ignored when oidc.existingSecret is set.
+## @param oidc.existingSecret Name of an existing Secret containing the OIDC client secret. Skips the chart-managed Secret creation.
+## @param oidc.existingSecretKey Key inside oidc.existingSecret holding the client secret (defaults to "clientSecret").
 ## @param oidc.groupClaimName Name of the custom claim in the ID token that contains the user's group memberships.
 ## @param oidc.adminGroup OIDC group whose members get admin privileges.
 ## @param oidc.usernameClaimName ID token claim used as the username source for slug generation.
@@ -744,6 +746,8 @@ oidc:
   issuer: ""
   clientId: ""
   clientSecret: ""
+  existingSecret: ""
+  existingSecretKey: "clientSecret"
   groupClaimName: groups
   adminGroup: codx-admins
   usernameClaimName: preferred_username
