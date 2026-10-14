@@ -149,7 +149,8 @@ The Pod runs the code-server container plus an Envoy TLS termination sidecar:
 | extra sidecars | `spec.podSpec.sidecars`, verbatim. |
 
 Volumes: the PVC (`home`), the TLS secret (`tls`, at `/tls`), the Envoy
-configuration ConfigMap `codx-envoy` (`envoy-config`), a writable `/tmp`
+configuration ConfigMap (`envoy-config`; defaults to `codx-envoy`, or
+`spec.podSpec.envoyConfigMapName` when set), a writable `/tmp`
 EmptyDir for Envoy (`envoy-tmp`), plus any extra volumes from the profile.
 
 The rest of the PodSpec - security context, init containers, affinity, node

@@ -385,13 +385,17 @@ func buildVolumes(profile *profilev1.Profile, objName string) []corev1.Volume {
 		},
 	})
 
-	// Envoy config from ConfigMap.
+	// Envoy config from ConfigMap: profile override or default.
+	envoyConfigMapName := profile.Spec.PodSpec.EnvoyConfigMapName
+	if envoyConfigMapName == "" {
+		envoyConfigMapName = "codx-envoy"
+	}
 	volumes = append(volumes, corev1.Volume{
 		Name: "envoy-config",
 		VolumeSource: corev1.VolumeSource{
 			ConfigMap: &corev1.ConfigMapVolumeSource{
 				LocalObjectReference: corev1.LocalObjectReference{
-					Name: "codx-envoy",
+					Name: envoyConfigMapName,
 				},
 			},
 		},

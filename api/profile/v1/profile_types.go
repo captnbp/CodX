@@ -132,6 +132,13 @@ type ProfilePodSpec struct {
 	// endpoint /ready port 9901 is applied.
 	// +optional
 	EnvoyReadinessProbe *corev1.Probe `json:"envoyReadinessProbe,omitempty"`
+
+	// EnvoyConfigMapName is the name of the ConfigMap containing the Envoy
+	// configuration of the workspace Envoy TLS sidecar. The ConfigMap must
+	// have an "envoy.yaml" key, mounted at /etc/envoy/envoy.yaml. When unset,
+	// the "codx-envoy" ConfigMap is used.
+	// +optional
+	EnvoyConfigMapName string `json:"envoyConfigMapName,omitempty"`
 }
 
 // ProfileCodeServer configures the code-server main container of the

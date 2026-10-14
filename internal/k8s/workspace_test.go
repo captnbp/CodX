@@ -249,6 +249,47 @@ func TestEnsureWorkspaceCodeServerContainerOptions(t *testing.T) {
 	}
 }
 
+func TestEnsureWorkspaceEnvoyConfigMap(t *testing.T) {
+	cs := newTestClientset()
+	cfg := testConfig()
+	mgr := NewWorkspaceManager(cs, cfg)
+
+	// Default: codx-envoy.
+	profile := testProfile("python-dev", "Python Dev", nil)
+	if _, err := mgr.EnsureWorkspace(context.Background(), profile, "john-doe"); err != nil {
+		t.Fatalf("EnsureWorkspace: %v", err)
+	}
+	pod, err := cs.CoreV1.(*fakeCoreV1Client).Pods("").Get(context.Background(), "codx-john-doe", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("Pod not found: %v", err)
+	}
+	if cm := envoyConfigVolume(pod).ConfigMap; cm == nil || cm.Name != "codx-envoy" {
+		t.Errorf("default envoy ConfigMap = %+v, want codx-envoy", cm)
+	}
+
+	// Profile override.
+	profile.Spec.PodSpec.EnvoyConfigMapName = "profile-envoy"
+	if _, err := mgr.EnsureWorkspace(context.Background(), profile, "jane-doe"); err != nil {
+		t.Fatalf("EnsureWorkspace: %v", err)
+	}
+	pod, err = cs.CoreV1.(*fakeCoreV1Client).Pods("").Get(context.Background(), "codx-jane-doe", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("Pod not found: %v", err)
+	}
+	if cm := envoyConfigVolume(pod).ConfigMap; cm == nil || cm.Name != "profile-envoy" {
+		t.Errorf("profile envoy ConfigMap = %+v, want profile-envoy", cm)
+	}
+}
+
+func envoyConfigVolume(pod *corev1.Pod) *corev1.Volume {
+	for i := range pod.Spec.Volumes {
+		if pod.Spec.Volumes[i].Name == "envoy-config" {
+			return &pod.Spec.Volumes[i]
+		}
+	}
+	return nil
+}
+
 func TestEnsureWorkspaceIdempotent(t *testing.T) {
 	cs := newTestClientset()
 	cfg := testConfig()

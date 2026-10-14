@@ -949,6 +949,7 @@ tracing:
 ##       #     operator: Equal
 ##       #     value: workspaces
 ##       #     effect: NoSchedule
+##       # envoyConfigMapName: my-envoy-configmap  # defaults to <release fullname>-envoy
 ##       # envoyReadinessProbe:
 ##       #   httpGet:
 ##       #     path: /ready
