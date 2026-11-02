@@ -8,32 +8,26 @@ mTLS fallback, and the security model.
 
 ## Overview
 
-```
-                    +-----------------------+        +---------------------+
-  Browser           |  Traefik ingress      |        |  OIDC provider      |
-  (no client cert)  |  TLSOption (optional) |        |  (e.g. Forgejo)     |
-       -------------|                       |--------|                     |
-       |            |  passTLSClientCert    |        +---------------------+
-       |            |  Middleware           |
-       |            +-----------+-----------+
-       |                        |
-       |            +-----------v-----------+
-       +----------->|  CodX server           |
-                    |  /auth/login          |  OIDC flow
-                    |  /auth/callback        |
-                    |  session middleware    |  mTLS fallback (admins)
-                    +-----------+-----------+
-                                |
-                    +-----------v-----------+
-                    |  Redis/Valkey          |
-                    |  session store         |
-                    +-----------------------+
+```mermaid
+flowchart LR
+    Browser["Browser<br/>(no client cert)"]
+    Admin["Admin browser<br/>(client cert)"]
+    Traefik["Traefik ingress<br/>TLSOption (optional)<br/>passTLSClientCert Middleware"]
+    CodX["CodX server<br/>/auth/login, /auth/callback<br/>session middleware"]
+    OIDC["OIDC provider<br/>(e.g. Forgejo)"]
+    Store[("Redis/Valkey<br/>session store")]
 
-  Admin browser     Traefik validates the client certificate against the
-  (client cert)     TLSOption CA, forwards the Common Name in the
-                    X-Forwarded-Tls-Client-Cert-Info header, and CodX grants
-                    an admin session if the CN is in the allow list.
+    Browser --> Traefik
+    Admin -->|mTLS fallback: admins| Traefik
+    Traefik --> CodX
+    CodX -->|OIDC flow| OIDC
+    CodX --> Store
 ```
+
+On the mTLS fallback, Traefik validates the client certificate against the
+TLSOption CA, forwards the Common Name in the
+`X-Forwarded-Tls-Client-Cert-Info` header, and CodX grants an admin session
+if the CN is in the allow list.
 
 Both mechanisms produce the same artifact: a session stored in Redis/Valkey
 and referenced by the `codx-session` cookie.
@@ -237,24 +231,25 @@ traefikMtls:
 | `TLSOption` | `<fullname>-client-mtls` | Requests and validates the client certificate on the ingress route (`spec.clientAuth`). |
 | `Middleware` | `<fullname>-passtlsclientcert` | Forwards the certificate CN to CodX in `X-Forwarded-Tls-Client-Cert-Info` (`passTLSClientCert`, `pem: false`). |
 
-When `traefikMtls.enabled` is true and `ingress.ingressControllerType` is
-`traefik`, the chart also wires the ingress annotations automatically:
+When `traefikMtls.enabled` is true, the chart also wires the IngressRoute
+automatically:
 
-- appends `<fullname>-passtlsclientcert-<namespace>@kubernetescrd` to
-  `traefik.ingress.kubernetes.io/router.middlewares` (your existing list is
-  preserved);
-- sets `traefik.ingress.kubernetes.io/router.tls.options` to
-  `<fullname>-client-mtls@kubernetescrd`, unless you set it yourself.
+- appends the `<fullname>-passtlsclientcert` Middleware to the route
+  middlewares, after the middlewares from `ingress.middlewares`;
+- applies the `<fullname>-client-mtls` TLSOption on the IngressRoute
+  (`ingress.tls.options`, requires `ingress.tls.enabled`), unless you set it
+  yourself.
 
-Extra middlewares can be added through the `ingress.extraMiddlewares`
-list: they are appended to `router.middlewares` after any user-defined
-middlewares (from `ingress.annotations`) and the chart
-`passTLSClientCert` middleware. Entries are middleware references; the
-`@kubernetescrd` provider suffix is added when missing.
+Middlewares can be added through the `ingress.middlewares` list: each entry
+is a middleware `name` with an optional `namespace` (defaults to the
+release namespace; cross-namespace references require the Traefik
+`allowCrossNamespace` option). They run before the chart
+`passTLSClientCert` middleware.
 
-Both objects are created in the same namespace as the Ingress, so Traefik
-resolves the plain-name references. When enabled, the render fails with an
-explicit error if neither `existingCaSecret` nor `caCertificates` is set.
+Both objects are created in the same namespace as the IngressRoute, so
+Traefik resolves the plain-name references. When enabled, the render fails
+with an explicit error if neither `existingCaSecret` nor `caCertificates`
+is set.
 
 ### Choosing the client CA
 

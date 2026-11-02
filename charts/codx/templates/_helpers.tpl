@@ -26,16 +26,6 @@ Create the name of the service account to use
 {{- end -}}
 
 {{/*
-Return true if cert-manager required annotations for TLS signed certificates are set in the Ingress annotations
-Ref: https://cert-manager.io/docs/usage/ingress/#supported-annotations
-*/}}
-{{- define "codx.ingress.certManagerRequest" -}}
-{{ if or (hasKey . "cert-manager.io/cluster-issuer") (hasKey . "cert-manager.io/issuer") }}
-    {{- true -}}
-{{- end -}}
-{{- end -}}
-
-{{/*
 Return true if a TLS credentials secret object should be created
 */}}
 {{- define "codx.createTlsSecret" -}}
@@ -54,6 +44,14 @@ Return the TLS secret name
 {{- else -}}
     {{- printf "%s-http" (include "common.names.fullname" .) -}}
 {{- end -}}
+{{- end -}}
+
+{{/*
+Ingress frontend TLS Secret name. Defaults to <fullname>-ingress-tls, the
+Secret the chart Certificate (ingress.certManager.enabled) issues into.
+*/}}
+{{- define "codx.ingressTlsSecretName" -}}
+{{- .Values.ingress.tls.secretName | default (printf "%s-ingress-tls" (include "common.names.fullname" .)) -}}
 {{- end -}}
 
 {{/*

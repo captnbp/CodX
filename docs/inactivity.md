@@ -8,21 +8,20 @@ how to configure the delays.
 
 ## Overview
 
+```mermaid
+flowchart LR
+    CodX["CodX inactivity loops<br/>(activity source, watcher, reconciler)"]
+    API["Kubernetes API"]
+    Envoy["workspace Envoy sidecar<br/>(admin :9901)"]
+    Pod["workspace Pod"]
+
+    CodX -->|lists pods| API
+    CodX -->|poll /stats| Envoy
+    CodX -->|stop: delete| Pod
 ```
-+--------------+   lists pods   +------------------------+
-|   CodX       |--------------->|  Kubernetes API        |
-|              |                +------------------------+
-| inactivity   |   poll /stats  +------------------------+
-| loops        |--------------->|  workspace Envoy       |
-|              |                |  sidecar (admin :9901) |
-|  - activity  |                +------------------------+
-|    source    |
-|  - watcher   |   stop         +------------------------+
-|  - reconciler|--------------->|  workspace Pod         |
-+--------------+   (delete)    +------------------------+
-                     Service, PVC and Certificate are kept: the workspace
-                     is restarted later with the user's data intact.
-```
+
+Only the Pod is deleted: the Service, PVC and Certificate are kept, so the
+workspace is restarted later with the user's data intact.
 
 Three loops run inside the CodX server, all ticking at the same
 `inactivity.checkInterval` (default `60s`):

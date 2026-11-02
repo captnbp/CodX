@@ -26,6 +26,8 @@ for the ground rules and [docs/](docs/) for the feature documentation.
 ## Language and style
 
 - **English everywhere**: code, comments, commit messages, docs, chart values.
+- Diagrams in Markdown docs are Mermaid (` ```mermaid ` fenced blocks), not
+  ASCII art.
 - `gofmt` clean; comments explain *why*, not *what*; minimal diffs that match
   the surrounding style.
 - Conventional commits (`feat:`, `fix:`, `docs:`, `chore:`), as used in the
@@ -58,7 +60,7 @@ gofmt -l internal/ cmd/ api/        # empty output = clean
 ### SAST (gosec) - security-sensitive or Go changes
 
 ```sh
-go install github.com/securego/gosec/v2/cmd/gosec@v2.29.0   # version pinned in CI
+go install github.com/securego/gosec/v2/cmd/gosec@v2.30.0   # version pinned in CI
 "$(go env GOPATH)/bin/gosec" -fmt=sarif -out=results.sarif ./...   # exit 0 = clean
 ```
 
@@ -106,6 +108,17 @@ make check-values-docs
 - When the CRD (`charts/codx/crds/`) changes, regenerate the docs with
   `make docs-crd`.
 
+### Docs (Markdown changes)
+
+```sh
+make check-mermaid
+```
+
+- Validates the syntax of every ` ```mermaid ` block in the Markdown files
+  with the real Mermaid parser (`hack/check_mermaid.mjs`, Node + jsdom, no
+  browser). Diagrams in docs are Mermaid, never ASCII art. The node_modules
+  are installed into a throwaway directory, not the repository.
+
 ### Workflows (changes under `.github/`)
 
 Validate the YAML parses (`python3 -c "import yaml; yaml.safe_load(open(...))"`)
@@ -117,13 +130,14 @@ A change is only done when these pass - they mirror the local commands above:
 
 - **go**: `go vet` + `go test -race` with coverage
 - **lint**: golangci-lint
-- **security**: gosec v2.29.0, SARIF uploaded to code scanning (needs
+- **security**: gosec v2.30.0, SARIF uploaded to code scanning (needs
   `security-events: write` + `actions: read`)
 - **helm**: dependency update, lint, template render check, package, OCI push
   + cosign sign
 - **docker**: amd64 build -> Trivy CVE gate (HIGH/CRITICAL, ignore-unfixed)
   -> CycloneDX SBOM (artifact + cosign attest) -> multi-arch build/push ->
   cosign sign. The image is scanned **before** it is pushed.
+- **docs**: Mermaid diagram syntax check (`make check-mermaid`).
 
 Pull requests are reviewed by the code owners (`.github/CODEOWNERS`).
 

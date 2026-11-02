@@ -6,25 +6,21 @@ naming, the TLS model, and the lifecycle of a workspace.
 
 ## Overview
 
-```
-  User            CodX server                         Kubernetes
-  ----            ----------                          ----------
-  login  ------>  OIDC session (username -> slug)
-  pick a profile
-  Start  ------>  /api/workspace/start?profile=<name>  (SSE stream)
-                    |  EnsureWorkspace (idempotent):
-                    |    1. Service     <instance>-<slug>
-                    |    2. PVC        <instance>-<slug>
-                    |    3. cert-manager Certificate
-                    |    4. Pod        <instance>-<slug>
-                    |  Wait for the certificate to be Ready
-                    |  Wait for the pod to be Ready
-  <------ ready   redirect to /user/<slug>/
-                    |
-  browser  <----->  CodX proxy /user/<slug>/...  --mTLS-->  Envoy sidecar
-                                                              (TLS :9443)
-                                                        --> code-server
-                                                            (localhost:8080)
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant C as CodX server
+    participant K as Kubernetes
+
+    U->>C: login (OIDC session, username mapped to slug)
+    U->>C: pick a profile and Start (SSE stream)
+    C->>K: EnsureWorkspace (idempotent)
+    Note over C,K: 1. Service {instance}-{slug}<br/>2. PVC {instance}-{slug}<br/>3. cert-manager Certificate<br/>4. Pod {instance}-{slug}
+    C->>K: Wait for the certificate to be Ready
+    C->>K: Wait for the pod to be Ready
+    C->>U: ready, redirect to /user/{slug}/
+    U->>C: browser traffic /user/{slug}/...
+    Note over C: mTLS proxy to the Envoy sidecar (TLS :9443),<br/>which forwards to code-server (localhost:8080)
 ```
 
 The browser never talks to the workspace pod directly: all workspace traffic

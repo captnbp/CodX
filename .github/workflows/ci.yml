@@ -88,7 +88,7 @@ jobs:
           cache: true
 
       - name: Install gosec
-        run: go install github.com/securego/gosec/v2/cmd/gosec@v2.29.0
+        run: go install github.com/securego/gosec/v2/cmd/gosec@v2.30.0
 
       # Note: do not use -quiet here: it suppresses the report output
       # entirely, including the -out SARIF file (the file is then never
@@ -105,6 +105,20 @@ jobs:
         with:
           sarif_file: results.sarif
 
+  # -- Markdown docs: Mermaid diagram syntax --
+  # Uses the Node.js preinstalled on the runner (the check needs >= 20.11).
+  docs:
+    name: Docs (Mermaid)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Check Mermaid diagrams
+        run: make check-mermaid
+
   # -- Helm lint & package --
   helm:
     name: Helm lint
@@ -119,6 +133,21 @@ jobs:
 
       - name: Set up Helm
         uses: azure/setup-helm@v5
+
+      # On a tag push, bake the tag into the chart before it is packaged and
+      # pushed: appVersion and codx image tag take the git tag, and the chart
+      # patch version is bumped (version: X.Y.Z -> X.Y.Z+1). Branch and PR
+      # builds package the chart as committed.
+      - name: Stamp release tag into chart
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          sed -i -E "s|^appVersion: \".*\"$|appVersion: \"${tag}\"|" charts/codx/Chart.yaml
+          awk -F. -v OFS=. '/^version:/ { $(NF) = $(NF) + 1 } { print }' \
+            charts/codx/Chart.yaml > charts/codx/.Chart.yaml.tmp
+          mv charts/codx/.Chart.yaml.tmp charts/codx/Chart.yaml
+          sed -i -E "0,/^  tag: .*/s//  tag: \"${tag}\"/" charts/codx/values.yaml
+          echo "appVersion and image.tag set to ${tag}, chart version: $(sed -n 's/^version: //p' charts/codx/Chart.yaml)"
 
       - name: Log in to GitHub Container Registry
         if: github.event_name != 'pull_request'
@@ -142,7 +171,7 @@ jobs:
             --set oidc.clientSecret=secret \
             --set oidc.redirectUrl=https://codx.example.com/auth/callback \
             --set redis.host=valkey:6379 \
-            --set ingress.host=codx.example.com \
+            --set ingress.hostname=codx.example.com \
             > /dev/null
 
       - name: Helm package

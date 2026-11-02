@@ -1,0 +1,91 @@
+{{/*
+Traefik IngressRoute exposing the CodX service. Requires the Traefik
+Kubernetes CRD provider (IngressRoute, Middleware, TLSOption).
+
+The backend service only exposes the HTTPS port; when the chart-internal
+TLS is enabled the route targets it with the chart ServersTransport
+(<fullname>, created in serverstransport.yaml) so Traefik trusts the
+self-signed CodX certificate.
+*/}}
+{{- if .Values.ingress.enabled }}
+{{- $fullname := include "common.names.fullname" . }}
+{{- $mtlsMiddleware := .Values.traefikMtls.enabled }}
+{{- $hosts := list }}
+{{- if .Values.ingress.hostname }}
+{{- $hosts = append $hosts (dict "name" .Values.ingress.hostname "path" .Values.ingress.path) }}
+{{- end }}
+{{- range .Values.ingress.extraHosts }}
+{{- $hosts = append $hosts (dict "name" .name "path" (default "/" .path)) }}
+{{- end }}
+apiVersion: {{ .Values.ingress.apiVersion }}
+kind: IngressRoute
+metadata:
+  name: {{ $fullname }}
+  namespace: {{ include "common.names.namespace" . | quote }}
+  labels: {{- include "common.labels.standard" ( dict "customLabels" .Values.commonLabels "context" $ ) | nindent 4 }}
+    app.kubernetes.io/component: codx
+  {{- if or .Values.ingress.annotations .Values.commonAnnotations }}
+  annotations: {{- include "common.tplvalues.merge" ( dict "values" ( list .Values.ingress.annotations .Values.commonAnnotations ) "context" . ) | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.ingress.entryPoints }}
+  entryPoints: {{- toYaml . | nindent 4 }}
+  {{- end }}
+  routes:
+    {{- range $hosts }}
+    - match: {{ printf "Host(`%s`) && PathPrefix(`%s`)" .name .path | quote }}
+      kind: Rule
+      {{- if or $.Values.ingress.middlewares $mtlsMiddleware }}
+      middlewares:
+        {{- range $.Values.ingress.middlewares }}
+        - name: {{ .name }}
+          {{- if .namespace }}
+          namespace: {{ .namespace | quote }}
+          {{- end }}
+        {{- end }}
+        {{- if $mtlsMiddleware }}
+        - name: {{ include "codx.traefikMtls.middlewareName" $ }}
+        {{- end }}
+      {{- end }}
+      services:
+        - name: {{ $fullname }}
+          port: {{ $.Values.containerPorts.https }}
+          {{- if $.Values.tls.enabled }}
+          scheme: https
+          serversTransport: {{ $fullname }}
+          {{- end }}
+    {{- end }}
+  {{/* ingress.certManager.enabled implies the frontend TLS: the route serves
+       the Secret the chart Certificate issues into. */}}
+  {{- if or .Values.ingress.tls.enabled .Values.ingress.certManager.enabled }}
+  tls:
+    {{- if or .Values.ingress.tls.secretName .Values.ingress.certManager.enabled }}
+    secretName: {{ include "codx.ingressTlsSecretName" . | quote }}
+    {{- end }}
+    {{- if .Values.ingress.tls.certResolver }}
+    certResolver: {{ .Values.ingress.tls.certResolver | quote }}
+    {{- end }}
+    {{- $tlsOptionName := .Values.ingress.tls.options.name }}
+    {{- if and $mtlsMiddleware (not $tlsOptionName) }}
+    {{- $tlsOptionName = include "codx.traefikMtls.tlsOptionName" . }}
+    {{- end }}
+    {{- if $tlsOptionName }}
+    options:
+      name: {{ $tlsOptionName }}
+      {{- if .Values.ingress.tls.options.namespace }}
+      namespace: {{ .Values.ingress.tls.options.namespace | quote }}
+      {{- end }}
+    {{- end }}
+    {{- $domains := list }}
+    {{- range $hosts }}
+    {{- $domains = append $domains .name }}
+    {{- end }}
+    {{- if $domains }}
+    domains:
+      - main: {{ index $domains 0 | quote }}
+        {{- if gt (len $domains) 1 }}
+        sans: {{- rest $domains | toYaml | nindent 10 }}
+        {{- end }}
+    {{- end }}
+  {{- end }}
+{{- end }}
