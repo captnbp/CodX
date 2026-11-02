@@ -237,24 +237,25 @@ traefikMtls:
 | `TLSOption` | `<fullname>-client-mtls` | Requests and validates the client certificate on the ingress route (`spec.clientAuth`). |
 | `Middleware` | `<fullname>-passtlsclientcert` | Forwards the certificate CN to CodX in `X-Forwarded-Tls-Client-Cert-Info` (`passTLSClientCert`, `pem: false`). |
 
-When `traefikMtls.enabled` is true and `ingress.ingressControllerType` is
-`traefik`, the chart also wires the ingress annotations automatically:
+When `traefikMtls.enabled` is true, the chart also wires the IngressRoute
+automatically:
 
-- appends `<fullname>-passtlsclientcert-<namespace>@kubernetescrd` to
-  `traefik.ingress.kubernetes.io/router.middlewares` (your existing list is
-  preserved);
-- sets `traefik.ingress.kubernetes.io/router.tls.options` to
-  `<fullname>-client-mtls@kubernetescrd`, unless you set it yourself.
+- appends the `<fullname>-passtlsclientcert` Middleware to the route
+  middlewares, after the middlewares from `ingress.middlewares`;
+- applies the `<fullname>-client-mtls` TLSOption on the IngressRoute
+  (`ingress.tls.options`, requires `ingress.tls.enabled`), unless you set it
+  yourself.
 
-Extra middlewares can be added through the `ingress.extraMiddlewares`
-list: they are appended to `router.middlewares` after any user-defined
-middlewares (from `ingress.annotations`) and the chart
-`passTLSClientCert` middleware. Entries are middleware references; the
-`@kubernetescrd` provider suffix is added when missing.
+Middlewares can be added through the `ingress.middlewares` list: each entry
+is a middleware `name` with an optional `namespace` (defaults to the
+release namespace; cross-namespace references require the Traefik
+`allowCrossNamespace` option). They run before the chart
+`passTLSClientCert` middleware.
 
-Both objects are created in the same namespace as the Ingress, so Traefik
-resolves the plain-name references. When enabled, the render fails with an
-explicit error if neither `existingCaSecret` nor `caCertificates` is set.
+Both objects are created in the same namespace as the IngressRoute, so
+Traefik resolves the plain-name references. When enabled, the render fails
+with an explicit error if neither `existingCaSecret` nor `caCertificates`
+is set.
 
 ### Choosing the client CA
 

@@ -9,7 +9,7 @@ Traefik objects for the mTLS admin fallback authentication:
 
 Requires the Traefik CRDs (traefik.io/v1alpha1 Middleware and TLSOption).
 All objects are created in the release namespace, the same namespace as the
-Ingress, so Traefik resolves the plain-name references (name@kubernetescrd).
+IngressRoute, so Traefik resolves the plain-name references.
 */}}
 {{- if .Values.traefikMtls.enabled }}
 {{- $fullname := include "common.names.fullname" . }}

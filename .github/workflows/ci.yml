@@ -142,7 +142,7 @@ jobs:
             --set oidc.clientSecret=secret \
             --set oidc.redirectUrl=https://codx.example.com/auth/callback \
             --set redis.host=valkey:6379 \
-            --set ingress.host=codx.example.com \
+            --set ingress.hostname=codx.example.com \
             > /dev/null
 
       - name: Helm package
