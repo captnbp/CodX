@@ -5,7 +5,7 @@ go 1.27.1
 require (
 	github.com/cert-manager/cert-manager v1.21.2
 	github.com/coreos/go-oidc/v3 v3.21.0
-	github.com/go-jose/go-jose/v4 v4.1.4
+	github.com/go-jose/go-jose/v4 v4.1.6
 	github.com/go-logr/logr v1.4.4
 	github.com/go-logr/zerologr v1.2.3
 	github.com/google/go-cmp v0.7.0
