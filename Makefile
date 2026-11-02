@@ -56,7 +56,9 @@ check-values-docs:
 # the real Mermaid parser (syntax only, no rendering). The node_modules are
 # installed into a throwaway directory so the repository stays free of
 # JavaScript dependencies. Requires node and npm on PATH.
-MERMAID_CHECK_DIR ?= $(shell mktemp -d)
+# ":=" expands mktemp once: a lazy "?=" would run it per reference and the
+# install and the NODE_PATH would point at two different directories.
+MERMAID_CHECK_DIR := $(shell mktemp -d)
 
 .PHONY: check-mermaid
 check-mermaid:
