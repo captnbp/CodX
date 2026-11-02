@@ -994,7 +994,7 @@ profiles:
         runAsGroup: 1000
         fsGroup: 1000
       codeServer:
-        image: docker.io/captnbp/code-server:4.141.0
+        image: docker.io/captnbp/code-server:4.144.0
         securityContext:
           {}
           # allowPrivilegeEscalation: false
