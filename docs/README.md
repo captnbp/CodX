@@ -3,6 +3,9 @@
 - [Authentication](authentication.md) - OIDC login flow, sessions, and the
   mTLS client-certificate fallback for admins (Traefik TLSOption,
   passTLSClientCert Middleware, client CA management).
+- [Ingress exposure](ingress.md) - Traefik IngressRoute, frontend TLS
+  (existing Secret, Traefik ACME resolver or cert-manager certificate),
+  backend ServersTransport and using your own ingress objects.
 - [Workspace creation](workspace-creation.md) - per-user Kubernetes objects
   (Service, PVC, Certificate, Pod), naming, TLS model and workspace
   lifecycle.

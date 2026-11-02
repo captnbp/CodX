@@ -384,6 +384,42 @@ ingress:
   ##     path: /
   ##
   extraHosts: []
+  ## cert-manager Certificate for the IngressRoute frontend TLS. When
+  ## enabled, the chart issues a certificate for ingress.hostname
+  ## (commonName) and every ingress.extraHosts name into the
+  ## <fullname>-ingress-tls Secret, and the IngressRoute frontend TLS is
+  ## enabled with that Secret as tls.secretName (an explicit
+  ## ingress.tls.secretName wins). The Certificate metadata carries
+  ## commonLabels/commonAnnotations in addition to the dedicated ones below.
+  ##
+  certManager:
+    ## @param ingress.certManager.enabled Create a cert-manager Certificate for the IngressRoute frontend TLS (implies ingress.tls.enabled)
+    ##
+    enabled: false
+    ## cert-manager issuer issuing the ingress certificate (e.g. letsencrypt).
+    ##
+    issuerRef:
+      ## @param ingress.certManager.issuerRef.name Name of the cert-manager Issuer/ClusterIssuer issuing the ingress certificate (required when enabled)
+      ##
+      name: ""
+      ## @param ingress.certManager.issuerRef.kind Kind of the issuer resource (Issuer or ClusterIssuer)
+      ##
+      kind: "ClusterIssuer"
+      ## @param ingress.certManager.issuerRef.group Group of the issuer resource
+      ##
+      group: "cert-manager.io"
+    ## @param ingress.certManager.labels Additional labels for the Certificate (in addition to commonLabels)
+    ## e.g:
+    ## labels:
+    ##   cert-manager.io/cluster-issuer: letsencrypt
+    ##
+    labels: {}
+    ## @param ingress.certManager.annotations Additional annotations for the Certificate (in addition to commonAnnotations)
+    ## e.g:
+    ## annotations:
+    ##   cert-manager.io/issue-priority: "1"
+    ##
+    annotations: {}
 
 ## @section RBAC parameter
 ## Specifies whether a ServiceAccount should be created

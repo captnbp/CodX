@@ -8,32 +8,26 @@ mTLS fallback, and the security model.
 
 ## Overview
 
-```
-                    +-----------------------+        +---------------------+
-  Browser           |  Traefik ingress      |        |  OIDC provider      |
-  (no client cert)  |  TLSOption (optional) |        |  (e.g. Forgejo)     |
-       -------------|                       |--------|                     |
-       |            |  passTLSClientCert    |        +---------------------+
-       |            |  Middleware           |
-       |            +-----------+-----------+
-       |                        |
-       |            +-----------v-----------+
-       +----------->|  CodX server           |
-                    |  /auth/login          |  OIDC flow
-                    |  /auth/callback        |
-                    |  session middleware    |  mTLS fallback (admins)
-                    +-----------+-----------+
-                                |
-                    +-----------v-----------+
-                    |  Redis/Valkey          |
-                    |  session store         |
-                    +-----------------------+
+```mermaid
+flowchart LR
+    Browser["Browser<br/>(no client cert)"]
+    Admin["Admin browser<br/>(client cert)"]
+    Traefik["Traefik ingress<br/>TLSOption (optional)<br/>passTLSClientCert Middleware"]
+    CodX["CodX server<br/>/auth/login, /auth/callback<br/>session middleware"]
+    OIDC["OIDC provider<br/>(e.g. Forgejo)"]
+    Store[("Redis/Valkey<br/>session store")]
 
-  Admin browser     Traefik validates the client certificate against the
-  (client cert)     TLSOption CA, forwards the Common Name in the
-                    X-Forwarded-Tls-Client-Cert-Info header, and CodX grants
-                    an admin session if the CN is in the allow list.
+    Browser --> Traefik
+    Admin -->|mTLS fallback: admins| Traefik
+    Traefik --> CodX
+    CodX -->|OIDC flow| OIDC
+    CodX --> Store
 ```
+
+On the mTLS fallback, Traefik validates the client certificate against the
+TLSOption CA, forwards the Common Name in the
+`X-Forwarded-Tls-Client-Cert-Info` header, and CodX grants an admin session
+if the CN is in the allow list.
 
 Both mechanisms produce the same artifact: a session stored in Redis/Valkey
 and referenced by the `codx-session` cookie.

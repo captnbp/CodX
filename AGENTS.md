@@ -26,6 +26,8 @@ for the ground rules and [docs/](docs/) for the feature documentation.
 ## Language and style
 
 - **English everywhere**: code, comments, commit messages, docs, chart values.
+- Diagrams in Markdown docs are Mermaid (` ```mermaid ` fenced blocks), not
+  ASCII art.
 - `gofmt` clean; comments explain *why*, not *what*; minimal diffs that match
   the surrounding style.
 - Conventional commits (`feat:`, `fix:`, `docs:`, `chore:`), as used in the

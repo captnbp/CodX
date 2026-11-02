@@ -1,0 +1,43 @@
+{{/*
+cert-manager Certificate for the IngressRoute frontend TLS (between Traefik
+and the clients). Independent from the chart internal TLS (tls.enabled),
+which covers the service certificate, not the public hostname.
+
+Issued for ingress.hostname (commonName) and every ingress.extraHosts name,
+stored in the Secret the IngressRoute references as tls.secretName (defaults
+to <fullname>-ingress-tls).
+*/}}
+{{- if and .Values.ingress.enabled .Values.ingress.certManager.enabled }}
+{{- $fullname := include "common.names.fullname" . }}
+{{- $hostname := required "ingress.hostname is required when ingress.certManager.enabled is true" .Values.ingress.hostname }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ $fullname }}-ingress
+  namespace: {{ include "common.names.namespace" . | quote }}
+  labels: {{- include "common.labels.standard" . | nindent 4 }}
+    app.kubernetes.io/component: codx
+    {{- if .Values.commonLabels }}
+    {{- include "common.tplvalues.render" ( dict "value" .Values.commonLabels "context" $ ) | nindent 4 }}
+    {{- end }}
+    {{- if .Values.ingress.certManager.labels }}
+    {{- include "common.tplvalues.render" ( dict "value" .Values.ingress.certManager.labels "context" $ ) | nindent 4 }}
+    {{- end }}
+  {{- if or .Values.ingress.certManager.annotations .Values.commonAnnotations }}
+  annotations: {{- include "common.tplvalues.merge" ( dict "values" ( list .Values.ingress.certManager.annotations .Values.commonAnnotations ) "context" $ ) | nindent 4 }}
+  {{- end }}
+spec:
+  secretName: {{ include "codx.ingressTlsSecretName" . }}
+  commonName: {{ $hostname | quote }}
+  dnsNames:
+    - {{ $hostname | quote }}
+    {{- range .Values.ingress.extraHosts }}
+    - {{ .name | quote }}
+    {{- end }}
+  usages:
+    - server auth
+  issuerRef:
+    name: {{ required "ingress.certManager.issuerRef.name is required when ingress.certManager.enabled is true" .Values.ingress.certManager.issuerRef.name }}
+    kind: {{ .Values.ingress.certManager.issuerRef.kind | quote }}
+    group: {{ .Values.ingress.certManager.issuerRef.group | quote }}
+{{- end }}

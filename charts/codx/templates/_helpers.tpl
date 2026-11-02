@@ -47,6 +47,14 @@ Return the TLS secret name
 {{- end -}}
 
 {{/*
+Ingress frontend TLS Secret name. Defaults to <fullname>-ingress-tls, the
+Secret the chart Certificate (ingress.certManager.enabled) issues into.
+*/}}
+{{- define "codx.ingressTlsSecretName" -}}
+{{- .Values.ingress.tls.secretName | default (printf "%s-ingress-tls" (include "common.names.fullname" .)) -}}
+{{- end -}}
+
+{{/*
 Instance name: defaults to release name, used in workspace object names.
 */}}
 {{- define "codx.instanceName" -}}

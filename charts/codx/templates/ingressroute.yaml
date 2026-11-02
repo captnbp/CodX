@@ -55,10 +55,12 @@ spec:
           serversTransport: {{ $fullname }}
           {{- end }}
     {{- end }}
-  {{- if .Values.ingress.tls.enabled }}
+  {{/* ingress.certManager.enabled implies the frontend TLS: the route serves
+       the Secret the chart Certificate issues into. */}}
+  {{- if or .Values.ingress.tls.enabled .Values.ingress.certManager.enabled }}
   tls:
-    {{- if .Values.ingress.tls.secretName }}
-    secretName: {{ .Values.ingress.tls.secretName | quote }}
+    {{- if or .Values.ingress.tls.secretName .Values.ingress.certManager.enabled }}
+    secretName: {{ include "codx.ingressTlsSecretName" . | quote }}
     {{- end }}
     {{- if .Values.ingress.tls.certResolver }}
     certResolver: {{ .Values.ingress.tls.certResolver | quote }}
