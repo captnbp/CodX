@@ -58,7 +58,7 @@ gofmt -l internal/ cmd/ api/        # empty output = clean
 ### SAST (gosec) - security-sensitive or Go changes
 
 ```sh
-go install github.com/securego/gosec/v2/cmd/gosec@v2.29.0   # version pinned in CI
+go install github.com/securego/gosec/v2/cmd/gosec@v2.30.0   # version pinned in CI
 "$(go env GOPATH)/bin/gosec" -fmt=sarif -out=results.sarif ./...   # exit 0 = clean
 ```
 
@@ -117,7 +117,7 @@ A change is only done when these pass - they mirror the local commands above:
 
 - **go**: `go vet` + `go test -race` with coverage
 - **lint**: golangci-lint
-- **security**: gosec v2.29.0, SARIF uploaded to code scanning (needs
+- **security**: gosec v2.30.0, SARIF uploaded to code scanning (needs
   `security-events: write` + `actions: read`)
 - **helm**: dependency update, lint, template render check, package, OCI push
   + cosign sign

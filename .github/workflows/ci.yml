@@ -88,7 +88,7 @@ jobs:
           cache: true
 
       - name: Install gosec
-        run: go install github.com/securego/gosec/v2/cmd/gosec@v2.29.0
+        run: go install github.com/securego/gosec/v2/cmd/gosec@v2.30.0
 
       # Note: do not use -quiet here: it suppresses the report output
       # entirely, including the -out SARIF file (the file is then never
