@@ -108,6 +108,17 @@ make check-values-docs
 - When the CRD (`charts/codx/crds/`) changes, regenerate the docs with
   `make docs-crd`.
 
+### Docs (Markdown changes)
+
+```sh
+make check-mermaid
+```
+
+- Validates the syntax of every ` ```mermaid ` block in the Markdown files
+  with the real Mermaid parser (`hack/check_mermaid.mjs`, Node + jsdom, no
+  browser). Diagrams in docs are Mermaid, never ASCII art. The node_modules
+  are installed into a throwaway directory, not the repository.
+
 ### Workflows (changes under `.github/`)
 
 Validate the YAML parses (`python3 -c "import yaml; yaml.safe_load(open(...))"`)
@@ -126,6 +137,7 @@ A change is only done when these pass - they mirror the local commands above:
 - **docker**: amd64 build -> Trivy CVE gate (HIGH/CRITICAL, ignore-unfixed)
   -> CycloneDX SBOM (artifact + cosign attest) -> multi-arch build/push ->
   cosign sign. The image is scanned **before** it is pushed.
+- **docs**: Mermaid diagram syntax check (`make check-mermaid`).
 
 Pull requests are reviewed by the code owners (`.github/CODEOWNERS`).
 

@@ -105,6 +105,20 @@ jobs:
         with:
           sarif_file: results.sarif
 
+  # -- Markdown docs: Mermaid diagram syntax --
+  # Uses the Node.js preinstalled on the runner (the check needs >= 20.11).
+  docs:
+    name: Docs (Mermaid)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Check Mermaid diagrams
+        run: make check-mermaid
+
   # -- Helm lint & package --
   helm:
     name: Helm lint
