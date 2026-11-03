@@ -226,7 +226,6 @@ jobs:
             type=ref,event=branch
             type=ref,event=pr
             type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
             type=sha,prefix=sha-
 
       # Build a single-arch image for the CVE scan: the image is scanned
@@ -269,6 +268,7 @@ jobs:
           path: sbom.cyclonedx.json
 
       - name: Build and push
+        id: build
         uses: docker/build-push-action@v7
         with:
           context: .
@@ -283,14 +283,17 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: sigstore/cosign-installer@v4.1.0
 
-      - name: Sign images with cosign
+      # Sign the image once per digest: every tag of this build points at
+      # the same manifest and the signature is stored against the digest, so
+      # signing each tag separately only duplicates the work - and the
+      # attestations collide in Rekor with 409 createLogEntryConflict.
+      - name: Sign image with cosign
         if: github.event_name != 'pull_request'
         env:
-          TAGS: ${{ steps.meta.outputs.tags }}
+          DIGEST: ${{ steps.build.outputs.digest }}
         run: |
-          echo "$TAGS" | while read -r image; do
-            cosign sign --yes "$image"
-          done
+          image="${REGISTRY}/${IMAGE_NAME,,}@${DIGEST}"
+          cosign sign --yes "$image"
 
       # Attach the SBOM to the pushed image as a cosign attestation, so the
       # SBOM travels with the image in the registry (verifiable with
@@ -299,8 +302,7 @@ jobs:
       - name: Attach SBOM to the image (cosign attest)
         if: github.event_name != 'pull_request'
         env:
-          TAGS: ${{ steps.meta.outputs.tags }}
+          DIGEST: ${{ steps.build.outputs.digest }}
         run: |
-          echo "$TAGS" | while read -r image; do
-            cosign attest --yes --type cyclonedx --predicate sbom.cyclonedx.json "$image"
-          done
+          image="${REGISTRY}/${IMAGE_NAME,,}@${DIGEST}"
+          cosign attest --yes --type cyclonedx --predicate sbom.cyclonedx.json "$image"
